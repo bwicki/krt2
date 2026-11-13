@@ -35,7 +35,7 @@ nav.main a.later{color:var(--muted)}
 .logo img{height:44px;width:auto}
 .ver{font-family:var(--mono);font-size:12px;color:var(--muted)}
 
-main{max-width:1240px;margin:0 auto;padding:20px 28px 110px;display:flex;flex-direction:column;gap:16px}
+main{max-width:1240px;margin:0 auto;padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px}
 main.wide{max-width:none}
 h1{font-size:22px;margin:0}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;min-width:0}
@@ -129,6 +129,9 @@ td select.svc{min-width:84px}
 .left-item:first-of-type{border-top:0}
 .bar-actions{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;align-items:center;padding:12px 28px;background:rgba(255,255,255,.96);border-top:1px solid var(--border);box-shadow:0 -4px 14px rgba(20,32,46,.06)}
 .bar-actions .status{margin-right:auto;font-size:14px;color:var(--muted)}
+.ed-main{display:flex;flex-direction:column;gap:10px;min-width:0}
+.ed-actions{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.ed-actions .status{font-size:14px;color:var(--muted)}
 
 /* Einstellungen */
 .alloc{display:flex;height:38px;border-radius:8px;overflow:hidden;border:1px solid var(--border);font-size:12px}

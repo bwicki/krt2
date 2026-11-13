@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.1';
+  const VERSION = '0.3.2';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', d: '', cc: '' }, sort: { by: 'nr', dir: 1 } };
@@ -252,16 +252,17 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <span class="small muted">${t('ed_ad')}</span><div class="seg"><button type="button" data-act="allmode" data-v="icao" aria-pressed="false">${t('ed_all_icao')}</button><button type="button" data-act="allmode" data-v="kurz" aria-pressed="false">${t('ed_all_short')}</button></div>
 </div>
 <div class="ed-layout">
-  <section class="card flush"><table class="grid" id="edt"><thead id="edhead">${edHead()}</thead><tbody id="edbody"></tbody></table></section>
+  <div class="ed-main"><div class="ed-actions"><span class="status" id="edstatus"></span>
+    <div class="row" style="gap:8px">
+    <button type="button" class="sec" disabled title="${esc(t('ed_later04'))}">${t('ed_compare')}</button>
+    <button type="button" class="sec" data-act="load">${t('ed_load')}</button>
+    <button type="button" class="sec" data-act="csv">${t('ed_csv')}</button>
+    <button type="button" class="${API.enabled ? 'sec' : ''}" data-act="saveas">${t('ed_saveas')}</button>
+    ${API.enabled ? `<button type="button" data-act="srvsave">${esc(saveLabel())}</button>` : ''}
+    <button type="button" disabled title="${esc(t('ed_later04'))}">${t('ed_program')}</button></div></div>
+  <section class="card flush"><table class="grid" id="edt"><thead id="edhead">${edHead()}</thead><tbody id="edbody"></tbody></table></section></div>
   <aside><section class="card" id="issues"></section><section class="card" id="left"></section></aside>
 </div>`;
-    $('#bar').innerHTML = `<div class="bar-actions"><span class="status" id="edstatus"></span>
-  <button type="button" class="sec" disabled title="${esc(t('ed_later04'))}">${t('ed_compare')}</button>
-  <button type="button" class="sec" data-act="load">${t('ed_load')}</button>
-  <button type="button" class="sec" data-act="csv">${t('ed_csv')}</button>
-  <button type="button" class="${API.enabled ? 'sec' : ''}" data-act="saveas">${t('ed_saveas')}</button>
-  ${API.enabled ? `<button type="button" data-act="srvsave">${esc(saveLabel())}</button>` : ''}
-  <button type="button" disabled title="${esc(t('ed_later04'))}">${t('ed_program')}</button></div>`;
     $('#qe').addEventListener('input', e => { ui.q = e.target.value; edRefresh(); });
     edRefresh();
   }
@@ -647,7 +648,7 @@ ${footerNote()}`;
       title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
       sub = t('a6_draft') + ' · ' + fmtDT(new Date());
     }
-    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${starts.has(d.nr) && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${esc(String(d.name).trimEnd())}</span><b>${esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
+    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${starts.has(d.nr) && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
     const page = (p) => `<div class="a6" role="img" aria-label="${esc(t('a6_title'))} ${p + 1}/2">
   <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · ${t('a6_slots', { a: pad2(p * 50), b: pad2(p * 50 + 49) })} · ${p + 1}/2 · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
   <div class="cols">${[0, 1].map(c => `<div>${D.slice(p * 50 + c * 25, p * 50 + c * 25 + 25).map(row).join('')}</div>`).join('')}</div>
