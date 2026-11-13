@@ -1,12 +1,13 @@
 /* krt2.wicki.aero – App-Oberfläche 0.1.0: Aktuell, Editor, Einstellungen, A6-Karte. Entwurf lokal im Browser. */
 (function () {
   'use strict';
-  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE;
+  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.1.0';
+  const VERSION = '0.2.0';
   const LS = 'krt2.draft';
 
-  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false };
+  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null };
+  try { ui.deviceSel = localStorage.getItem('krt2.device'); } catch (e) { /* egal */ }
   const msgs = [];
   let cfg = loadDraft() || S.sampleConfig();
 
@@ -20,8 +21,9 @@
   const stamp = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()); };
   const slug = s => (String(s || 'krt2').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'krt2');
 
-  function saveDraft() {
+  function saveDraft(clean) {
     cfg.updated = new Date().toISOString();
+    cfg.dirty = !clean;
     try { localStorage.setItem(LS, M.toJSON(cfg)); }
     catch (e) { if (!ui.storageWarned) { ui.storageWarned = true; msg(t('m_storage'), 'warn'); } }
   }
@@ -59,8 +61,13 @@
   }
 
   // ---------- Gerüst ----------
-  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte'];
-  const NAV = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet', '0.3.0'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', '0.2.0'], ['einstellungen', 'nav_einst']];
+  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten'];
+  const isSuper = () => !!(API.user && API.user.role === 'super');
+  function nav() {
+    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet', '0.3.0'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
+    if (isSuper()) n.push(['konten', 'nav_konten']);
+    return n;
+  }
   function route() { const r = location.hash.replace(/^#\/?/, '').split('?')[0]; return ROUTES.includes(r) ? r : 'aktuell'; }
 
   function shell(r) {
@@ -68,11 +75,13 @@
     $('#app').innerHTML = `
 <header class="top">
   <div class="brand"><strong>${t('title')}</strong>
-    <nav class="main" aria-label="Navigation">${NAV.map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : ''}>${t(l)}</a>`).join('')}</nav>
+    <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : ''}>${t(l)}</a>`).join('')}</nav>
   </div>
   <div class="top-right">
     <div class="seg" role="group" aria-label="Sprache / language"><button type="button" data-act="lang" data-v="de" aria-pressed="${I.lang === 'de'}">DE</button><button type="button" data-act="lang" data-v="en" aria-pressed="${I.lang === 'en'}">EN</button></div>
-    <button type="button" class="sec" disabled title="${esc(t('login_later'))}">${t('login')}</button>
+    ${!API.enabled ? `<button type="button" class="sec" disabled title="${esc(t('login_off'))}">${t('login')}</button>`
+      : API.user ? `<button type="button" class="sec" data-act="account" title="${esc(API.user.name || '')}">${esc(API.user.login)} ▾</button>`
+      : `<button type="button" class="sec" data-act="login">${t('login')}</button>`}
     <div class="logo"><img src="./img/logo.png" alt="Wicki Partners Ballonteam"><span class="ver">${VERSION}</span></div>
   </div>
 </header>
@@ -87,50 +96,125 @@
   function render() {
     const r = route();
     shell(r);
-    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => pageLater('0.3.0', 'later_gebiet'), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: () => pageLater('0.2.0', 'later_konfig') })[r]();
+    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => pageLater('0.3.0', 'later_gebiet'), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten })[r]();
   }
 
   function footerNote() {
-    return `<p class="note">${t('disclaimer')} · <a href="./LICENSE">${t('legal')}</a> · <a href="./test.html">${t('testlink')}</a></p>`;
+    return `<p class="note">${t('disclaimer')} · <a href="./LICENSE">Legal Mambojumbo</a> · <a href="./test.html">${t('testlink')}</a></p>`;
   }
 
   // ---------- Aktuell ----------
-  function pageAktuell() {
-    const L = M.layout(cfg);
-    $('#page').innerHTML = `
-<section class="card spread">
-  <div class="stack"><span class="label">${t('cur_config')}</span>
-    <div class="row"><strong style="font-size:20px">«${esc(cfg.name || '–')}»</strong><span class="badge y">${t('cur_draft')}</span></div>
-    <span class="small muted">${t('cur_draft_note')}</span></div>
-  <div class="stack"><span class="label">${t('cur_data')}</span><span>${esc(fmtDate(cfg.datenStand))}${cfg.standort && cfg.standort.name ? ' · ' + esc(cfg.standort.name) : ''}</span></div>
-  <div class="row"><a class="btn" href="#karte">${t('cur_print')}</a><button type="button" class="sec" disabled title="${esc(t('cur_read_later'))}">${t('cur_read')}</button></div>
-</section>
-<div class="row"><label for="q" class="muted">${t('cur_search')}</label><input id="q" type="search" class="search" placeholder="${esc(t('cur_search_ph'))}" value="${esc(ui.curQ)}">${cfg.beispiel ? `<span class="small muted">${t('sample_note')}</span>` : ''}</div>
-<section class="card flush"><table class="grid cur-table"><thead><tr><th style="width:64px">${t('col_nr')}</th><th style="width:130px">${t('col_k')}</th><th style="width:110px">${t('col_f')}</th><th>${t('col_t')}</th><th style="width:110px">${t('col_d')}</th></tr></thead><tbody id="curbody"></tbody></table></section>
-${footerNote()}`;
-    const fill = () => { $('#curbody').innerHTML = curRows(L, ui.curQ); };
-    fill();
-    $('#q').addEventListener('input', e => { ui.curQ = e.target.value; fill(); });
+  /** Gruppen für die Anzeige: [{ name, rg, rows:[{nr,kurz,ch,klar,dienst}], free }] – aus dem Entwurf oder aus dem Gerät. */
+  function groupsFromLayout(L) {
+    const g = [];
+    if (L.slots[0].kind === 'fixed') g.push({ name: t('blk_fixed'), rg: '00', rows: [L.slots[0]] });
+    for (const r of L.ranges) g.push({ name: r.name, rg: range(r.from, r.to), rows: L.slots.slice(r.from, r.to + 1) });
+    const frees = L.slots.filter(x => x.kind === 'free' && x.nr < 99);
+    if (frees.length) g.push({ name: t('blk_free'), rg: range(frees[0].nr, frees[frees.length - 1].nr), rows: frees, free: true });
+    if (L.slots[99].kind === 'fixed') g.push({ name: t('blk_emerg'), rg: '99', rows: [L.slots[99]] });
+    else g.push({ name: t('blk_free'), rg: '99', rows: [L.slots[99]], free: true });
+    return g;
+  }
+  function groupsFromDevice(pl) {
+    const g = [];
+    const rows = pl.map(p => ({ nr: p.nr, kurz: (p.name || '').trimEnd(), ch: p.ch, klar: p.klar || '', dienst: p.dienst || '', block: p.block || '', kind: p.kind || '' }));
+    const freeOf = r => r.kind === 'free' || (!r.kind && r.kurz === 'FREE');
+    for (const r of rows) {
+      const name = r.nr === 0 && r.kind !== 'entry' && !r.block ? t('blk_fixed') : r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : (r.block || '–');
+      const last = g[g.length - 1];
+      if (last && last.name === name) last.rows.push(r); else g.push({ name, rows: [r], free: freeOf(r) });
+    }
+    g.forEach(x => { x.rg = range(x.rows[0].nr, x.rows[x.rows.length - 1].nr); });
+    return g;
   }
 
-  function curRows(L, q) {
+  function pageAktuell() {
+    const dev = ui.device && ui.device.id === ui.deviceSel ? ui.device : null;
+    const prog = dev && dev.aktuell && dev.aktuell.plaetze ? dev.aktuell : null;
+    const groups = prog ? groupsFromDevice(prog.plaetze) : groupsFromLayout(M.layout(cfg));
+    const head = prog
+      ? `<div class="stack"><span class="label">${t('cur_device')}</span><div class="row"><strong style="font-size:20px">${esc(dev.bezeichnung)}</strong><span class="badge g">${t(prog.herkunft === 'ausgelesen' ? 'cur_read_from' : 'cur_programmed')}</span></div>
+          <span class="small muted">${prog.configName ? '«' + esc(prog.configName) + '»' + (prog.version ? ' v' + prog.version : '') + ' · ' : ''}${esc(fmtDT(new Date(prog.zeit)))} · ${esc(dev.owner.name || dev.owner.login)}</span></div>`
+      : `<div class="stack"><span class="label">${t('cur_config')}</span><div class="row"><strong style="font-size:20px">«${esc(cfg.name || '–')}»</strong><span class="badge y">${t('cur_draft')}</span></div>
+          <span class="small muted">${dev ? esc(t('cur_dev_none', { d: dev.bezeichnung })) : t('cur_draft_note')}</span></div>`;
+    const devList = API.enabled ? `<section class="card stack" aria-label="${esc(t('cur_devices'))}"><span class="label">${t('cur_devices')}</span><div id="devlist" class="row" style="gap:8px">${devChips()}</div></section>` : '';
+    $('#page').innerHTML = `${devList}
+<section class="card spread">
+  ${head}
+  ${!prog ? `<div class="stack"><span class="label">${t('cur_data')}</span><span>${esc(fmtDate(cfg.datenStand))}${cfg.standort && cfg.standort.name ? ' · ' + esc(cfg.standort.name) : ''}</span></div>` : ''}
+  <div class="row"><a class="btn" href="#karte">${t('cur_print')}</a><button type="button" class="sec" disabled title="${esc(t('cur_read_later'))}">${t('cur_read')}</button></div>
+</section>
+<div class="row"><label for="q" class="muted">${t('cur_search')}</label><input id="q" type="search" class="search" placeholder="${esc(t('cur_search_ph'))}" value="${esc(ui.curQ)}">${!prog && cfg.beispiel ? `<span class="small muted">${t('sample_note')}</span>` : ''}</div>
+<section class="card flush"><table class="grid cur-table"><thead><tr><th style="width:64px">${t('col_nr')}</th><th style="width:130px">${t('col_k')}</th><th style="width:110px">${t('col_f')}</th><th>${t('col_t')}</th><th style="width:110px">${t('col_d')}</th></tr></thead><tbody id="curbody"></tbody></table></section>
+${footerNote()}`;
+    const fill = () => { $('#curbody').innerHTML = curRows(groups, ui.curQ); };
+    fill();
+    $('#q').addEventListener('input', e => { ui.curQ = e.target.value; fill(); });
+    if (API.enabled && ui.devices === null) loadDevices();
+  }
+
+  function devChips() {
+    if (ui.devices === null) return `<span class="small muted">…</span>`;
+    if (ui.devices === false) return `<span class="small muted">${t('cur_dev_err')}</span>`;
+    const chip = (id, label, sub) => `<button type="button" class="chip" data-act="devsel" data-v="${esc(id)}" aria-pressed="${(ui.deviceSel || '') === id}" style="text-align:left">${label}${sub ? `<br><span class="small" style="opacity:.8">${sub}</span>` : ''}</button>`;
+    return chip('', `<b>${t('cur_draft')}</b>`, esc(cfg.name || '–')) + ui.devices.map(d => chip(d.id, `<b>${esc(d.bezeichnung)}</b> · ${esc(d.owner.name || d.owner.login)}`,
+      d.aktuell ? esc((d.aktuell.configName ? '«' + d.aktuell.configName + '»' + (d.aktuell.version ? ' v' + d.aktuell.version : '') + ' · ' : '') + fmtDate(d.aktuell.zeit)) : esc(t('cur_dev_noprog')))).join('');
+  }
+  async function loadDevices() {
+    try { ui.devices = await API.devices(); } catch (e) { ui.devices = false; msg(t('m_api_err', { e: e.message }), 'err'); }
+    if (ui.deviceSel && ui.devices && !ui.devices.find(d => d.id === ui.deviceSel)) ui.deviceSel = null;
+    if (ui.deviceSel) await loadDevice(ui.deviceSel); else if (route() === 'aktuell') pageAktuell();
+  }
+  async function loadDevice(id) {
+    try { ui.device = await API.device(id); } catch (e) { ui.device = null; msg(t('m_api_err', { e: e.message }), 'err'); }
+    if (route() === 'aktuell' || route() === 'karte') render();
+  }
+
+  function curRows(groups, q) {
     const s = q.trim().toUpperCase().replace(',', '.');
     const hit = x => !s || [x.kurz, x.ch, x.klar, x.dienst].some(v => String(v || '').toUpperCase().includes(s));
     const row = x => `<tr><td class="nr">${pad2(x.nr)}</td><td class="k">${esc(x.kurz)}</td><td class="f">${esc(x.ch)}</td><td>${esc(x.klar)}</td><td class="small muted">${esc(x.dienst || (x.kind === 'fixed' ? t('fest') : '–'))}</td></tr>`;
     const head = (name, rg) => `<tr class="head"><td colspan="5"><b>${esc(name)}</b> <span class="small muted">${rg}</span></td></tr>`;
     let h = '', n = 0;
-    const grp = (name, rg, list) => { const v = list.filter(hit); if (v.length) { h += head(name, rg) + v.map(row).join(''); n += v.length; } };
-    if (L.slots[0].kind === 'fixed') grp(t('blk_fixed'), '00', [L.slots[0]]);
-    for (const r of L.ranges) grp(r.name, range(r.from, r.to), L.slots.slice(r.from, r.to + 1));
-    const frees = L.slots.filter(x => x.kind === 'free');
-    if (frees.length && (!s || hit(frees[0]))) {
-      h += head(t('blk_free'), range(frees[0].nr, frees[frees.length - 1].nr)) + `<tr><td class="nr">${range(frees[0].nr, frees[frees.length - 1].nr)}</td><td class="k">${esc(frees[0].kurz)}</td><td class="f">${esc(frees[0].ch)}</td><td class="muted" colspan="2">${t('cur_free_rows', { n: frees.length, ch: frees[0].ch, k: frees[0].kurz })}</td></tr>`; n++;
+    for (const g of groups) {
+      if (g.free && g.rows.length > 1) {
+        const f = g.rows[0];
+        if (s && !hit(f)) continue;
+        h += head(g.name, g.rg) + `<tr><td class="nr">${g.rg}</td><td class="k">${esc(f.kurz)}</td><td class="f">${esc(f.ch)}</td><td class="muted" colspan="2">${t('cur_free_rows', { n: g.rows.length, ch: f.ch, k: f.kurz })}</td></tr>`; n++;
+        continue;
+      }
+      const v = g.rows.filter(hit);
+      if (v.length) { h += head(g.name, g.rg) + v.map(row).join(''); n += v.length; }
     }
-    if (L.slots[99].kind === 'fixed') grp(t('blk_emerg'), '99', [L.slots[99]]);
     return n ? h : `<tr><td colspan="5" class="muted">${t('cur_none')}</td></tr>`;
   }
 
   // ---------- Editor ----------
+  const ownCfg = () => !!(cfg.server && API.user && cfg.server.owner && cfg.server.owner.id === API.user.id);
+  function saveState() {
+    if (!cfg.server) return t('ed_unsaved');
+    const who = cfg.server.owner && !ownCfg() ? ' · ' + (cfg.server.owner.name || cfg.server.owner.login) : '';
+    return `v${cfg.server.version}${who} · ` + (cfg.dirty ? t('ed_changed') : t('ed_saved'));
+  }
+  function saveLabel() { return !API.user ? t('ed_srv_login') : ownCfg() ? t('ed_srv_save', { v: cfg.server.version + 1 }) : cfg.server ? t('ed_srv_copy') : t('ed_srv_new'); }
+  /** Konfiguration aus dem Server in den Entwurf übernehmen. */
+  function adopt(c) {
+    cfg = M.fromJSON(c.data);
+    cfg.name = c.name; cfg.server = { id: c.id, version: c.version, owner: c.owner }; delete cfg.beispiel;
+    saveDraft(true);
+  }
+  function cfgData() { const d = JSON.parse(M.toJSON(cfg)); delete d.server; delete d.dirty; return d; }
+  async function srvSave() {
+    if (!API.user) { await loginDialog(); if (!API.user) return; }
+    const name = (cfg.name || '').trim();
+    if (!name) { msg(t('m_need_name'), 'warn'); const el = $('#cname'); if (el) el.focus(); return; }
+    try {
+      const c = ownCfg() ? await API.saveConfig(cfg.server.id, name, cfgData(), cfg.server.version) : await API.createConfig(name, cfgData());
+      adopt(c); msg(t('m_srv_saved', { n: c.name, v: c.version }), 'ok');
+    } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); }
+    if (route() === 'editor') pageEditor(); else render();
+  }
+
   function pageEditor() {
     const on = cfg.bloecke.filter(b => b.on);
     const chip = (v, label) => `<button type="button" class="chip" data-act="filter" data-v="${esc(v)}" aria-pressed="${ui.filter === v}">${esc(label)}</button>`;
@@ -138,7 +222,7 @@ ${footerNote()}`;
     $('#page').className = 'wide';
     $('#page').innerHTML = `
 <div class="spread">
-  <div class="stack"><div class="row"><label class="sr" for="cname">${t('ed_name_ph')}</label><input id="cname" type="text" data-act="cname" value="${esc(cfg.name)}" placeholder="${esc(t('ed_name_ph'))}" style="font-size:20px;font-weight:600;min-width:280px"><span class="badge">${t('ed_unsaved')}</span></div>
+  <div class="stack"><div class="row"><label class="sr" for="cname">${t('ed_name_ph')}</label><input id="cname" type="text" data-act="cname" value="${esc(cfg.name)}" placeholder="${esc(t('ed_name_ph'))}" style="font-size:20px;font-weight:600;min-width:280px"><span class="badge${cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''}" id="savestate">${esc(saveState())}</span></div>
     <span class="small muted">${esc(area)}</span></div>
   <div class="row"><button type="button" class="sec" data-act="new">${t('ed_new')}</button><button type="button" class="sec" data-act="sample">${t('ed_sample')}</button></div>
 </div>
@@ -159,7 +243,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <button type="button" class="sec" disabled title="${esc(t('ed_later04'))}">${t('ed_compare')}</button>
   <button type="button" class="sec" data-act="load">${t('ed_load')}</button>
   <button type="button" class="sec" data-act="csv">${t('ed_csv')}</button>
-  <button type="button" data-act="saveas">${t('ed_saveas')}</button>
+  <button type="button" class="${API.enabled ? 'sec' : ''}" data-act="saveas">${t('ed_saveas')}</button>
+  ${API.enabled ? `<button type="button" data-act="srvsave">${esc(saveLabel())}</button>` : ''}
   <button type="button" disabled title="${esc(t('ed_later04'))}">${t('ed_program')}</button></div>`;
     $('#qe').addEventListener('input', e => { ui.q = e.target.value; edRefresh(); });
     edRefresh();
@@ -208,6 +293,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     $('#left').innerHTML = `<div class="label" style="margin-bottom:6px">${t('ed_left')}</div>` + (L.notPlaced.length ? L.notPlaced.map(x =>
       `<div class="left-item"><span><span class="mono" style="font-weight:600">${esc(x.e.ch)}</span> ${esc(x.e.klar || M.entryShort(x.e))}<br><span class="small muted">${t('why_' + x.why)}</span></span>` +
       (x.why === 'blockAus' || x.why === 'ohneBlock' ? `<button type="button" class="sec" data-act="bring" data-id="${x.e.id}">${t('ed_bring')}</button>` : '') + `</div>`).join('') : `<p class="note">${t('ed_left_none')}</p>`);
+    const sb = $('#savestate'); if (sb) { sb.textContent = saveState(); sb.className = 'badge' + (cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''); }
     $('#edstatus').textContent = t('ed_status', { used: L.used + (cfg.fixed.p99.on ? 1 : 0), r: R.count.r, y: R.count.y });
   }
 
@@ -292,8 +378,9 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       msg(t('st_applied', { n, m: b.dataset.v === 'icao' ? t('st_adloc_icao') : t('st_adloc_short') }), 'ok'); afterChange(edRefresh); return;
     }
     if (act === 'e99') { ev.preventDefault(); await toggle99(); edRefresh(); return; }
-    if (act === 'new') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = M.defaultConfig(); saveDraft(); msg(t('m_new'), 'ok'); render(); } return; }
-    if (act === 'sample') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = S.sampleConfig(); saveDraft(); msg(t('m_sample'), 'ok'); render(); } return; }
+    if (act === 'new') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = M.defaultConfig(); saveDraft(true); msg(t('m_new'), 'ok'); render(); } return; }
+    if (act === 'sample') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = S.sampleConfig(); saveDraft(true); msg(t('m_sample'), 'ok'); render(); } return; }
+    if (act === 'srvsave') { srvSave(); return; }
     if (act === 'saveas') { download(`krt2_${slug(cfg.name)}_${stamp()}.json`, M.toJSON(cfg)); return; }
     if (act === 'csv') { download(`krt2_${slug(cfg.name)}_${stamp()}.csv`, '﻿' + M.toCSV(cfg), 'text/csv;charset=utf-8'); return; }
     if (act === 'load') { $('#file').click(); return; }
@@ -301,7 +388,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 
   function onEditorChange(ev) {
     const el = ev.target;
-    if (el.id === 'cname') { cfg.name = el.value.trim(); saveDraft(); return; }
+    if (el.id === 'cname') { cfg.name = el.value.trim(); saveDraft(); const b = $('#savestate'); if (b) { b.textContent = saveState(); b.className = 'badge' + (cfg.server ? ' y' : ''); } return; }
     if (el.id === 'file') return;
     const f = el.dataset.f; if (!f) return;
     const e = entryOf(el); if (!e) return;
@@ -459,19 +546,223 @@ ${footerNote()}`;
 
   // ---------- A6-Karte ----------
   function pageKarte() {
-    const L = M.layout(cfg);
-    const D = M.deviceSlots(cfg, L);
-    const starts = new Set([1, L.freeFrom, 99]); L.ranges.forEach(r => starts.add(r.from));
-    const rows = D.map((d, i) => `<div class="r${L.slots[i].kind === 'free' ? ' free' : ''}${starts.has(i) && i > 0 ? ' start' : ''}${i === 99 && L.slots[99].kind === 'fixed' ? ' emerg' : ''}"><span>${pad2(d.nr)} ${esc(d.name)}</span><b>${esc(d.ch)}</b></div>`);
+    const dev = ui.device && ui.device.id === ui.deviceSel && ui.device.aktuell && ui.device.aktuell.plaetze ? ui.device : null;
+    let D, starts = new Set(), freeSet = new Set(), title, sub;
+    if (dev) {
+      const a = dev.aktuell;
+      D = a.plaetze.map(p => ({ nr: p.nr, ch: p.ch, name: (String(p.name || '') + '        ').slice(0, 8) }));
+      groupsFromDevice(a.plaetze).forEach(g => { starts.add(g.rows[0].nr); if (g.free) g.rows.forEach(r => freeSet.add(r.nr)); });
+      title = dev.bezeichnung + (a.configName ? ' · «' + a.configName + '»' + (a.version ? ' v' + a.version : '') : '');
+      sub = t(a.herkunft === 'ausgelesen' ? 'cur_read_from' : 'a6_programmed') + ' ' + fmtDT(new Date(a.zeit));
+    } else {
+      const L = M.layout(cfg);
+      D = M.deviceSlots(cfg, L);
+      [1, L.freeFrom, 99].forEach(x => starts.add(x)); L.ranges.forEach(r => starts.add(r.from));
+      L.slots.forEach(x => { if (x.kind === 'free') freeSet.add(x.nr); });
+      title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
+      sub = t('a6_draft') + ' · ' + fmtDT(new Date());
+    }
+    const rows = D.map((d, i) => `<div class="r${freeSet.has(i) ? ' free' : ''}${starts.has(i) && i > 0 ? ' start' : ''}${i === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span>${pad2(d.nr)} ${esc(d.name)}</span><b>${esc(d.ch)}</b></div>`);
     const cols = [0, 1, 2, 3].map(c => `<div>${rows.slice(c * 25, c * 25 + 25).join('')}</div>`).join('');
     $('#page').innerHTML = `
 <div class="spread"><h1>${t('a6_title')}</h1><div class="row"><a class="btn sec" href="#aktuell">← ${t('nav_aktuell')}</a><button type="button" data-act="print">${t('a6_print')}</button></div></div>
 <p class="note">${t('a6_note')}</p>
 <div class="a6wrap"><div class="a6" role="img" aria-label="${esc(t('a6_title'))}">
-  <div class="hd"><div><strong>«${esc(cfg.name || '–')}»</strong><span>${t('a6_draft')} · ${esc(fmtDT(new Date()))} · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
+  <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
   <div class="cols">${cols}</div>
 </div></div>`;
     $('#page').addEventListener('click', ev => { if (ev.target.closest('[data-act=print]')) window.print(); });
+  }
+
+  // ---------- Anmelden, Konto ----------
+  /** Formular im Dialog; submit(form) wirft bei Fehler – die Meldung erscheint im Dialog. */
+  function formDialog(title, inner, submitLabel, submit) {
+    return new Promise(res => {
+      const d = $('#dlg');
+      d.innerHTML = `<form method="dialog" class="stack" style="gap:10px;min-width:min(420px,80vw)"><h2>${esc(title)}</h2>${inner}<p class="small" id="dlgerr" style="color:var(--red);margin:0" role="alert"></p>
+<div class="row"><button type="button" class="sec" value="cancel">${t('cancel')}</button><button type="submit">${esc(submitLabel)}</button></div></form>`;
+      const f = d.querySelector('form');
+      d.querySelector('button[value=cancel]').addEventListener('click', () => { d.close(); res(false); });
+      d.addEventListener('cancel', () => res(false), { once: true });
+      f.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+        try { await submit(f); d.close(); res(true); }
+        catch (e) { $('#dlgerr').textContent = e.message; btn.disabled = false; }
+      });
+      d.showModal();
+      const first = f.querySelector('input'); if (first) first.focus();
+    });
+  }
+  const field = (id, label, type, extra) => `<label class="stack" style="align-items:stretch;gap:4px" for="${id}"><span class="small muted">${esc(label)}</span><input id="${id}" name="${id}" type="${type || 'text'}" ${extra || ''}></label>`;
+
+  async function loginDialog() {
+    let needed = false;
+    try { needed = await API.setupNeeded(); } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); return; }
+    if (needed) {
+      await formDialog(t('su_title'), `<p class="note" style="margin:0">${t('su_note')}</p>` + field('su_name', t('acc_name'), 'text', 'value="Balthasar Wicki" autocomplete="name"') +
+        field('su_pw', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="8"') + field('su_pw2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="8"'),
+      t('su_go'), async f => {
+        if (f.su_pw.value !== f.su_pw2.value) throw new Error(t('acc_pw_mismatch'));
+        await API.setup(f.su_pw.value, f.su_name.value);
+        msg(t('m_su_done'), 'ok');
+      });
+    } else {
+      await formDialog(t('login'), field('li_login', t('acc_login'), 'text', 'autocomplete="username" required autocapitalize="none" spellcheck="false"') +
+        field('li_pw', t('acc_pw'), 'password', 'autocomplete="current-password" required'), t('login'), async f => {
+        const u = await API.login(f.li_login.value, f.li_pw.value);
+        msg(t('m_login', { n: u.name || u.login }), 'ok');
+      });
+    }
+    render();
+  }
+
+  async function accountDialog() {
+    const u = API.user;
+    const d = $('#dlg');
+    d.innerHTML = `<h2>${esc(u.name || u.login)}</h2><p class="note">${esc(u.login)} · ${u.role === 'super' ? t('acc_super') : t('acc_user')}</p>
+<div class="row"><button type="button" class="sec" value="pw">${t('acc_change_pw')}</button><button type="button" class="danger" value="out">${t('logout')}</button><button type="button" class="sec" value="x">${t('m_close')}</button></div>`;
+    const v = await new Promise(res => { d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { d.close(); res(b.value); })); d.addEventListener('cancel', () => res('x'), { once: true }); d.showModal(); });
+    if (v === 'out') { await API.logout(); msg(t('m_logout'), 'info'); render(); }
+    if (v === 'pw') {
+      await formDialog(t('acc_change_pw'), field('pw_old', t('acc_pw_old'), 'password', 'autocomplete="current-password" required') +
+        field('pw_new', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="8"') + field('pw_new2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="8"'),
+      t('acc_change_pw'), async f => {
+        if (f.pw_new.value !== f.pw_new2.value) throw new Error(t('acc_pw_mismatch'));
+        await API.changePw(f.pw_old.value, f.pw_new.value); msg(t('m_pw_changed'), 'ok');
+      });
+    }
+  }
+  function needLogin() {
+    if (!API.enabled) { pageLater('0.2.0', 'later_konfig'); return true; }
+    if (API.user) return false;
+    $('#page').innerHTML = `<section class="card stack"><h1>${t('need_login')}</h1><p style="margin:0">${t('need_login_note')}</p><div><button type="button" data-act="login">${t('login')}</button></div></section>${footerNote()}`;
+    return true;
+  }
+  function randomPw() { const a = 'abcdefghjkmnpqrstuvwxyz23456789'; const r = new Uint32Array(12); crypto.getRandomValues(r); return [...r].map(x => a[x % a.length]).join('').replace(/(.{4})(?=.)/g, '$1-'); }
+
+  // ---------- Konfigurationen und Geräte ----------
+  async function pageKonfig() {
+    if (needLogin()) return;
+    $('#page').innerHTML = `<h1>${t('nav_konfig')}</h1><p class="note">…</p>`;
+    let all, devs;
+    try { [all, devs] = await Promise.all([API.configs(), API.devices()]); }
+    catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); $('#page').innerHTML = `<h1>${t('nav_konfig')}</h1>${footerNote()}`; return; }
+    if (route() !== 'konfigurationen') return;
+    ui.devices = devs;
+    const me = API.user.id;
+    const mine = all.filter(c => c.owner.id === me), others = all.filter(c => c.owner.id !== me);
+    const myDevs = devs.filter(d => d.owner.id === me);
+    const inDev = c => devs.filter(d => d.aktuell && d.aktuell.configId === c.id).map(d => esc(d.bezeichnung)).join(', ');
+    const cur = cfg.server && cfg.server.id;
+    $('#page').innerHTML = `
+<div class="spread"><h1>${t('kf_mine')}</h1><div class="row"><button type="button" data-act="kf-savedraft">${t('kf_save_draft')}</button><a class="btn sec" href="#gebiet" title="${esc(t('later_title', { v: '0.3.0' }))}">${t('kf_from_area')}</a></div></div>
+<section class="card flush"><table class="grid"><thead><tr><th>${t('kf_name')}</th><th>${t('kf_version')}</th><th>${t('kf_area')}</th><th>${t('kf_count')}</th><th>${t('kf_changed')}</th><th>${t('kf_in_dev')}</th><th>${t('kf_actions')}</th></tr></thead><tbody>
+${mine.length ? mine.map(c => `<tr data-cid="${c.id}"><td><b>${esc(c.name)}</b>${c.id === cur ? ` <span class="badge">${t('kf_in_editor')}</span>` : ''}</td><td class="mono">v${c.version}</td><td>${esc(c.standort || '–')}</td><td class="mono">${c.anzahl}</td><td class="small">${esc(fmtDT(new Date(c.updated)))}</td><td class="small">${inDev(c) || '–'}</td>
+<td><div class="row nowrap" style="gap:6px"><button type="button" class="sec" data-act="kf-open">${t('kf_open')}</button><button type="button" class="sec" data-act="kf-copy">${t('kf_dup')}</button><button type="button" class="ghost" data-act="kf-del" title="${esc(t('kf_del'))}" aria-label="${esc(t('kf_del'))}">×</button></div></td></tr>`).join('')
+  : `<tr><td colspan="7" class="muted">${t('kf_none')}</td></tr>`}
+</tbody></table></section>
+
+<section class="card stack"><div class="spread"><span class="label">${t('kf_devices')}</span>
+  <form class="row" data-form="devadd"><label class="sr" for="devname">${t('kf_dev_name')}</label><input id="devname" type="text" maxlength="60" placeholder="${esc(t('kf_dev_ph'))}" required style="width:240px"><button type="submit" class="sec">${t('kf_dev_add')}</button></form></div>
+  ${myDevs.length ? myDevs.map(d => `<div class="left-item" data-did="${d.id}"><span class="row" style="gap:8px"><label class="sr" for="dn-${d.id}">${t('kf_dev_name')}</label><input id="dn-${d.id}" type="text" data-dev="name" value="${esc(d.bezeichnung)}" maxlength="60" style="width:240px;font-weight:600">
+    <span class="small muted">${d.aktuell ? esc((d.aktuell.configName ? '«' + d.aktuell.configName + '» ' : '') + fmtDT(new Date(d.aktuell.zeit))) : t('cur_dev_noprog')}</span></span>
+    <button type="button" class="ghost" data-act="dev-del" aria-label="${esc(t('kf_dev_del'))}" title="${esc(t('kf_dev_del'))}">×</button></div>`).join('') : `<p class="note">${t('kf_dev_none')}</p>`}
+  <p class="note">${t('kf_dev_note')}</p></section>
+
+<section class="card stack"><span class="label">${t('kf_others')}</span><p class="note">${t('kf_others_note')}</p>
+  ${others.length ? others.map(c => `<div class="left-item" data-cid="${c.id}"><span><b>${esc(c.name)}</b> <span class="mono small">v${c.version}</span> · ${esc(c.owner.name || c.owner.login)} · ${esc(c.standort || '–')} <span class="small muted">· ${esc(fmtDate(c.updated))}</span></span>
+    <button type="button" class="sec" data-act="kf-take">${t('kf_take')}</button></div>`).join('') : `<p class="note">${t('kf_others_none')}</p>`}</section>
+${footerNote()}`;
+  }
+
+  async function onKonfigClick(ev) {
+    const b = ev.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act;
+    const cidEl = b.closest('[data-cid]'), didEl = b.closest('[data-did]');
+    const cid = cidEl ? cidEl.dataset.cid : null, did = didEl ? didEl.dataset.did : null;
+    try {
+      if (act === 'kf-savedraft') {
+        if (!(cfg.name || '').trim()) cfg.name = t('kf_unnamed');
+        const c = await API.createConfig(cfg.name, cfgData()); adopt(c); msg(t('m_srv_saved', { n: c.name, v: c.version }), 'ok');
+      } else if (act === 'kf-open') {
+        if (cfg.dirty && !(await ask(t('m_ask_replace'), t('m_ask_replace_b'), t('yes')))) return;
+        adopt(await API.config(cid)); msg(t('m_loaded', { n: cfg.name }), 'ok'); location.hash = '#editor'; return;
+      } else if (act === 'kf-copy' || act === 'kf-take') {
+        const c = await API.copyConfig(cid);
+        msg(t('m_copied', { n: c.name }), 'ok');
+        if (act === 'kf-take' && (!cfg.dirty || await ask(t('m_ask_replace'), t('m_ask_replace_b'), t('yes')))) { adopt(c); location.hash = '#editor'; return; }
+      } else if (act === 'kf-del') {
+        const name = b.closest('tr').querySelector('b').textContent;
+        if (!(await ask(t('kf_del_q', { n: name }), t('kf_del_b'), t('kf_del')))) return;
+        await API.deleteConfig(cid);
+        if (cfg.server && cfg.server.id === cid) { delete cfg.server; saveDraft(); }
+        msg(t('m_deleted', { n: name }), 'info');
+      } else if (act === 'dev-del') {
+        const name = b.closest('[data-did]').querySelector('input').value;
+        if (!(await ask(t('kf_dev_del_q', { n: name }), t('kf_dev_del_b'), t('kf_dev_del')))) return;
+        await API.deleteDevice(did); if (ui.deviceSel === did) { ui.deviceSel = null; ui.device = null; }
+        msg(t('m_deleted', { n: name }), 'info');
+      } else return;
+    } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); }
+    ui.devices = null; pageKonfig();
+  }
+  async function onKonfigSubmit(ev) {
+    const f = ev.target.closest('form[data-form=devadd]'); if (!f) return;
+    ev.preventDefault();
+    try { const d = await API.createDevice(f.devname.value); msg(t('m_dev_added', { n: d.bezeichnung }), 'ok'); } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); }
+    ui.devices = null; pageKonfig();
+  }
+  async function onKonfigChange(ev) {
+    const el = ev.target; if (el.dataset.dev !== 'name') return;
+    const did = el.closest('[data-did]').dataset.did;
+    try { const d = await API.renameDevice(did, el.value); msg(t('m_dev_renamed', { n: d.bezeichnung }), 'ok'); ui.devices = null; } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); }
+  }
+
+  // ---------- Konten (Supermaster) ----------
+  async function pageKonten() {
+    if (needLogin()) return;
+    if (!isSuper()) { $('#page').innerHTML = `<section class="card"><p>${t('kt_only_super')}</p></section>`; return; }
+    let users;
+    try { users = await API.users(); } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); return; }
+    if (route() !== 'konten') return;
+    $('#page').innerHTML = `<h1>${t('nav_konten')}</h1>
+<section class="card stack"><span class="label">${t('kt_new')}</span>
+  <form class="row" data-form="useradd" style="align-items:flex-end">
+    <label class="stack" style="gap:4px" for="nu_login"><span class="small muted">${t('acc_login')}</span><input id="nu_login" type="text" required pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,31}" autocapitalize="none" spellcheck="false" placeholder="amuster" style="width:160px"></label>
+    <label class="stack" style="gap:4px" for="nu_name"><span class="small muted">${t('acc_name')}</span><input id="nu_name" type="text" maxlength="80" placeholder="Anna Muster" style="width:220px"></label>
+    <label class="stack" style="gap:4px" for="nu_pw"><span class="small muted">${t('kt_initial_pw')}</span><input id="nu_pw" type="text" class="mono" required minlength="8" value="${randomPw()}" style="width:200px"></label>
+    <button type="submit">${t('kt_create')}</button></form>
+  <p class="note">${t('kt_new_note')}</p></section>
+<section class="card flush"><table class="grid"><thead><tr><th>${t('acc_login')}</th><th>${t('acc_name')}</th><th>${t('kt_role')}</th><th>${t('nav_konfig')}</th><th>${t('kt_devices')}</th><th>${t('kt_last')}</th><th>${t('kf_actions')}</th></tr></thead><tbody>
+${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td class="mono"><b>${esc(u.login)}</b></td><td>${esc(u.name)}</td><td>${u.role === 'super' ? t('acc_super') : t('acc_user')}${u.active ? '' : ' · ' + t('kt_locked')}</td><td class="mono">${u.configs}</td><td class="mono">${u.devices}</td><td class="small">${u.last_login ? esc(fmtDT(new Date(u.last_login))) : '–'}</td>
+<td><div class="row nowrap" style="gap:6px"><button type="button" class="sec" data-act="kt-reset">${t('kt_reset')}</button>${u.role === 'super' ? '' : `<button type="button" class="${u.active ? 'danger' : 'sec'}" data-act="kt-lock" data-v="${u.active ? 0 : 1}">${u.active ? t('kt_lock') : t('kt_unlock')}</button>`}</div></td></tr>`).join('')}
+</tbody></table></section>${footerNote()}`;
+  }
+  async function onKontenClick(ev) {
+    const b = ev.target.closest('[data-act]'); if (!b) return;
+    const tr = b.closest('tr[data-uid]'); if (!tr) return;
+    const login = tr.querySelector('b').textContent;
+    try {
+      if (b.dataset.act === 'kt-reset') {
+        if (!(await ask(t('kt_reset_q', { n: login }), t('kt_reset_b'), t('kt_reset')))) return;
+        const pw = randomPw(); await API.patchUser(tr.dataset.uid, { password: pw });
+        msg(t('m_pw_reset', { n: login, p: pw }), 'ok');
+      } else if (b.dataset.act === 'kt-lock') {
+        await API.patchUser(tr.dataset.uid, { active: b.dataset.v === '1' });
+        msg(t(b.dataset.v === '1' ? 'm_unlocked' : 'm_locked', { n: login }), 'info');
+      } else return;
+    } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); }
+    pageKonten();
+  }
+  async function onKontenSubmit(ev) {
+    const f = ev.target.closest('form[data-form=useradd]'); if (!f) return;
+    ev.preventDefault();
+    try {
+      const u = await API.createUser({ login: f.nu_login.value, name: f.nu_name.value, password: f.nu_pw.value });
+      msg(t('m_user_created', { n: u.login, p: f.nu_pw.value }), 'ok');
+    } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); return; }
+    pageKonten();
   }
 
   // ---------- Platzhalterseiten ----------
@@ -486,15 +777,30 @@ ${footerNote()}`;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
     if (b.dataset.act === 'mclose') { const id = b.closest('[data-mid]').dataset.mid; const i = msgs.findIndex(m => m.id === id); if (i >= 0) msgs.splice(i, 1); renderMsgs(); return; }
     if (b.dataset.act === 'mcopy') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m && navigator.clipboard) navigator.clipboard.writeText(m.text).catch(() => {}); return; }
+    if (b.dataset.act === 'login') { loginDialog(); return; }
+    if (b.dataset.act === 'account') { accountDialog(); return; }
+    if (b.dataset.act === 'devsel') {
+      ui.deviceSel = b.dataset.v || null; try { if (ui.deviceSel) localStorage.setItem('krt2.device', ui.deviceSel); else localStorage.removeItem('krt2.device'); } catch (e) { /* egal */ }
+      if (ui.deviceSel) loadDevice(ui.deviceSel); else { ui.device = null; render(); }
+      return;
+    }
     const r = route();
     if (r === 'editor' || (b.dataset.act === 'load' || b.dataset.act === 'saveas' || b.dataset.act === 'csv')) onEditorClick(ev);
     else if (r === 'einstellungen') onEinstClick(ev);
+    else if (r === 'konfigurationen') onKonfigClick(ev);
+    else if (r === 'konten') onKontenClick(ev);
+  });
+  document.addEventListener('submit', ev => {
+    const r = route();
+    if (r === 'konfigurationen') onKonfigSubmit(ev);
+    else if (r === 'konten') onKontenSubmit(ev);
   });
   document.addEventListener('change', ev => {
     if (ev.target.id === 'file') { onFile(ev.target); return; }
     const r = route();
     if (r === 'editor') onEditorChange(ev);
     else if (r === 'einstellungen') onEinstChange(ev);
+    else if (r === 'konfigurationen') onKonfigChange(ev);
   });
   document.addEventListener('input', ev => { if (route() === 'editor') onKurzInput(ev); });
 
@@ -502,7 +808,7 @@ ${footerNote()}`;
     const f = inp.files && inp.files[0]; if (!f) return;
     const rd = new FileReader();
     rd.onload = () => {
-      try { cfg = M.fromJSON(String(rd.result)); saveDraft(); msg(t('m_loaded', { n: cfg.name || f.name }), 'ok'); render(); }
+      try { cfg = M.fromJSON(String(rd.result)); delete cfg.server; saveDraft(); msg(t('m_loaded', { n: cfg.name || f.name }), 'ok'); render(); }
       catch (e) { msg(t('m_load_err', { e: e.message }), 'err'); }
     };
     rd.readAsText(f);
@@ -510,6 +816,8 @@ ${footerNote()}`;
 
   window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
   I.setLang(I.lang);
+  API.onLogout = () => { msg(t('m_session_end'), 'warn'); render(); };
   render();
+  if (API.enabled && API.user) { const before = JSON.stringify(API.user); API.me().then(u => { if (JSON.stringify(u) !== before) render(); }).catch(() => { /* onLogout zeigt es an */ }); }
   window.KRT2APP = { get cfg() { return cfg; }, version: VERSION };
 })();

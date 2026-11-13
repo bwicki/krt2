@@ -1,0 +1,20 @@
+# krt2.wicki.aero – Cloudflare Worker (API) mit D1
+# Einrichtung: SETUP.md (GitHub-Workflow «Setup worker»). Keine Secrets nötig: Sitzungen sind Zufallstoken,
+# in D1 nur als SHA-256 gespeichert.
+name = "krt2-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://krt2.wicki.aero,https://bwicki.github.io,http://localhost:8765,http://127.0.0.1:8765"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "krt2"
+database_id = ""   # wird vom Workflow «Setup worker» eingetragen
+
+# Eigene Domain (optional, nach dem ersten Deploy):
+# [[routes]]
+# pattern = "api.krt2.wicki.aero"
+# custom_domain = true

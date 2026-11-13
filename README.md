@@ -14,7 +14,8 @@ analyze.wicki.aero.
 > **Hilfsmittel ohne Gewähr.** Frequenzen aus öffentlichen Quellen können falsch oder veraltet sein.
 > Massgebend sind AIP, VFR-Manual, NOTAM und die Handbücher des Funkgeräts.
 
-Stand: **App 0.1.0** (Editor, Einstellungen, A6-Karte; Entwurf lokal im Browser) und Machbarkeitstest am Gerät.
+Stand: **App 0.2.0** (Editor, Einstellungen, A6-Karte, Konten, Konfigurationen mit Versionen, Geräte) und
+Machbarkeitstest am Gerät. Einrichtung des Workers: `SETUP.md`.
 Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs/BUILD.md`.
 
 ---
@@ -23,11 +24,13 @@ Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs
 
 | Seite | Inhalt | Stand |
 |---|---|---|
-| `#aktuell` | Belegung der 100 Plätze nach Blöcken, Suche, A6-Karte | 0.1.0 (zeigt den Entwurf; programmierter Stand ab 0.4.0) |
+| `#aktuell` | ohne Anmeldung: Liste aller Geräte, Programmierung des gewählten Geräts (sonst der Entwurf), Suche, A6-Karte | 0.2.0 |
 | `#editor` | Einträge an/aus, verschieben (Griff oder ▲▼, auch über Blockgrenzen), Kurzname mit ICAO/Kürzel-Umschalter, Frequenz, Klartext, Dienst; Prüfliste; «nicht aufgenommen»; Speichern unter (JSON), Laden, CSV | 0.1.0 |
 | `#einstellungen` | Aufteilung 00–99, feste Plätze (00 frei gebbar, 99 nur mit zweifacher Bestätigung), Blöcke mit Diensten, Höchstzahl und Reihenfolge, Platzhalter, Kurznamenregel | 0.1.0 |
 | `#karte` | A6-Karte quer (148 × 105 mm), eine Seite zum Laminieren | 0.1.0 |
-| `#gebiet`, `#geraet`, `#konfigurationen` | Karte und Vorschlag, Gerät schreiben/auslesen, Konten | 0.2.0–0.4.0 |
+| `#konfigurationen` | eigene Konfigurationen (Öffnen, Duplizieren, Löschen), eigene Geräte, Konfigurationen anderer Konten als Kopie übernehmen | 0.2.0 |
+| `#konten` | nur Supermaster: Konten anlegen, Kennwort zurücksetzen, sperren | 0.2.0 |
+| `#gebiet`, `#geraet` | Karte und Vorschlag, Gerät schreiben/auslesen | 0.3.0, 0.4.0 |
 
 Belegung: 00 = BALLOON 122.255 (fest, freigebbar), Blöcke ab 01 lückenlos, freie Plätze (118.000 FREE) nur am
 Ende, 99 = EMERGENC 121.500. Kurzname = Ortskürzel (IATA, sonst drei Buchstaben) + ICAO-Dienstkürzel, höchstens

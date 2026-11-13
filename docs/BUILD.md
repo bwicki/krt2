@@ -8,7 +8,10 @@ hält fest, was für den Code gilt, damit eine neue Sitzung ohne Vorgeschichte w
 
 - Statische Seiten auf GitHub Pages aus dem Repository-Stamm (CNAME `krt2.wicki.aero`), JavaScript ohne Build-Schritt.
 - Speicher: Cloudflare Worker + D1 (`worker/`), eingerichtet über einen GitHub-Workflow; Secrets im Repo:
-  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (Balthasar legt sie nach Anleitung an; Stand 13.11.2026: noch nicht).
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (angelegt 13.11.2026). Einrichtung und Betrieb: `SETUP.md`.
+- API (`worker/src/index.js`): `/api/health`, `/api/setup`, `/api/login`, `/api/logout`, `/api/me`, `/api/me/password`,
+  `/api/users` (Supermaster), `/api/devices` (lesen öffentlich), `/api/devices/:id/aktuell` (PUT, Besitzer, ab 0.4.0),
+  `/api/configs` (+ `/copy`, `/versions`). Erstes Konto = Supermaster `bwicki` (über die Seite eingerichtet).
 - Frequenzdaten: `tools/build-frequencies.mjs`, nächtlich über `.github/workflows/frequencies.yml` auf den Zweig `data`
   (`freq-<cc>.json` je Land, `index.json`), gelesen über `https://raw.githubusercontent.com/bwicki/krt2/data/…`.
 - Gerät: Web Serial (Chrome/Edge am Laptop), Protokoll TQ Rev. 003, `src/krt2decoder.js` + `src/krt2codec.js`.
@@ -63,14 +66,14 @@ hält fest, was für den Code gilt, damit eine neue Sitzung ohne Vorgeschichte w
 ```
 Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berechnet (`layout()`).
 
-**Gerät**: `{ id, owner, bezeichnung, aktuell:{ plaetze[100], herkunft:'geschrieben'|'ausgelesen', zeit, configId, version } }`
+**Gerät**: `{ id, owner, bezeichnung, aktuell:{ plaetze[100]:{nr, ch, name, klar?, dienst?, block?, kind?}, herkunft:'geschrieben'|'ausgelesen', zeit, configId, configName, version, quittiert, von } }`
 
 ## 4 Reihenfolge des Baus
 
 | Version | Inhalt | Abhängig vom Test |
 |---|---|---|
 | 0.1.0 ✓ | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
-| 0.2.0 | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
+| 0.2.0 ✓ | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
 | 0.3.0 | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
 | 0.4.0 | Gerät: Schreiben (Z), Sichern/Auslesen (W) gemäss Testergebnis, Vorschau alt→neu | ja |
 | 0.5.0 | Startseite öffentlich, PWA offline, GPS-Hervorhebung, Portal-Eintrag | teilweise |
@@ -79,4 +82,5 @@ Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berech
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/worker.test.mjs` gegen einen lokalen Worker mit leerer Datenbank (SETUP.md, Abschnitt 5)
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus

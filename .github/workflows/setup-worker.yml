@@ -1,0 +1,127 @@
+# Einmalige Einrichtung des Cloudflare Workers – ohne lokalen Rechner (Muster wie bwicki/checklists).
+#
+# Start: GitHub → Actions → «Setup worker» → Run workflow.
+# Benötigt die Repository-Secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   Token nach Vorlage «Edit Cloudflare Workers» + Account · D1 · Edit
+#   CLOUDFLARE_ACCOUNT_ID  Account-ID aus dem Cloudflare-Dashboard
+#
+# Was passiert: D1-Datenbank «krt2» (ID in worker/wrangler.toml), Schema (wiederholbar), Deploy, Gesundheitsprüfung,
+# workers.dev-Adresse in src/config.js, Commit der geänderten Dateien. Wiederholbar: Vorhandenes wird erkannt.
+name: Setup worker
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: 'src/config.js: «auto» trägt die workers.dev-Adresse ein, «keep» lässt die Datei unverändert (eigene Domain)'
+        type: choice
+        default: auto
+        options: [auto, keep]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: setup-worker
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Voraussetzungen prüfen
+        run: |
+          ok=1
+          [ -n "$CLOUDFLARE_API_TOKEN" ]  || { echo "::error::Secret CLOUDFLARE_API_TOKEN fehlt"; ok=0; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::Secret CLOUDFLARE_ACCOUNT_ID fehlt"; ok=0; }
+          [ "$ok" = 1 ]
+      - name: wrangler installieren
+        run: npm ci --no-audit --no-fund
+      - name: Cloudflare-Zugang prüfen
+        run: |
+          npx wrangler whoami || { echo "::error::Token wird nicht angenommen – Secret CLOUDFLARE_API_TOKEN prüfen (IP-Filter leer? Konto gewählt?)"; exit 1; }
+      - name: D1-Datenbank «krt2»
+        id: d1
+        run: |
+          set +e
+          uuidre='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+          list=$(npx wrangler d1 list --json 2>/dev/null)
+          id=$(printf '%s' "$list" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const i=s.indexOf("[");const j=JSON.parse(s.slice(i));const d=j.find(x=>x.name==="krt2");process.stdout.write(d?(d.uuid||d.id||""):"")}catch{process.stdout.write("")}})')
+          if [ -z "$id" ]; then info=$(npx wrangler d1 info krt2 --json 2>&1); id=$(printf '%s' "$info" | grep -oE "$uuidre" | head -1); fi
+          if [ -z "$id" ]; then
+            echo "Datenbank wird angelegt …"
+            out=$(npx wrangler d1 create krt2 2>&1); echo "$out"
+            id=$(printf '%s' "$out" | grep -oE "$uuidre" | head -1)
+            case "$out" in *uthentication*|*10000*|*ermission*|*nauthorized*|*orbidden*)
+              echo "::error::Das API-Token darf D1 nicht verwalten. Cloudflare → My Profile → API Tokens → Token «Edit» → «Account · D1 · Edit» ergänzen → Update token. Danach den Workflow erneut starten." ;; esac
+          else
+            echo "Datenbank vorhanden"
+          fi
+          set -e
+          if [ -z "$id" ]; then
+            echo "--- d1 list ---"; echo "$list"; echo "--- d1 info ---"; echo "${info:-}"
+            echo "::error::database_id der D1-Datenbank «krt2» nicht ermittelbar – Ausgabe im Schritt prüfen"
+            exit 1
+          fi
+          sed -i -E "s/database_id = \"[^\"]*\"/database_id = \"$id\"/" wrangler.toml
+          echo "database_id = $id"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+      - name: Schema anlegen (wiederholbar)
+        run: |
+          npx wrangler d1 execute krt2 --remote --yes --file=schema.sql || { echo "::error::Schema konnte nicht eingespielt werden – Ausgabe im Schritt prüfen"; exit 1; }
+      - name: Deploy
+        id: deploy
+        run: |
+          set +e
+          out=$(npx wrangler deploy 2>&1); rc=$?
+          set -e
+          echo "$out"
+          [ "$rc" = 0 ] || { echo "::error::Deploy fehlgeschlagen – Ausgabe im Schritt prüfen"; exit 1; }
+          url=$(echo "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Worker-Adresse: $url"
+      - name: Gesundheitsprüfung
+        run: |
+          url='${{ steps.deploy.outputs.url }}'
+          [ -n "$url" ] || { echo "::warning::workers.dev-Adresse nicht erkannt – Prüfung übersprungen"; exit 0; }
+          for i in 1 2 3 4 5 6; do
+            if out=$(curl -sS --max-time 20 "$url/api/health"); then echo "$out"; echo "$out" | grep -q '"ok":true' && exit 0; fi
+            sleep 5
+          done
+          echo "::warning::/api/health antwortet noch nicht – in einigen Minuten im Browser prüfen"
+      - name: src/config.js auf workers.dev-Adresse setzen
+        if: inputs.api_base == 'auto' && steps.deploy.outputs.url != ''
+        run: |
+          sed -i -E "s#apiBase: *'[^']*'#apiBase: '${{ steps.deploy.outputs.url }}'#" ../src/config.js
+          cat ../src/config.js
+      - name: Änderungen committen (wrangler.toml, src/config.js)
+        run: |
+          cd ..
+          git config user.name  "krt2-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/wrangler.toml src/config.js
+          if git diff --cached --quiet; then echo "keine Änderung"; exit 0; fi
+          git commit -m "Setup worker: database_id${{ inputs.api_base == 'auto' && ', apiBase' || '' }}"
+          git pull --rebase
+          git push
+      - name: Zusammenfassung
+        run: |
+          {
+            echo "## Worker eingerichtet"
+            echo
+            echo "* Worker-Adresse: ${{ steps.deploy.outputs.url }}"
+            echo "* Prüfung: ${{ steps.deploy.outputs.url }}/api/health"
+            echo "* database_id: ${{ steps.d1.outputs.id }}"
+            echo
+            echo "Nächster Schritt: https://krt2.wicki.aero öffnen (GitHub Pages braucht nach dem Commit 1–2 Minuten),"
+            echo "oben rechts «Anmelden» → «Supermaster einrichten» → Kennwort für das Konto bwicki festlegen."
+          } >> "$GITHUB_STEP_SUMMARY"
