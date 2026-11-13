@@ -4,7 +4,7 @@
 // Lautstärke, Squelch, Kanalraster, Sendetasten.
 (function () {
   'use strict';
-  const VERSION = 'test 0.3.0';
+  const VERSION = 'test 0.3.1';
   const $ = id => document.getElementById(id);
   const K = window.KRT2, C = window.KRT2CODEC;
   const SIM = new URLSearchParams(location.search).has('sim');
@@ -143,11 +143,18 @@
     }
     return { kind: 'keine Antwort', ms: 800 };
   }
-  function guard() {
-    if (busy) { note('Bitte warten, ein Vorgang läuft noch.', 'bad'); return false; }
-    if (hand.on) { note('Zuerst die Aufnahme in Schritt 3 beenden.', 'bad'); return false; }
-    if (!port) { note('Zuerst den Adapter verbinden (Schritt 0).', 'bad'); return false; }
-    if (!$('optSend').checked || !$('optCmd').checked) { note('Für diesen Schritt «Senden freigeben» und «Befehle freigeben» setzen.', 'bad'); return false; }
+  // Sperrgrund ins Protokoll und sichtbar an den Schritt (Test 13.11.: Meldung nur im Protokoll wurde übersehen).
+  function guard(at) {
+    const stop = msg => {
+      note(msg, 'bad');
+      const e = at && $(at);
+      if (e) { if (e.classList.contains('auto')) setAuto(at, 'Nicht gesendet: ' + msg, 'bad'); else setStatus(at, 'Nicht gesendet: ' + msg, 'warn'); }
+      return false;
+    };
+    if (busy) return stop('Bitte warten, ein Vorgang läuft noch.');
+    if (hand.on) return stop('Zuerst die Aufnahme in Schritt 3 beenden.');
+    if (!port) return stop('Zuerst den Adapter verbinden (Schritt 0).');
+    if (!$('optSend').checked || !$('optCmd').checked) return stop('Für diesen Schritt «Senden freigeben» und «Befehle freigeben» setzen.');
     if (!linkActive()) note('Warnung: Verbindung «r» nicht bestätigt – das Gerät nimmt Befehle möglicherweise nicht an.', 'bad');
     return true;
   }
@@ -191,12 +198,12 @@
     }
   }
 
-  // ---------- Simulation (?sim=1, ?sim=raste) ----------
+  // ---------- Simulation (?sim=1, ?sim=verlassen) ----------
   // Nachgebildetes Funkgerät: fragt alle 3 s mit «S», meldet nach der Antwort seinen Zustand, quittiert Z und R,
-  // blättert mit W ohne Meldung (wie am 13.11. beobachtet). MEM und Drehknopf: ?sim=1 meldet erst beim Verlassen
-  // des Speichermodus (nach 3.5 s ohne Bedienung oder mit nochmals MEM), ?sim=raste meldet bei jeder Raste.
+  // blättert mit W ohne Meldung. MEM und Drehknopf wie am 13.11. gemessen (?sim=1): Meldung bei jeder Raste,
+  // MEM allein und das Verlassen des Speichermodus melden nichts. ?sim=verlassen: Meldung erst beim Verlassen.
   function makeSim() {
-    const per = new URLSearchParams(location.search).get('sim') === 'raste';
+    const per = new URLSearchParams(location.search).get('sim') !== 'verlassen';
     const names = ['', 'ZRH INFO', 'GVA INFO', 'BIR AFIS', 'SPE AFIS', 'WIN AFIS', 'ZRH APP', 'ZRH TWR', 'BASL T', 'BRN APP', 'BERL N', 'ZRH ATIS', 'BERL SCF', 'BERL TGL', 'CENTRE', 'MIN-8'];
     const freqs = ['121.500', '124.700', '126.350', '123.550', '120.350', '134.975', '125.325', '118.100', '118.300', '127.325', '125.800', '125.725', '135.900', '136.025', '127.000', '118.005'];
     const mem = Array.from({ length: 100 }, (_, i) => i < 16 ? [freqs[i], names[i]] : (i === 99 ? ['121.500', 'EMERGENC'] : ['118.000', 'FREE']));
@@ -205,12 +212,12 @@
     const sendR = (v, delay = 30) => reply(C.buildR(v[0], v[1]), delay);
     const timer = setInterval(() => { if (!inMem) reply([0x53], 0); }, 3000);
     const disp = () => { const d = $('simDisp'); if (d) d.textContent = inMem ? 'Anzeige: SEL[' + two(sel) + '] ' + mem[sel][0] + ' ' + (mem[sel][1] || '') : 'Anzeige: Normalbetrieb · Standby ' + sb[0] + ' ' + sb[1]; };
-    const leave = () => { clearTimeout(memTimer); inMem = false; idx = sel; sb = mem[sel]; sendR(sb); disp(); };
+    const leave = () => { clearTimeout(memTimer); inMem = false; idx = sel; sb = mem[sel]; if (!per) sendR(sb); disp(); };
     const arm = () => { clearTimeout(memTimer); memTimer = setTimeout(leave, 3500); };
     disp();
     return {
       close() { clearInterval(timer); clearTimeout(memTimer); },
-      memKey() { if (inMem) { leave(); return; } inMem = true; sel = idx; if (per) sendR(mem[sel]); arm(); disp(); },
+      memKey() { if (inMem) { leave(); return; } inMem = true; sel = idx; arm(); disp(); },
       turn() {
         if (!inMem) { note('Simulation: Knopf ausserhalb des Speichermodus – verstellt die Lautstärke, keine Meldung'); return; }
         sel = (sel + 1) % 100; if (per) sendR(mem[sel]); arm(); disp();
@@ -282,13 +289,14 @@
   }
   document.querySelectorAll('[data-restore]').forEach(b => b.onclick = async () => {
     if (!st.saved) { note('Kein Ausgangs-Standby gemerkt (er wird beim ersten W oder R übernommen).', 'bad'); return; }
-    if (!guard()) return;
+    const near = b.closest('section').querySelector('.status, .auto');
+    if (!guard(near && near.id)) return;
     busy = true; await setStandby(st.saved.freq, st.saved.name, 'Standby zurücksetzen'); busy = false;
   });
 
   // ---------- Schritt 2: W einmal ----------
   $('btnW1').onclick = async () => {
-    if (!guard()) return;
+    if (!guard('a2')) return;
     busy = true; rememberStandby();
     const w = waitStandby(1500);
     const r = await command(C.buildW(), 'W: nächster Speicherplatz → Standby', 0);
@@ -308,8 +316,8 @@
   const same = (a, b) => !!a && !!b && a.freq === b.freq && a.name === b.name;
   const hmode = () => (document.querySelector('input[name="hmode"]:checked') || {}).value || 'verlassen';
   const STATE = { gelesen: 'gelesen', kontrolliert: 'Kontrolle ✓', unsicher: 'unsicher – nochmals holen', widerspruch: 'Widerspruch' };
-  const newStats = () => ({ got: 0, dup: 0, burst: 0, exit: 0, chkOk: 0, chkBad: 0, jump: 0, dts: [] });
-  const hand = { on: false, cursor: null, pend: [], hist: [], lastR: null, countT: null, lastUT: -1e9, base: null, skipped: null, sinceChk: [], stats: newStats() };
+  const newStats = () => ({ got: 0, dup: 0, burst: 0, chkOk: 0, chkBad: 0, jump: 0, dts: [] });
+  const hand = { on: false, cursor: null, pend: [], hist: [], lastR: null, lastUT: -1e9, base: null, sinceChk: [], covered: new Set(), stats: newStats() };
   st.trials = {}; st.memExit = null; st.trialText = '';
   let trial = null;
 
@@ -364,10 +372,10 @@
   function renderSteps() {
     const ol = $('handSteps'), exit = st.memExit ? 'sofort nochmals <b>MEM</b> drücken' : 'warten, bis die Meldung in der Tabelle steht (einige Sekunden)';
     const li = hmode() === 'raste' ? [
-      '«Aufnahme starten», dann am Gerät <b>MEM</b> drücken.',
+      '«Aufnahme starten». Am Gerät <b>MEM</b> drücken (meldet noch nichts) und <b>1 Raste im Uhrzeigersinn</b> drehen.',
       'Die Nummer aus <span class="mono">SEL[..]</span> eintragen und «Nummer übernehmen» (Enter).',
-      'Langsam <b>im Uhrzeigersinn</b> drehen, etwa eine Raste pro Sekunde, bis alle 100 Plätze in der Tabelle stehen. Verlässt das Gerät den Speichermodus: MEM drücken und weiterdrehen.',
-      'Ab und zu die Nummer aus <span class="mono">SEL[..]</span> eintragen: Die Seite prüft damit ihre Zählung.'
+      'Langsam weiterdrehen, etwa 1 Raste in 2 s, bis die Seite «Runde geschlossen» meldet: gut 100 Rasten, rund 5 Minuten. Die Aufnahme endet dann von selbst. Leere Plätze melden sich auch – einfach weiterdrehen.',
+      'Zwischendurch darfst Du zur Kontrolle die Nummer aus <span class="mono">SEL[..]</span> eintragen; nötig ist es nicht, die geschlossene Runde prüft die ganze Zählung.'
     ] : [
       '«Aufnahme starten». Am Gerät <b>MEM</b> drücken, <span class="mono">SEL[00]</span> wählen, dann ' + exit + '.',
       '<b>00</b> eintragen und «Nummer übernehmen» (Enter).',
@@ -391,23 +399,31 @@
     hand.lastR = r;
     if (!hand.on) return;
     if (prev && $('optDup').checked && dt < 300 && same(prev, r)) { hand.stats.dup++; note('Schritt 3: gleiche Meldung nach ' + fmtMs(dt) + ' – nur einmal gezählt'); return; }
-    // «Bei jeder Raste»: eine Meldung nach einer Pause, die den letzten Platz wiederholt oder zum
-    // Ausgangs-Standby zurückkehrt, ist vermutlich das Verlassen des Speichermodus.
-    // Die Pause zählt ab der letzten gezählten Meldung (sonst gälte MEM kurz nach dem Verlassen als neuer Platz).
-    const pause = hand.countT === null ? null : r.t - hand.countT;
-    if (hmode() === 'raste' && hand.cursor !== null && pause !== null && pause >= 2000 && (same(r, hm[hand.cursor]) || same(r, hand.base))) {
-      hand.stats.exit++; hand.skipped = { r, dt, pause };
-      note('Schritt 3: ' + fq(r) + ' nach ' + fmtMs(pause) + ' Pause – wiederholt den letzten Platz (Verlassen oder erneutes MEM), nicht gezählt');
-      renderHand(); return;
-    }
+    // Test 13.11. (test 0.3.0): Das Gerät meldet bei jeder Raste, MEM allein und das Verlassen des Speichermodus
+    // melden nichts. Gleiche Meldungen nach einer Pause sind deshalb echte Plätze (z. B. mehrere leere Plätze).
     count(r, dt);
   }
   function count(r, dt) {
-    hand.skipped = null; hand.stats.got++; hand.countT = r.t;
+    hand.stats.got++;
     if (dt !== null) hand.stats.dts.push(dt);
-    if (hand.cursor === null) { hand.pend.push({ r, dt }); hand.hist.push({ kind: 'pend' }); }
-    else put((hand.cursor + 1) % 100, r, dt);
+    if (hand.cursor === null) { hand.pend.push({ r, dt }); hand.hist.push({ kind: 'pend' }); renderHand(); return; }
+    const slot = (hand.cursor + 1) % 100, again = hand.covered.has(slot) && hand.covered.size === 100;
+    put(slot, r, dt);
+    if (again) closeRound(slot);
     renderHand();
+  }
+  // Nach 100 gezählten Plätzen dieser Aufnahme: Stimmt die nächste Meldung mit dem schon gelesenen Platz überein,
+  // ist die Runde geschlossen und die ganze Zählung bestätigt. Die Aufnahme endet dann von selbst.
+  function closeRound(slot) {
+    const e = hm[slot];
+    if (e.state === 'widerspruch') {
+      note('Schritt 3: Runde NICHT geschlossen – Platz ' + two(slot) + ' meldet ' + fq(e) + ', beim ersten Mal ' + e.prev + '. Nummer aus SEL[..] eintragen.', 'bad');
+      return;
+    }
+    hand.stats.chkOk++;
+    hm.forEach(x => { if (x && x.state === 'gelesen') x.state = 'kontrolliert'; });
+    note('Schritt 3: Runde geschlossen – Platz ' + two(slot) + ' ' + fq(e) + ' stimmt beim zweiten Durchgang. Alle 100 Plätze bestätigt, Aufnahme beendet.');
+    stopHand();
   }
   function put(slot, r, dt) {
     const old = hm[slot];
@@ -417,7 +433,7 @@
       else { e.state = 'widerspruch'; e.prev = fq(old); }
     }
     hand.hist.push({ kind: 'put', slot, old, cursor: hand.cursor, sinceChk: hand.sinceChk.slice() });
-    hm[slot] = e; hand.cursor = slot; hand.sinceChk.push(slot);
+    hm[slot] = e; hand.cursor = slot; hand.sinceChk.push(slot); hand.covered.add(slot);
   }
   function applySel() {
     const v = $('selNr').value.trim(), nr = Number(v);
@@ -462,7 +478,7 @@
     if (by('unsicher')) parts.push(by('unsicher') + ' unsicher (' + at('unsicher') + ')');
     if (by('widerspruch')) parts.push(by('widerspruch') + ' mit Widerspruch (' + at('widerspruch') + ')');
     if (miss.length && miss.length < 100) parts.push('fehlt: ' + ranges(miss));
-    const facts = 'Meldungen: ' + s.got + ' gezählt, ' + s.dup + ' doppelt, ' + s.exit + ' beim Verlassen übergangen, ' + s.burst + ' Zustandsmeldung · Kontrollen: ' + s.chkOk + ' stimmten, ' + s.chkBad + ' nicht, ' + s.jump + ' Sprünge' +
+    const facts = 'Meldungen: ' + s.got + ' gezählt, ' + s.dup + ' doppelt, ' + s.burst + ' Zustandsmeldung · Kontrollen: ' + s.chkOk + ' stimmten, ' + s.chkBad + ' nicht, ' + s.jump + ' Sprünge' +
       (med !== null ? ' · Abstand zwischen Meldungen (Median) ' + fmtMs(med) : '') + ' · Modus: ' + (hmode() === 'raste' ? 'bei jeder Raste' : 'beim Verlassen');
     return { n, unsure: by('unsicher'), conflict: by('widerspruch'), text: parts.join(', ') + '. ' + facts };
   }
@@ -481,7 +497,7 @@
     if (focus) box.scrollTop = Math.max(0, focus.offsetTop - box.clientHeight / 2);
     const sum = handSummary();
     $('btnUndo').disabled = !hand.on || !hand.hist.length;
-    $('btnCount').disabled = !hand.on || !hand.skipped;
+    $('btnHandClear').disabled = hand.on;
     $('selNr').disabled = $('btnSel').disabled = !hand.on;
     $('btnCsv').disabled = $('btnJson').disabled = !sum.n;
     let msg, cls = '';
@@ -496,7 +512,6 @@
       msg = 'Zuletzt Platz ' + two(hand.cursor) + ' ' + fq(e) + ' · ' + (hmode() === 'raste' ? 'weiterdrehen' : 'nächster Platz: MEM, SEL[' + nx + '] wählen, ' + (st.memExit ? 'MEM' : 'Meldung abwarten')) + '\n' + sum.text;
       setStatus('handProg', 'nächster Platz ' + nx + ' · ' + sum.n + '/100', 'ok');
     }
-    if (hand.on && hand.skipped) { msg += '\nÜbergangen: ' + fq(hand.skipped.r) + ' nach ' + fmtMs(hand.skipped.pause) + ' Pause (Verlassen des Speichermodus oder erneutes MEM?). War es doch ein neuer Platz: «Übergangene Meldung doch zählen».'; cls = 'warn'; }
     setAuto('a3', msg, cls);
     st.s3 = sum.n ? { ok: sum.n === 100 && !sum.unsure && !sum.conflict && hand.stats.chkOk > 0, bad: !!(sum.conflict || sum.unsure), done: !hand.on, text: sum.text } : null;
   }
@@ -508,28 +523,28 @@
     else { hm[h.slot] = h.old; hand.cursor = h.cursor; hand.sinceChk = h.sinceChk; }
     hand.stats.got--; note('Schritt 3: letzte Meldung zurückgenommen'); renderHand(); refresh();
   };
-  $('btnCount').onclick = () => { const s = hand.skipped; if (!s) return; hand.stats.exit--; note('Schritt 3: übergangene Meldung ' + fq(s.r) + ' doch gezählt'); count(s.r, s.dt); refresh(); };
   $('btnHand').onclick = () => {
     if (busy) { note('Bitte warten, ein Vorgang läuft noch.', 'bad'); return; }
     if (!port) { note('Zuerst den Adapter verbinden (Schritt 0).', 'bad'); return; }
     if (!$('optSend').checked) { note('Für das Auslesen «Senden freigeben» setzen.', 'bad'); return; }
     if (!linkActive()) note('Warnung: Verbindung «r» nicht bestätigt – das Gerät meldet möglicherweise nichts.', 'bad');
     if (trial) endTrial();
-    hand.on = true; hand.cursor = null; hand.pend = []; hand.hist = []; hand.skipped = null; hand.sinceChk = [];
-    hand.base = st.standby ? Object.assign({}, st.standby) : null; hand.lastR = null; hand.countT = null;
+    hand.on = true; hand.cursor = null; hand.pend = []; hand.hist = []; hand.sinceChk = []; hand.covered = new Set();
+    hand.base = st.standby ? Object.assign({}, st.standby) : null; hand.lastR = null;
     rememberStandby();
     $('btnHand').disabled = true; $('btnHandStop').disabled = false;
     note('Schritt 3: Aufnahme ' + (hm.some(Boolean) ? 'fortgesetzt' : 'gestartet') + ' (Modus ' + (hmode() === 'raste' ? 'bei jeder Raste' : 'beim Verlassen') + ', Standby beim Start ' + fq(hand.base) + ')');
     renderHand(); refresh(); setTimeout(() => $('selNr').focus(), 0);
   };
-  $('btnHandStop').onclick = () => {
+  $('btnHandStop').onclick = () => stopHand();
+  function stopHand() {
     hand.on = false; $('btnHand').disabled = false; $('btnHandStop').disabled = true;
     if (hand.pend.length) note('Schritt 3: ' + hand.pend.length + ' Meldung(en) ohne Nummer verworfen', 'bad');
     hand.pend = [];
     $('btnHand').textContent = hm.some(Boolean) ? 'Aufnahme fortsetzen' : 'Aufnahme starten';
     renderHand();
     note('Schritt 3: Aufnahme beendet – ' + (st.s3 ? st.s3.text : 'nichts gelesen'), st.s3 && st.s3.ok ? 'note' : 'bad'); refresh();
-  };
+  }
   $('btnHandClear').onclick = () => {
     if (hand.on) { note('Zuerst die Aufnahme beenden.', 'bad'); return; }
     hm = new Array(100).fill(null); hand.stats = newStats(); hand.cursor = null; hand.hist = [];
@@ -554,7 +569,7 @@
 
   // ---------- Schritte 4–6 ----------
   async function writeSlot(slot, freq, name, statusEl, key) {
-    if (!guard()) return;
+    if (!guard(statusEl)) return;
     busy = true; setStatus(statusEl, 'sende …');
     const r = await command(C.buildZ(freq, name, slot), 'Z: Platz ' + two(slot) + ' ← ' + C.encodeFreq(freq).display + ' «' + C.normalizeName(name).trimmed + '»', 2);
     busy = false;
@@ -567,7 +582,7 @@
   $('btnZ98').onclick = () => writeSlot(98, '121.500', 'TEST', 'z98', 's4');
   $('btnZ97').onclick = () => writeSlot(97, '121.500', 'TEST 12', 'z97', 's5');
   async function rTest(freq, name, el, key) {
-    if (!guard()) return;
+    if (!guard(el)) return;
     busy = true; rememberStandby();
     const k = await setStandby(freq, name, 'Schritt 6');
     busy = false; st.s6[key] = k;

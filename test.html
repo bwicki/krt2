@@ -80,7 +80,7 @@
   <p>Über die Schnittstelle lässt sich der Speicher nicht auslesen (Test vom 13.11.: «W» blättert, meldet aber nichts). Holt man einen Platz aber am Gerät mit <b>MEM</b> und Drehknopf, meldet das Gerät Frequenz und Namen – ohne Platznummer. Die Seite zählt deshalb mit; die Nummer aus der Anzeige <span class="mono">SEL[..]</span> gibst Du ein. Das braucht es nur einmal: Danach gilt, was die App auf das Gerät schreibt.</p>
   <p class="muted small">Nur «Senden freigeben» setzen, Befehle braucht es nicht. Das «r» muss im Display stehen. Den Knopf nur drehen, solange <span class="mono">SEL[..]</span> sichtbar ist – sonst verstellt er die Lautstärke oder die Frequenz.</p>
 
-  <p><b>A · Wann meldet das Gerät?</b> (drei kurze Versuche, je 12 s)</p>
+  <p><b>A · Wann meldet das Gerät?</b> (drei kurze Versuche, je 12 s – am 13.11. erledigt: meldet bei jeder Raste, MEM allein und das Verlassen des Speichermodus melden nichts; nur bei einem anderen Gerät wiederholen)</p>
   <ol class="small">
     <li>«Versuch 1», dann sofort am Gerät <b>MEM</b> drücken, nicht drehen, warten.</li>
     <li>«Versuch 2», dann <b>MEM</b> drücken und im Sekundentakt <b>3 Rasten im Uhrzeigersinn</b> drehen, warten.</li>
@@ -95,9 +95,9 @@
   <div class="auto" id="a3a">Noch kein Versuch.</div>
   <div class="row">
     <span>Das Gerät meldet</span>
-    <label><input type="radio" name="hmode" value="raste"> bei jeder Raste</label>
-    <label><input type="radio" name="hmode" value="verlassen" checked> erst beim Verlassen des Speichermodus</label>
-    <span class="muted small">(stellt sich nach Versuch 2 selbst ein)</span>
+    <label><input type="radio" name="hmode" value="raste" checked> bei jeder Raste</label>
+    <label><input type="radio" name="hmode" value="verlassen"> erst beim Verlassen des Speichermodus</label>
+    <span class="muted small">(gemessen am 13.11.: bei jeder Raste; stellt sich nach Versuch 2 selbst ein)</span>
   </div>
 
   <p><b>B · Alle 100 Plätze auslesen</b></p>
@@ -106,7 +106,6 @@
     <button id="btnHand">Aufnahme starten</button>
     <button id="btnHandStop" class="sec" disabled>Aufnahme beenden</button>
     <button id="btnUndo" class="sec" disabled>Letzte Meldung zurücknehmen</button>
-    <button id="btnCount" class="sec" disabled>Übergangene Meldung doch zählen</button>
     <button id="btnHandClear" class="sec">Tabelle leeren</button>
     <label class="small"><input type="checkbox" id="optDup" checked> gleiche Meldung innert 0.3 s nur einmal zählen</label>
   </div>

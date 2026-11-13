@@ -123,6 +123,22 @@ Kontrolle «unsicher» und sind nachzuholen). Zustandsmeldungen nach «U», dopp
 (typ `krt2-sicherung`, Plätze 0–99 mit Status gelesen/kontrolliert/unsicher/widerspruch/fehlt) – dieselbe Datei
 übernimmt 0.4.0 als Ausgangszustand.
 
+**Ergebnis Gerätetest 13.11.2026, 22:49–23:08 (test 0.3.0, krt2_test_20261113_2308.txt)** – korrigiert die Vermutung oben:
+- Das Gerät sendet R **bei jeder Raste** im Speichermodus (Versuch 2: 3 Rasten → 3 Meldungen) [certain].
+- **MEM allein sendet nichts** (Versuch 1), ein zweites MEM auch nicht (Versuch 3); auch beim Verlassen des
+  Speichermodus kommt keine Meldung (nach Platz 03 kam 54 s lang nichts) [certain für dieses Gerät].
+- Die Abfrage «S» läuft im Speichermodus weiter (alle 10 s); oft folgt sie 0–16 ms nach einer R-Meldung.
+- Tempo von Hand: Median 2.6 s pro Raste, 100 Plätze in knapp 5 Minuten. Keine doppelten Meldungen.
+- Fehler in test 0.3.0: die Regel «gleiche Meldung nach ≥ 2 s Pause = Verlassen des Speichermodus» hat 11 echte Plätze
+  verworfen (Plätze 89–96 und 99 sind leer und melden alle 136.975 «»). In test 0.3.1 entfernt; die Aufnahme endet
+  jetzt von selbst, sobald nach 100 Plätzen die nächste Meldung mit dem schon gelesenen Platz übereinstimmt («Runde
+  geschlossen»). Nachgeprüft, indem die 104 echten Meldungen des Tests durch test 0.3.1 gespielt wurden: alle 100 Plätze richtig.
+- Schritt 4 vom Test 23:07 wurde **nicht gesendet** (Aufnahme lief noch, Sperre nur im Protokoll vermerkt); die
+  Antwort «nein» betrifft also keinen Schreibversuch. Z ist durch den Test vom 13.11. 22:15 belegt (ACK, sichtbar).
+- Leere Plätze meldet das Gerät als 136.975 MHz ohne Namen [likely: Grundzustand eines unbenutzten Platzes].
+
+Folgen für 0.4.0: «Gerät sichern» = MEM, eine Raste, Nummer aus SEL eintragen, weiterdrehen bis «Runde geschlossen».
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
