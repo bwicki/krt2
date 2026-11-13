@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.5';
+  const VERSION = '0.3.6';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -680,8 +680,9 @@ ${footerNote()}`;
     const blockAt = {};
     if (dev) groupsFromDevice(dev.aktuell.plaetze).forEach(g => g.rows.forEach(r => { blockAt[r.nr] = g.name; }));
     else { const L2 = M.layout(cfg); if (L2.slots[0].kind === 'fixed') blockAt[0] = t('blk_fixed'); L2.ranges.forEach(r => { for (let i = r.from; i <= r.to; i++) blockAt[i] = r.name; }); L2.slots.forEach(x => { if (x.kind === 'free') blockAt[x.nr] = t('blk_free'); }); if (L2.slots[99].kind === 'fixed') blockAt[99] = t('blk_emerg'); }
-    const label = d => (d.nr % 25 === 0 || blockAt[d.nr] !== blockAt[d.nr - 1]) ? `<span class="bl">${esc(blockAt[d.nr] || '')}${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' …' : ''}</span>` : '';
-    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${blockAt[d.nr] !== blockAt[d.nr - 1] && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}">${label(d)}<span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
+    // Blockname auf der Höhe des ersten Eintrags (dunkelgrau); oben in einer Spalte als Fortsetzung («RADAR …», hellgrau)
+    const label = d => (d.nr % 25 === 0 || blockAt[d.nr] !== blockAt[d.nr - 1]) ? `<span class="bl${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' cont' : ''}">${esc(blockAt[d.nr] || '')}${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' …' : ''}</span>` : '<span></span>';
+    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${blockAt[d.nr] !== blockAt[d.nr - 1] && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span>${label(d)}<span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
     const page = (p) => `<div class="a6" role="img" aria-label="${esc(t('a6_title'))} ${p + 1}/2">
   <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · ${t('a6_slots', { a: pad2(p * 50), b: pad2(p * 50 + 49) })} · ${p + 1}/2 · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
   <div class="cols">${[0, 1].map(c => `<div>${D.slice(p * 50 + c * 25, p * 50 + c * 25 + 25).map(row).join('')}</div>`).join('')}</div>
