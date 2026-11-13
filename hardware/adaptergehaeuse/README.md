@@ -1,4 +1,4 @@
-# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v2)
+# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v3)
 
 Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stützen. Erzeugt mit
 `python3 gehaeuse.py [Platinenlänge hinter dem Stecker] [Kabel-Ø]` (Vorgabe 21 mm, Kabel 4.7 mm; braucht `manifold3d`, `numpy`).
@@ -9,4 +9,4 @@ Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stüt
 - Zugentlastung: kleiner Kabelbinder (2.5 mm) um das Kabel, liegt in der Kammer vor der Austrittswand (Kanal Ø 5.2 mm für das Kabel Ø 4.7 mm).
 - Verschluss: zwei Kabelbinder 2.5 mm in den Aussennuten.
 
-Annahme: Platine 21 mm hinter dem Blechmantel (aus dem Datenblattfoto geschätzt; nach Erhalt nachmessen). v2: Kanal für Kabel Ø 4.7 mm (v1: 6 mm).
+Annahme: Platine 21 mm hinter dem Blechmantel (aus dem Datenblattfoto geschätzt; nach Erhalt nachmessen). v2: Kanal für Kabel Ø 4.7 mm (v1: 6 mm). v3: gleiche Form wie v2; die STL-Dateien von v1 und v2 waren fehlerhaft geschrieben (nicht lesbar) und sind zu löschen.

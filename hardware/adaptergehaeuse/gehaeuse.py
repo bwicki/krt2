@@ -13,7 +13,7 @@ import sys
 import numpy as np
 from manifold3d import Manifold, Mesh
 
-VERSION = 'v2'
+VERSION = 'v3'   # v3 = v2 mit korrekt geschriebener STL (v1/v2: Kopf 79 statt 80 Byte, nicht lesbar)
 P = dict(
     pcb_hinten=21.0,   # Platinenlänge hinter dem Blechmantel des USB-Steckers (geschätzt aus Datenblattfoto)
     ueberlapp=3.0,     # Gehäuse überdeckt so viel vom Blechmantel
@@ -81,7 +81,7 @@ def write_stl(m, path):
     n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
     n /= np.linalg.norm(n, axis=1)[:, None] + 1e-12
     with open(path, 'wb') as fh:
-        fh.write(b'EX-13101 Gehaeuse ' + VERSION.encode() + b' ' * (80 - 19 - len(VERSION)))
+        fh.write(('EX-13101 Gehaeuse ' + VERSION).encode('ascii')[:80].ljust(80, b' '))   # Kopf genau 80 Byte
         fh.write(np.uint32(len(f)).tobytes())
         rec = np.zeros(len(f), dtype=[('n', '<f4', 3), ('v', '<f4', (3, 3)), ('a', '<u2')])
         rec['n'] = n; rec['v'] = tri
