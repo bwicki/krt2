@@ -7,13 +7,13 @@ Hinterkante auf die Platine und den USB-Stecker – nicht auf die Lötstellen. Z
 Kabelbindern in den Aussennuten.
 
 Masse in mm. x = Längsachse (0 = Vorderkante, zeigt zum USB-Stecker), y = Breite, z = Höhe (0 = Platinenebene).
-Aufruf: python3 gehaeuse.py [Platinenlänge hinter dem Stecker] [Kabel-Ø]
+Aufruf: python3 gehaeuse.py [Platinenlänge hinter dem Stecker] [Kabel-Ø aussen]
 """
 import sys
 import numpy as np
 from manifold3d import Manifold, Mesh
 
-VERSION = 'v1'
+VERSION = 'v2'
 P = dict(
     pcb_hinten=21.0,   # Platinenlänge hinter dem Blechmantel des USB-Steckers (geschätzt aus Datenblattfoto)
     ueberlapp=3.0,     # Gehäuse überdeckt so viel vom Blechmantel
@@ -24,7 +24,8 @@ P = dict(
     kammer_l=14.0,     # Kammer für Lötstellen, Drahtbogen und Kabelbinder
     kammer_b=14.0, kammer_h=11.0,
     austritt_l=3.0,    # Austrittswand
-    kabel_d=6.0,       # Kanal für das Kabel (Kabel bis knapp 6 mm)
+    kabel_d=4.7,       # Aussendurchmesser des Kabels (Balthasar, 14.11.2026)
+    kanal_spiel=0.5,   # Kanal = Kabel + Spiel; der Kabelbinder um das Kabel passt nicht hindurch
     anschlag_b=2.0, anschlag_l=1.0, anschlag_h=1.2,  # Anschläge hinter der Platinen-Hinterkante (in Platinenebene)
     nut_b=3.0, nut_t=0.6,  # Nuten für die Kabelbinder aussen
 )
@@ -47,7 +48,7 @@ def gehaeuse():
         box(F, L, -(kb / 2 + w), kb / 2 + w, -(kh / 2 + w), kh / 2 + w)
     innen = box(-1, K0 + 0.01, -cb / 2, cb / 2, -ch / 2, ch / 2) + \
         box(K0, K1, -kb / 2, kb / 2, -kh / 2, kh / 2) + \
-        Manifold.cylinder(P['austritt_l'] + 2, P['kabel_d'] / 2, P['kabel_d'] / 2, 64).rotate([0, 90, 0]).translate([K1 - 1, 0, 0])
+        Manifold.cylinder(P['austritt_l'] + 2, (P['kabel_d'] + P['kanal_spiel']) / 2, (P['kabel_d'] + P['kanal_spiel']) / 2, 64).rotate([0, 90, 0]).translate([K1 - 1, 0, 0])
     teil = aussen - innen
     # Anschläge hinter der Platinen-Hinterkante (im Durchlass der Kammerwand), nur in Platinenebene:
     # sie überdecken die Platinenecken um 1 mm, die Drähte laufen darüber und darunter durch
