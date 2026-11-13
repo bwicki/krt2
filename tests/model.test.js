@@ -69,4 +69,14 @@ const D = M.deviceSlots(cfg); eq(D.length, 100); ok(D.every(d => d.name.length =
 const back = M.fromJSON(M.toJSON(cfg)); eq(M.deviceSlots(back), D, 'Rundlauf JSON');
 assert.throws(() => M.fromJSON('{"a":1}')); n++;
 const csv = M.toCSV(cfg); eq(csv.split('\r\n').length, 102); ok(csv.startsWith('Platz;Frequenz;Kurzname'));
+// Einfügen nach dem Eintrag, auf dem der Cursor steht
+const c4 = S.sampleConfig(); const blk = M.entriesOf(c4, 'b-apptwr'); const ref = blk[1];
+const ins = M.addEntry(c4, { ch: '119.000', dienst: 'APP', block: 'b-apptwr', kurz: 'NEU', kurzModus: 'frei' }, ref.id);
+eq(M.entriesOf(c4, 'b-apptwr').map(e => e.id).indexOf(ins.id), 2, 'direkt nach der Cursorzeile');
+eq(M.entriesOf(c4, 'b-apptwr').map(e => e.pos), M.entriesOf(c4, 'b-apptwr').map((_, i) => i), 'Block neu nummeriert');
+// Dienste der Konfiguration
+eq(M.servicesOf(c4), M.SERVICES); c4.settings.services = ['TWR', 'APP', 'BALL'];
+ok(M.SVC_RE.test('BALL') && !M.SVC_RE.test('b') && !M.SVC_RE.test('TOOLONG'));
+eq(M.fromJSON(JSON.stringify(Object.assign({}, c4, { settings: Object.assign({}, c4.settings, { services: [] }) }))).settings.services, M.SERVICES, 'leer → Vorgabe');
+eq(M.entryShort({ dienst: 'BALL', ort: { code: 'ZRH' }, kurzModus: 'kurz' }), 'ZRH BALL', 'eigener Dienst im Kurznamen');
 console.log(n + ' Prüfungen bestanden');

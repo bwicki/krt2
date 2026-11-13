@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.2.1';
+  const VERSION = '0.2.2';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null };
@@ -49,10 +49,10 @@
     msg(t('m_saved_file', { f: name }), 'ok');
   }
 
-  function ask(title, body, yes) {
+  function ask(title, body, yes, no, yesCls) {
     return new Promise(res => {
       const d = $('#dlg');
-      d.innerHTML = `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="row"><button type="button" class="sec" value="no">${t('cancel')}</button><button type="button" class="danger" value="yes">${esc(yes)}</button></div>`;
+      d.innerHTML = `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="row"><button type="button" class="sec" value="no">${esc(no || t('cancel'))}</button><button type="button" class="${yesCls || 'danger'}" value="yes">${esc(yes)}</button></div>`;
       const done = v => { d.close(); res(v); };
       d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => done(b.value === 'yes')));
       d.addEventListener('cancel', () => res(false), { once: true });
@@ -250,7 +250,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     edRefresh();
   }
 
-  function svcOptions(sel) { return M.SERVICES.map(s => `<option${s === sel ? ' selected' : ''}>${s}</option>`).join(''); }
+  function svcOptions(sel) { const l = M.servicesOf(cfg).slice(); if (sel && !l.includes(sel)) l.push(sel); return l.map(s => `<option${s === sel ? ' selected' : ''}>${esc(s)}</option>`).join(''); }
 
   function edRefresh() {
     const R = M.check(cfg), L = R.layout;
@@ -367,8 +367,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       return;
     }
     if (act === 'own') {
-      const blk = (ui.filter && M.blockById(cfg, ui.filter)) || cfg.bloecke.find(y => y.on) || cfg.bloecke[0];
-      const ne = M.addEntry(cfg, { ch: '', dienst: blk.svc[0] || 'OTH', block: blk.id, kurz: '', kurzModus: 'frei' });
+      // nach der Zeile, in der der Cursor zuletzt stand; sonst am Ende des gefilterten oder ersten Blocks
+      const cur = ui.lastRow && cfg.eintraege.find(x => x.id === ui.lastRow);
+      const curBlk = cur && M.blockById(cfg, cur.block);
+      const blk = (curBlk && curBlk.on ? curBlk : null) || (ui.filter && M.blockById(cfg, ui.filter)) || cfg.bloecke.find(y => y.on) || cfg.bloecke[0];
+      const ne = M.addEntry(cfg, { ch: '', dienst: blk.svc[0] || 'OTH', block: blk.id, kurz: '', kurzModus: 'frei' }, cur && cur.block === blk.id ? cur.id : null);
+      ui.lastRow = ne.id;
       saveDraft(); edRefresh();
       const inp = document.querySelector(`tr[data-id="${ne.id}"] [data-f="kurz"]`); if (inp) { inp.scrollIntoView({ block: 'center' }); inp.focus(); }
       return;
@@ -396,8 +400,24 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     else if (f === 'kurz') { e.kurzModus = 'frei'; e.kurz = el.value.toUpperCase().replace(/\s+$/, ''); }
     else if (f === 'ch') { const r = C.encodeFreq(el.value); e.ch = r.ok ? r.display : el.value.trim(); }
     else if (f === 'klar') e.klar = el.value;
-    else if (f === 'dienst') { e.dienst = el.value; if (e.kurzModus !== 'frei') e.kurz = M.entryShort(e); }
+    else if (f === 'dienst') { e.dienst = el.value; if (e.kurzModus !== 'frei') e.kurz = M.entryShort(e); saveDraft(); checkBlockFit(e); return; }
     afterChange(edRefresh);
+  }
+
+  /** Passt der Dienst nicht in den Block, fragen: belassen oder in den passenden Block verschieben. */
+  async function checkBlockFit(e) {
+    const blk = M.blockById(cfg, e.block);
+    if (!blk || blk.svc.includes(e.dienst)) { afterChange(edRefresh); return; }
+    const target = cfg.bloecke.find(b => b.on && b.svc.includes(e.dienst)) || cfg.bloecke.find(b => b.svc.includes(e.dienst));
+    const k = M.entryShort(e) || e.ch || '–';
+    if (target) {
+      if (await ask(t('bf_title', { s: e.dienst }), t('bf_body', { k, s: e.dienst, b: blk.name, z: target.name }) + (target.on ? '' : ' ' + t('bf_off', { z: target.name })), t('bf_move', { z: target.name }), t('bf_keep', { b: blk.name }), 'go')) {
+        M.moveTo(cfg, e.id, target.id, Infinity); msg(t('m_brought', { k, b: target.name }), 'ok');
+      }
+    } else if (await ask(t('bf_title', { s: e.dienst }), t('bf_none', { k, s: e.dienst, b: blk.name }), t('bf_add', { s: e.dienst, b: blk.name }), t('bf_keep', { b: blk.name }), 'go')) {
+      blk.svc.push(e.dienst); msg(t('m_svc_added', { s: e.dienst, b: blk.name }), 'ok');
+    }
+    saveDraft(); edRefresh();
   }
 
   function onKurzInput(ev) {
@@ -453,7 +473,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     if (L.freeTo != null) segs.push({ label: t('blk_free').toLowerCase() + ' ' + range(L.freeFrom, L.freeTo), n: L.freeTo - L.freeFrom + 1, cls: 'gap', tip: cfg.settings.free.ch + ' ' + cfg.settings.free.kurz });
     segs.push(cfg.fixed.p99.on ? { label: '99', n: 1, bg: '#c0392b', fg: '#fff', tip: 'EMERGENC 121.500' } : { label: '99', n: 1, cls: 'gap', tip: t('st_off99') });
     const blockRow = (b, i) => {
-      const rest = M.SERVICES.filter(s => !b.svc.includes(s));
+      const rest = M.servicesOf(cfg).filter(s => !b.svc.includes(s));
       return `<tr data-bid="${b.id}" class="${b.on ? '' : 'off'}">
 <td class="mv"><button type="button" class="ghost" data-act="bup" aria-label="${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="ghost" data-act="bdown" aria-label="${esc(t('ed_down'))}" ${i === cfg.bloecke.length - 1 ? 'disabled' : ''}>▼</button></td>
 <td><input type="checkbox" data-b="on" ${b.on ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(b.name)}"></td>
@@ -483,6 +503,11 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 <section class="card stack"><div class="spread"><span class="label">${t('st_blocks')}</span><button type="button" class="sec" data-act="badd">${t('st_add_block')}</button></div>
   <div style="overflow-x:auto"><table class="grid"><thead><tr><th><span class="sr">${t('col_move')}</span></th><th>${t('col_on')}</th><th>${t('st_block')}</th><th>${t('st_svc')}</th><th>${t('st_max')}</th><th>${t('st_order')}</th><th></th></tr></thead>
   <tbody>${cfg.bloecke.map(blockRow).join('')}</tbody></table></div></section>
+<section class="card stack"><div class="spread"><span class="label">${t('sv_title')}</span>
+  <div class="row"><button type="button" class="sec" data-act="svc-sort">${t('sv_sort')}</button><button type="button" class="sec" data-act="svc-reset">${t('sv_reset')}</button>
+  <form class="row" data-form="svcadd"><label class="sr" for="svcnew">${t('sv_new')}</label><input id="svcnew" type="text" maxlength="6" placeholder="${esc(t('sv_new_ph'))}" style="width:110px;text-transform:uppercase" class="mono" required><button type="submit" class="sec">${t('sv_add')}</button></form></div></div>
+  <div class="row" style="gap:6px">${M.servicesOf(cfg).map((s, i, a) => `<span class="tag" data-svc="${esc(s)}"><button type="button" data-act="svc-up" aria-label="${esc(s)} ${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>‹</button><b class="mono">${esc(s)}</b><button type="button" data-act="svc-down" aria-label="${esc(s)} ${esc(t('ed_down'))}" ${i === a.length - 1 ? 'disabled' : ''}>›</button><button type="button" data-act="svc-del" aria-label="${esc(s)} ×">×</button></span>`).join('')}</div>
+  <p class="note">${t('sv_note')}</p></section>
 <div class="settings-3">
   <section class="card stack"><span class="label">${t('st_freeslots')}</span>
     <div class="row"><input type="text" class="mono" data-st="free.ch" value="${esc(st.free.ch)}" aria-label="${esc(t('col_f'))} ${esc(t('fixed_free'))}" style="width:100px"><input type="text" class="mono" data-st="free.kurz" value="${esc(st.free.kurz)}" maxlength="8" aria-label="${esc(t('col_k'))} ${esc(t('fixed_free'))}" style="width:110px"></div>
@@ -513,6 +538,18 @@ ${footerNote()}`;
     else if (act === 'svcdel') { blk.svc = blk.svc.filter(s => s !== b.dataset.svc); }
     else if (act === 'badd') { cfg.bloecke.push({ id: M.uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'dist' }); }
     else if (act === 'bdel') { const n = cfg.eintraege.filter(e => e.block === blk.id).length; if (n) { msg(t('st_block_notempty', { b: blk.name, n }), 'warn'); return; } cfg.bloecke = cfg.bloecke.filter(x => x !== blk); }
+    else if (act === 'svc-up' || act === 'svc-down' || act === 'svc-del' || act === 'svc-sort' || act === 'svc-reset') {
+      const st = cfg.settings; st.services = M.servicesOf(cfg).slice();
+      const code = (b.closest('[data-svc]') || { dataset: {} }).dataset.svc;
+      const i = st.services.indexOf(code);
+      if (act === 'svc-sort') st.services.sort();
+      else if (act === 'svc-reset') { st.services = M.SERVICES.slice(); cfg.eintraege.forEach(e => { if (!st.services.includes(e.dienst)) st.services.push(e.dienst); }); }
+      else if (act === 'svc-del') {
+        const n = cfg.eintraege.filter(e => e.dienst === code).length;
+        if (n) { msg(t('sv_in_use', { s: code, n }), 'warn'); return; }
+        st.services.splice(i, 1); cfg.bloecke.forEach(bl => { bl.svc = bl.svc.filter(x => x !== code); });
+      } else { const j = i + (act === 'svc-up' ? -1 : 1); if (j < 0 || j >= st.services.length) return; [st.services[i], st.services[j]] = [st.services[j], st.services[i]]; }
+    }
     else if (act === 'applyall') { let n = 0; for (const x of cfg.eintraege) if (M.hasIcao(x)) { x.kurzModus = cfg.settings.adLoc; x.kurz = M.entryShort(x); n++; } msg(t('st_applied', { n, m: cfg.settings.adLoc === 'icao' ? t('st_adloc_icao') : t('st_adloc_short') }), 'ok'); }
     else return;
     afterChange(pageEinst);
@@ -792,6 +829,11 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   });
   document.addEventListener('submit', ev => {
     const r = route();
+    if (r === 'einstellungen') { const f = ev.target.closest('form[data-form=svcadd]'); if (!f) return; ev.preventDefault();
+      const code = f.svcnew.value.trim().toUpperCase(); const st = cfg.settings; st.services = M.servicesOf(cfg).slice();
+      if (!M.SVC_RE.test(code)) { msg(t('sv_bad', { s: code }), 'warn'); return; }
+      if (st.services.includes(code)) { msg(t('sv_exists', { s: code }), 'warn'); return; }
+      st.services.push(code); saveDraft(); msg(t('sv_added', { s: code }), 'ok'); pageEinst(); const el = $('#svcnew'); if (el) el.focus(); return; }
     if (r === 'konfigurationen') onKonfigSubmit(ev);
     else if (r === 'konten') onKontenSubmit(ev);
   });
@@ -803,6 +845,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     else if (r === 'konfigurationen') onKonfigChange(ev);
   });
   document.addEventListener('input', ev => { if (route() === 'editor') onKurzInput(ev); });
+  document.addEventListener('focusin', ev => { const tr = ev.target.closest && ev.target.closest('#edt tr[data-id]'); if (tr) ui.lastRow = tr.dataset.id; });
 
   function onFile(inp) {
     const f = inp.files && inp.files[0]; if (!f) return;

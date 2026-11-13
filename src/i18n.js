@@ -93,6 +93,13 @@
     kt_role: 'Rolle', kt_devices: 'Geräte', kt_last: 'Letzte Anmeldung', kt_locked: 'gesperrt', kt_reset: 'Kennwort zurücksetzen', kt_lock: 'Sperren', kt_unlock: 'Entsperren',
     kt_reset_q: 'Kennwort von «{n}» zurücksetzen?', kt_reset_b: 'Es wird ein neues Kennwort erzeugt und angezeigt; bestehende Anmeldungen dieses Kontos enden.',
     m_pw_reset: 'Neues Kennwort für {n}: {p}', m_user_created: 'Konto {n} angelegt. Anfangskennwort: {p}', m_locked: 'Konto {n} gesperrt.', m_unlocked: 'Konto {n} entsperrt.',
+    bf_title: 'Dienst {s} passt nicht in diesen Block', bf_body: '«{k}» hat den Dienst {s}, steht aber im Block {b}. {s} gehört zum Block {z}.',
+    bf_off: '(Block {z} ist zurzeit ausgeschaltet.)', bf_move: 'Nach {z} verschieben', bf_keep: 'In {b} belassen',
+    bf_none: '«{k}» hat den Dienst {s}, den kein Block führt. Er bleibt in {b}, oder {s} wird dem Block {b} zugeordnet.', bf_add: '{s} dem Block {b} zuordnen',
+    m_svc_added: 'Dienst {s} dem Block {b} zugeordnet.',
+    sv_title: 'Dienste', sv_sort: 'alphabetisch ordnen', sv_reset: 'Standard', sv_new: 'Neuer Dienst', sv_new_ph: 'z. B. BALL', sv_add: '+ Dienst',
+    sv_note: 'Reihenfolge der Auswahl im Editor und Rangfolge beim Ordnen «Flugplatz, dann Dienst». Neue Dienste: 2–6 Zeichen A–Z/0–9; im Kurznamen erscheint das Kürzel unverändert (FIS erscheint als INFO). Einem Block zuordnen unter «Blöcke».',
+    sv_in_use: '{s} wird von {n} Einträgen verwendet und lässt sich deshalb nicht entfernen.', sv_bad: '«{s}»: 2–6 Zeichen, Buchstabe zuerst, nur A–Z und 0–9.', sv_exists: '{s} ist schon in der Liste.', sv_added: 'Dienst {s} hinzugefügt.',
   };
   const en = {
     title: 'TQ KRT2-S2 Memory Manager', sub: 'Frequency table of the radio',
@@ -180,6 +187,13 @@
     kt_role: 'Role', kt_devices: 'Radios', kt_last: 'Last sign-in', kt_locked: 'locked', kt_reset: 'Reset password', kt_lock: 'Lock', kt_unlock: 'Unlock',
     kt_reset_q: 'Reset password of «{n}»?', kt_reset_b: 'A new password is generated and shown; existing sessions of this account end.',
     m_pw_reset: 'New password for {n}: {p}', m_user_created: 'Account {n} created. Initial password: {p}', m_locked: 'Account {n} locked.', m_unlocked: 'Account {n} unlocked.',
+    bf_title: 'Service {s} does not fit this block', bf_body: '«{k}» has service {s} but sits in block {b}. {s} belongs to block {z}.',
+    bf_off: '(Block {z} is currently switched off.)', bf_move: 'Move to {z}', bf_keep: 'Keep in {b}',
+    bf_none: '«{k}» has service {s}, which no block lists. It stays in {b}, or {s} is assigned to block {b}.', bf_add: 'Assign {s} to block {b}',
+    m_svc_added: 'Service {s} assigned to block {b}.',
+    sv_title: 'Services', sv_sort: 'sort alphabetically', sv_reset: 'Default', sv_new: 'New service', sv_new_ph: 'e.g. BALL', sv_add: '+ Service',
+    sv_note: 'Order of the selection in the editor and rank when ordering «aerodrome, then service». New services: 2–6 characters A–Z/0–9; the short name shows the code unchanged (FIS appears as INFO). Assign to a block under «Blocks».',
+    sv_in_use: '{s} is used by {n} entries and cannot be removed.', sv_bad: '«{s}»: 2–6 characters, letter first, A–Z and 0–9 only.', sv_exists: '{s} is already in the list.', sv_added: 'Service {s} added.',
   };
   let lang = 'de';
   try { lang = localStorage.getItem('krt2.lang') || ((navigator.language || 'de').startsWith('de') ? 'de' : 'en'); } catch (e) { /* ohne Speicher */ }

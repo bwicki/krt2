@@ -32,7 +32,7 @@
       schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
-      settings: { adLoc: 'kurz', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' } },
+      settings: { adLoc: 'kurz', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' }
@@ -86,7 +86,12 @@
   }
   function entriesOf(cfg, blockId) { return cfg.eintraege.filter(e => e.block === blockId).sort((a, b) => a.pos - b.pos); }
 
-  function addEntry(cfg, partial) {
+  /** Dienste der Konfiguration in ihrer Reihenfolge (Einstellungen), Vorgabe SERVICES. */
+  function servicesOf(cfg) { const s = cfg && cfg.settings && cfg.settings.services; return Array.isArray(s) && s.length ? s : SERVICES; }
+  const SVC_RE = /^[A-Z][A-Z0-9]{1,5}$/;
+
+  /** Neuer Eintrag; mit afterId direkt nach diesem Eintrag (im selben Block), sonst am Blockende. */
+  function addEntry(cfg, partial, afterId) {
     const e = Object.assign({
       id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', block: null, aktiv: true,
       quellen: ['eigen'], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, lage: null, along: null, bestaetigt: false
@@ -94,8 +99,10 @@
     if (!e.block || !blockById(cfg, e.block)) { const b = blockForService(cfg, e.dienst) || cfg.bloecke[0]; e.block = b ? b.id : null; }
     if (e.kurzModus !== 'frei') e.kurz = entryShort(e);
     const same = cfg.eintraege.filter(x => x.block === e.block);
-    e.pos = same.length ? Math.max(...same.map(x => x.pos)) + 1 : 0;
+    const after = afterId && same.find(x => x.id === afterId);
+    e.pos = after ? after.pos + 0.5 : same.length ? Math.max(...same.map(x => x.pos)) + 1 : 0;
     cfg.eintraege.push(e);
+    if (after) renumber(cfg, e.block);
     return e;
   }
 
@@ -125,12 +132,14 @@
     return true;
   }
 
-  const SVC_RANK = s => { const i = SERVICES.indexOf(s); return i < 0 ? 99 : i; };
+
   /** Block nach seiner Regel ordnen. */
   function sortBlock(cfg, blockId) {
     const b = blockById(cfg, blockId); if (!b) return;
     const num = v => (v == null || v === '' || isNaN(v) ? Infinity : Number(v));
     const list = entriesOf(cfg, blockId);
+    const svcs = servicesOf(cfg);
+    const SVC_RANK = s => { const i = svcs.indexOf(s); return i < 0 ? 99 : i; };
     const by = {
       dist: (x, y) => num(x.dist) - num(y.dist),
       corridor: (x, y) => num(x.along) - num(y.along) || num(x.dist) - num(y.dist),
@@ -233,6 +242,7 @@
     const d = defaultConfig();
     const cfg = Object.assign(d, o);
     cfg.settings = Object.assign(defaultConfig().settings, o.settings || {});
+    if (!Array.isArray(cfg.settings.services) || !cfg.settings.services.length) cfg.settings.services = SERVICES.slice();
     cfg.settings.free = Object.assign({ ch: '118.000', kurz: 'FREE' }, (o.settings || {}).free || {});
     cfg.fixed = { p00: Object.assign(d.fixed.p00, (o.fixed || {}).p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, (o.fixed || {}).p99 || {}) };
     cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
@@ -260,7 +270,7 @@
   }
 
   return {
-    SCHEMA, LAST_SLOT, SERVICES, ORDERS, svcShort, defaultBlocks, defaultConfig, uid,
+    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, hasIcao,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
     layout, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
