@@ -75,7 +75,7 @@ Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berech
 | 0.1.0 ✓ | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
 | 0.2.0 ✓ | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
 | 0.3.0 ✓ | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
-| 0.4.0 | Gerät: Schreiben (Z) aller 100 Plätze mit ACK je Platz, Stichprobe am Gerät (R beim Abrufen), Sichern nur von Hand (siehe 4b), Vorschau alt→neu | Test 13.11.2026 |
+| 0.4.0 ✓ | Gerät: Schreiben (Z) aller 100 Plätze mit ACK je Platz, Stichprobe am Gerät (R beim Abrufen), Sichern von Hand oder aus Datei (siehe 4b, 4c), Vorschau alt→neu | Test 13.11.2026 |
 | 0.5.0 | Startseite öffentlich, PWA offline, GPS-Hervorhebung, Portal-Eintrag | teilweise |
 | 1.0.0 | Abnahme Zürich (A1–A7) | ja |
 
@@ -138,6 +138,31 @@ Kontrolle «unsicher» und sind nachzuholen). Zustandsmeldungen nach «U», dopp
 - Leere Plätze meldet das Gerät als 136.975 MHz ohne Namen [likely: Grundzustand eines unbenutzten Platzes].
 
 Folgen für 0.4.0: «Gerät sichern» = MEM, eine Raste, Nummer aus SEL eintragen, weiterdrehen bis «Runde geschlossen».
+
+## 4c Gerät (0.4.0)
+
+Dateien: `src/link.js` (Web Serial, Antwort auf «S», ACK, «Z» je Platz mit Quittung und bis zu zwei Wiederholungen,
+Simulation), `src/readout.js` (Auslesen von Hand, reine Logik, Test mit der echten Meldefolge vom 13.11.),
+`src/geraet.js` (Seite), Texte `gr_*` in `src/i18n.js`, Stil `.gr-*` in `css/app.css`.
+
+- **Verbindung** bleibt beim Seitenwechsel bestehen; «Gerät ●» in der Navigation zeigt sie an. Ohne Web Serial
+  (Firefox, Safari, Telefon) bleibt «Adapter verbinden» ohne Wirkung und ein Hinweis erscheint. `?sim=1` zeigt
+  «Simulation» (Gerät wie gemessen: R je Raste, MEM und Verlassen ohne Meldung).
+- **Gerät:** eigenes Gerät aus dem Konto (Stand auf dem Server, mit Verlauf `device_history`) oder «Gerät ohne Konto»
+  (Stand nur im Browser, `krt2.lokal.aktuell`). Nur eine ausdrückliche Wahl wird gemerkt.
+- **Sichern:** von Hand (MEM, eine Raste, SEL-Nummer eintragen, weiterdrehen bis «Runde geschlossen») oder aus einer
+  Sicherungsdatei (`krt2-sicherung` JSON oder CSV, z. B. `krt2_sicherung_20261113_v2`). Gespeichert wird erst bei
+  100 Plätzen; Herkunft `ausgelesen`. Beim ersten Verbinden ohne Stand fragt die App nach (von Hand / aus Datei / ohne).
+- **Programmieren:** immer alle 100 Plätze (rund 7 s in der Simulation), Vorschau alt→neu mit Zusammenfassung gleicher
+  Nachbarn. Gesperrt ohne Verbindung «r», während des Auslesens, bei roten Befunden oder ungültigen Plätzen.
+  Nach drei Fehlschlägen in Folge Abbruch; «Fehlgeschlagene nochmals schreiben». Erst wenn alle 100 quittiert sind,
+  wird der Stand gespeichert (Herkunft `geschrieben`, Konfiguration, Version, `quittiert: 100`).
+- **Stichprobe:** jede R-Meldung wird mit dem festgehaltenen Stand verglichen («passt zu Platz 12» / «zu keinem»).
+- Startseite: «Gerät auslesen und sichern» → `#geraet?sichern`; Editor: «Mit Gerät vergleichen» und
+  «Gerät programmieren» → `#geraet?programmieren`.
+- Geprüft: `tests/readout.test.js` (119 Prüfungen), Playwright in der Simulation (Auslesen 101 Rasten, Programmieren,
+  Fehlschlag und Wiederholung, Stichprobe) und angemeldet gegen den lokalen Worker (Sicherung aus Datei → Server,
+  Programmieren → Server, Startseite zeigt «programmiert»). Am echten Gerät noch nicht geschrieben.
 
 ## 5 Prüfen
 

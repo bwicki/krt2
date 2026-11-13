@@ -32,7 +32,7 @@ Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs
 | `#konfigurationen` | eigene Konfigurationen (Öffnen, Duplizieren, Löschen), eigene Geräte, Konfigurationen anderer Konten als Kopie übernehmen | 0.2.0 |
 | `#konten` | nur Supermaster: Konten anlegen, Kennwort zurücksetzen, sperren | 0.2.0 |
 | `#gebiet` | Startort (Ortssuche mit Auswahlliste), Kreis/Rechteck/Vieleck/Korridor auf der OSM-Karte, Höhenband, Länder, Vorschlag aus den Frequenzdaten | 0.3.0 |
-| `#geraet` | Gerät schreiben/auslesen | 0.4.0 |
+| `#geraet` | Gerät verbinden, sichern (von Hand/aus Datei), programmieren, Stichprobe | 0.4.0 ✓ |
 
 Belegung: 00 = BALLOON 122.255 (fest, freigebbar), Blöcke ab 01 lückenlos, freie Plätze (118.000 FREE) nur am
 Ende, 99 = EMERGENC 121.500. Kurzname = Ortskürzel (IATA, sonst drei Buchstaben) + ICAO-Dienstkürzel, höchstens

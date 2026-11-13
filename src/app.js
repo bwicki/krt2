@@ -1,9 +1,9 @@
-/* krt2.wicki.aero – App-Oberfläche 0.1.0: Aktuell, Editor, Einstellungen, A6-Karte. Entwurf lokal im Browser. */
+/* krt2.wicki.aero – App-Oberfläche: Aktuell, Gebiet, Editor, Gerät (ab 0.4.0), Konfigurationen, Einstellungen, A6-Karte. */
 (function () {
   'use strict';
-  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
+  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.3.6';
+  const VERSION = '0.4.0';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -68,7 +68,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   function ask(title, body, yes, no, yesCls) {
     return new Promise(res => {
       const d = $('#dlg');
-      d.innerHTML = `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="row"><button type="button" class="sec" value="no">${esc(no || t('cancel'))}</button><button type="button" class="${yesCls || 'danger'}" value="yes">${esc(yes)}</button></div>`;
+      d.innerHTML = `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="row"><button type="button" class="sec" value="no">${esc(no || t('cancel'))}</button><button type="button" class="${yesCls === 'primary' ? '' : (yesCls || 'danger')}" value="yes">${esc(yes)}</button></div>`;
       const done = v => { d.close(); res(v); };
       d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => done(b.value === 'yes')));
       d.addEventListener('cancel', () => res(false), { once: true });
@@ -76,11 +76,22 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     });
   }
 
+  /** Auswahl mit mehreren Knöpfen: options = [[wert, text], …]; der erste ist der Vorschlag. Gibt den Wert zurück (Esc: null). */
+  function choose(title, body, options) {
+    return new Promise(res => {
+      const d = $('#dlg');
+      d.innerHTML = `<h2>${esc(title)}</h2><p>${esc(body)}</p><div class="row">${options.map(([v, l], i) => `<button type="button" class="${i ? 'sec' : ''}" value="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
+      d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { d.close(); res(b.value); }));
+      d.addEventListener('cancel', () => res(null), { once: true });
+      d.showModal(); d.querySelector('button').focus();
+    });
+  }
+
   // ---------- Gerüst ----------
   const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten', 'protokoll'];
   const isSuper = () => !!(API.user && API.user.role === 'super');
   function nav() {
-    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
+    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
     if (isSuper()) n.push(['konten', 'nav_konten']);
     return n;
   }
@@ -91,7 +102,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     $('#app').innerHTML = `
 <header class="top">
   <div class="brand"><strong>${t('title')}</strong>
-    <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : ''}>${t(l)}</a>`).join('')}</nav>
+    <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : k === 'geraet' && LINK.connected ? ' class="live"' : ''}>${t(l)}</a>`).join('')}</nav>
   </div>
   <div class="top-right">
     <a class="btn sec iconbtn" id="logbtn" href="#protokoll" title="${esc(t('log_title'))}"${r === 'protokoll' ? ' aria-current="page"' : ''}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbadge" id="logbadge" hidden></span></a>
@@ -115,7 +126,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     const r = route();
     if (window.KRT2GEBIET) window.KRT2GEBIET.leave();
     shell(r);
-    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
+    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => GR.render(), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
   }
 
   function footerNote() {
@@ -137,7 +148,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   function groupsFromDevice(pl) {
     const g = [];
     const rows = pl.map(p => ({ nr: p.nr, kurz: (p.name || '').trimEnd(), ch: p.ch, klar: p.klar || '', dienst: p.dienst || '', block: p.block || '', kind: p.kind || '' }));
-    const freeOf = r => r.kind === 'free' || (!r.kind && r.kurz === 'FREE');
+    const freeOf = r => r.kind === 'free' || r.kind === 'leer' || (!r.kind && (r.kurz === 'FREE' || !r.kurz));
     for (const r of rows) {
       const name = r.nr === 0 && r.kind !== 'entry' && !r.block ? t('blk_fixed') : r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : (r.block || '–');
       const last = g[g.length - 1];
@@ -161,7 +172,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
 <section class="card spread">
   ${head}
   ${!prog ? `<div class="stack"><span class="label">${t('cur_data')}</span><span>${esc(fmtDate(cfg.datenStand))}${cfg.standort && cfg.standort.name ? ' · ' + esc(cfg.standort.name) : ''}</span></div>` : ''}
-  <div class="row"><a class="btn" href="#karte">${t('cur_print')}</a><button type="button" class="sec" disabled title="${esc(t('cur_read_later'))}">${t('cur_read')}</button></div>
+  <div class="row"><a class="btn" href="#karte">${t('cur_print')}</a><a class="btn sec" href="#geraet?sichern">${t('cur_read')}</a></div>
 </section>
 <div class="row"><label for="q" class="muted">${t('cur_search')}</label><input id="q" type="search" class="search" placeholder="${esc(t('cur_search_ph'))}" value="${esc(ui.curQ)}">${!prog && cfg.beispiel ? `<span class="small muted">${t('sample_note')}</span>` : ''}</div>
 <section class="card flush"><table class="grid cur-table"><thead><tr><th style="width:64px">${t('col_nr')}</th><th style="width:130px">${t('col_k')}</th><th style="width:110px">${t('col_f')}</th><th>${t('col_t')}</th><th style="width:110px">${t('col_d')}</th></tr></thead><tbody id="curbody"></tbody></table></section>
@@ -255,12 +266,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 <div class="ed-layout">
   <div class="ed-main"><div class="ed-actions"><span class="status" id="edstatus"></span>
     <div class="row" style="gap:8px">
-    <button type="button" class="sec" disabled title="${esc(t('ed_later04'))}">${t('ed_compare')}</button>
+    <a class="btn sec" href="#geraet?programmieren">${t('ed_compare')}</a>
     <button type="button" class="sec" data-act="load">${t('ed_load')}</button>
     <button type="button" class="sec" data-act="csv">${t('ed_csv')}</button>
     <button type="button" class="${API.enabled ? 'sec' : ''}" data-act="saveas">${t('ed_saveas')}</button>
     ${API.enabled ? `<button type="button" data-act="srvsave">${esc(saveLabel())}</button>` : ''}
-    <button type="button" disabled title="${esc(t('ed_later04'))}">${t('ed_program')}</button></div></div>
+    <a class="btn" href="#geraet?programmieren">${t('ed_program')}</a></div></div>
   <section class="card flush"><table class="grid" id="edt"><thead id="edhead">${edHead()}</thead><tbody id="edbody"></tbody></table></section></div>
   <aside><section class="card" id="issues"></section><section class="card" id="left"></section></aside>
 </div>`;
@@ -888,6 +899,11 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   // Kontext für die Seite «Gebiet» (src/gebiet.js)
   const gctx = { get cfg() { return cfg; }, t, esc, msg, saveDraft: () => saveDraft(), footerNote, fmtDate, ask, get lang() { return I.lang; } };
 
+  // Kontext für die Seite «Gerät» (src/geraet.js)
+  GR.init({ get cfg() { return cfg; }, t, esc, msg, ask, choose, download, stamp, slug, fmtDT, footerNote, route, M, C, API, ui, version: VERSION,
+    setDeviceSel(id) { ui.deviceSel = id; try { localStorage.setItem('krt2.device', id); } catch (e) { /* egal */ } },
+    async refreshDevices(id) { ui.devices = null; try { ui.devices = await API.devices(); } catch (e) { ui.devices = false; } if (id) { try { ui.device = await API.device(id); } catch (e) { /* egal */ } } } });
+
   // ---------- Platzhalterseiten ----------
   function pageLater(v, key) {
     $('#page').innerHTML = `<section class="card stack"><h1>${t('later_title', { v })}</h1><p style="margin:0">${t(key)}</p>
@@ -899,6 +915,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if ($('#fpop') && !ev.target.closest('#fpop') && !ev.target.closest('[data-act=fopen]')) closeFilter();
     if (ev.target.closest('[data-act=printcard]')) { ev.preventDefault(); const go = () => setTimeout(() => window.print(), 350); if (route() === 'karte') go(); else { location.hash = '#karte'; go(); } return; }
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
+    if (route() === 'geraet' && ev.target.closest('[data-gr]')) { GR.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
     if (b.dataset.act === 'mclose') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m) { m.toast = false; m.seen = true; saveLog(); } renderMsgs(); return; }
@@ -933,6 +950,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (ev.target.id === 'file') { onFile(ev.target); return; }
     const r = route();
     if (r === 'gebiet') { window.KRT2GEBIET.onChange(ev); return; }
+    if (r === 'geraet') { GR.onChange(ev); return; }
     if (r === 'editor') onEditorChange(ev);
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);
@@ -955,7 +973,8 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   }
 
   window.addEventListener('hashchange', () => { closeFilter(); render(); window.scrollTo(0, 0); });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#fpop')) { closeFilter(); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#fpop')) { closeFilter(); } if (route() === 'geraet') GR.onKey(ev); });
+  window.addEventListener('beforeunload', ev => { if (GR.busy || GR._state.roOn) { ev.preventDefault(); ev.returnValue = ''; } });
   I.setLang(I.lang);
   API.onLogout = () => { msg(t('m_session_end'), 'warn'); render(); };
   render();

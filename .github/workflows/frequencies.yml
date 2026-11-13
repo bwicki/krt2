@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
       - name: Prüfungen
-        run: node tests/codec.test.js && node tests/model.test.js && node tests/frequencies.test.mjs
+        run: node tests/codec.test.js && node tests/model.test.js && node tests/readout.test.js && node tests/frequencies.test.mjs
       - name: Exporte laden und Länderdateien bauen
         env:
           COUNTRIES: ${{ inputs.countries }}

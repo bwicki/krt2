@@ -195,7 +195,8 @@
     const L = lay || layout(cfg);
     return L.slots.map(s => {
       const n = C.normalizeName(s.kurz, cfg.settings.allowDigits);
-      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, ok: n.ok && C.encodeFreq(s.ch).ok };
+      const blk = s.block ? blockById(cfg, s.block) : null;
+      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, block: blk ? blk.name : '', ok: n.ok && C.encodeFreq(s.ch).ok };
     });
   }
 
