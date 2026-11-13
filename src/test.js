@@ -3,7 +3,7 @@
 // Lautstärke, Squelch, Kanalraster, Sendetasten.
 (function () {
   'use strict';
-  const VERSION = 'test 0.1.0';
+  const VERSION = 'test 0.1.1';
   const $ = id => document.getElementById(id);
   const K = window.KRT2, C = window.KRT2CODEC;
   $('ver').textContent = VERSION;

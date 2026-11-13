@@ -35,8 +35,9 @@
   <div class="row">
     <label><input type="checkbox" id="optAnswer" checked> auf «S» mit «x» antworten</label>
     <label><input type="checkbox" id="optAck" checked> Meldungen des Funkgeräts mit ACK bestätigen</label>
-    <button id="btnQuery" class="sec">Eigene Abfrage «S»</button>
+    <button id="btnQuery" class="sec">Eigene Abfrage «S» (Diagnose)</button>
   </div>
+  <p class="muted small">Die Verbindung «r» entsteht nur, wenn die Seite die Abfragen «S» des Funkgeräts beantwortet (etwa alle 10 s); eine eigene Abfrage «S» genügt nicht (Mitlese-Protokoll 12.11.2026). Ohne Antwort verschwindet «r» nach etwa 13–15 s.</p>
   <p class="muted small">Adapter DA-70156 (FTDI): Erscheint «r» nicht, im Geräte-Manager unter Anschlüsse → USB Serial Port → Eigenschaften → Anschlusseinstellungen → Erweitert die «Wartezeit (ms)» auf 1 setzen.</p>
 </section>
 
@@ -55,9 +56,9 @@
 <section class="wide">
   <h2>2 · Tests</h2>
   <ol class="tests">
-    <li><b>T1 Verbindung.</b> Adapter verbinden, «Senden freigeben» setzen. Erscheint rechts oben im Funkgerät «r»? Sonst «Eigene Abfrage S». Beobachtung als Notiz eintragen.</li>
+    <li><b>T1 Verbindung.</b> Adapter verbinden, «Senden freigeben» setzen, «auf S antworten» eingeschaltet lassen. Nach spätestens 10 s erscheint rechts oben im Funkgerät «r». Beobachtung als Notiz eintragen.</li>
     <li><b>T2 Einen Platz schreiben.</b> Vorher am Funkgerät mit MEM nachsehen, was auf <b>Platz 98</b> steht, und als Notiz eintragen. Dann «Befehle freigeben», Vorgabe T2 wählen, «Platz schreiben». Danach am Gerät Platz 98 ansehen.</li>
-    <li><b>T3 Ziffern im Namen.</b> Wie T2 mit Vorgabe T3 (Platz 97, «TEST 12»); vorher Platz 97 notieren. Zeigt das Gerät die Ziffern?</li>
+    <li><b>T3 Ziffern im Namen.</b> Wie T2 mit Vorgabe T3 (Platz 97, «TEST 12»); vorher Platz 97 notieren. Zeigt das Gerät die Ziffern? (Im Speicher steht bereits «MIN-8» – Ziffern und Bindestrich kann das Gerät also speichern.)</li>
     <li><b>T4 Blättern.</b> Standby notieren. «W ×1» drücken: kommt eine Standby-Meldung (Tabelle unten)? Dann «W ×5». Danach «Standby zurücksetzen». Blättert das Gerät über leere Plätze? (Nur prüfbar, wenn leere Plätze vorhanden sind.)</li>
     <li><b>T5 Kanalraster.</b> Standby auf 132.505 setzen (8.33 kHz), dann auf 123.450 (25 kHz). Zeigt das Gerät genau diese Werte? Danach Standby zurücksetzen.</li>
     <li><b>T6 Zurückstellen.</b> Plätze 98 und 97 mit den notierten Werten wieder schreiben. Zum Schluss «Protokoll speichern» und die Datei in <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> ablegen.</li>

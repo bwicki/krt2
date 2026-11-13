@@ -38,7 +38,8 @@ t('Kurznamen', () => {
   assert.strictEqual(C.normalizeName('Zürich').name, 'ZUERICH ');
   assert.strictEqual(C.normalizeName('EMERGENCY').ok, false);
   assert.strictEqual(C.normalizeName('EMERGENCY').trimmed, 'EMERGENC');
-  assert.strictEqual(C.normalizeName('LSZH-TWR').ok, false);
+  assert.strictEqual(C.normalizeName('LSZH/TWR').ok, false);
+  assert.strictEqual(C.normalizeName('MIN-8').ok, true);
   assert.strictEqual(C.normalizeName('TEST 12', false).ok, false);
   assert.strictEqual(C.normalizeName('TEST 12').ok, true);
 });

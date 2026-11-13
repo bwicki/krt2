@@ -25,14 +25,15 @@
 
   const UML = { 'Ä': 'AE', 'Ö': 'OE', 'Ü': 'UE', 'ä': 'AE', 'ö': 'OE', 'ü': 'UE', 'ß': 'SS', 'É': 'E', 'È': 'E', 'Ê': 'E', 'é': 'E', 'è': 'E', 'ê': 'E', 'À': 'A', 'à': 'A', 'Â': 'A', 'â': 'A', 'Ç': 'C', 'ç': 'C', 'Ô': 'O', 'ô': 'O', 'Î': 'I', 'î': 'I', 'Û': 'U', 'û': 'U' };
 
-  // Kurzname → genau 8 Zeichen (A–Z, 0–9, Leerzeichen), rechts mit Leerzeichen aufgefüllt.
+  // Kurzname → genau 8 Zeichen (A–Z, 0–9, Bindestrich, Leerzeichen), rechts mit Leerzeichen aufgefüllt.
+  // Ziffern und Bindestrich: im Speicher des Geräts beobachtet («MIN-8», Protokoll 13.11.2026), am Gerät selbst nicht eingebbar.
   // allowDigits=false lässt nur A–Z und Leerzeichen zu (am Gerät eingebbarer Zeichensatz, Handbuch 2.2.2.3).
   function normalizeName(input, allowDigits = true) {
     let s = String(input == null ? '' : input).replace(/[ÄÖÜäöüßÉÈÊéèêÀàÂâÇçÔôÎîÛû]/g, c => UML[c]).toUpperCase();
     const bad = [];
     let out = '';
     for (const c of s) {
-      const okc = (c >= 'A' && c <= 'Z') || c === ' ' || (allowDigits && c >= '0' && c <= '9');
+      const okc = (c >= 'A' && c <= 'Z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'));
       if (okc) out += c; else bad.push(c);
     }
     const tooLong = out.length > NAME_LEN;
