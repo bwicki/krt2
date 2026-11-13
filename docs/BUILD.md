@@ -75,7 +75,7 @@ Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berech
 | 0.1.0 ✓ | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
 | 0.2.0 ✓ | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
 | 0.3.0 ✓ | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
-| 0.4.0 | Gerät: Schreiben (Z), Sichern/Auslesen (W) gemäss Testergebnis, Vorschau alt→neu | ja |
+| 0.4.0 | Gerät: Schreiben (Z) aller 100 Plätze mit ACK je Platz, Stichprobe am Gerät (R beim Abrufen), Sichern nur von Hand (siehe 4b), Vorschau alt→neu | Test 13.11.2026 |
 | 0.5.0 | Startseite öffentlich, PWA offline, GPS-Hervorhebung, Portal-Eintrag | teilweise |
 | 1.0.0 | Abnahme Zürich (A1–A7) | ja |
 
@@ -90,6 +90,25 @@ Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berech
 - Kurzname: IATA bzw. drei Buchstaben des Orts (Dübendorf → DUB), Zusatz aus dem Rufnamen (Radar East → ZRHE RDR,
   Radar M3 → ZRH3 RDR); Klartext mit ICAO-Abkürzungen («Birrfeld AD», «Zuerich ATIS DEP»).
 - `src/gebiet.js`: Seite mit Leaflet (lib/leaflet 1.9.4), OSM-Kacheln, Ortssuche Nominatim (Auswahlliste), GPX/GeoJSON-Import.
+
+## 4b Ergebnis Machbarkeitstest am Gerät (13.11.2026, test 0.2.0, krt2_test_20261113_2216.txt)
+
+| Schritt | Ergebnis |
+|---|---|
+| Verbindung | «r» nach ca. 2 s; Funkgerät fragt alle 10 s mit «S», Antwort «x» nach 1–4 ms genügt; danach Statusmeldungen U, A, 2, 3, 4, 1, R, Kanalraster |
+| W (nächster Platz) | Gerät blättert sichtbar weiter (Standby-Anzeige), **sendet aber weder ACK noch R**. 15–35 s später meldet es R mit dem alten Standby (Blättern verfällt) |
+| Auslesen mit W | **nicht möglich** – keine Rückmeldung; Auslesen per Schnittstelle entfällt |
+| Z (Platz schreiben) | ACK nach 27–38 ms; am Gerät sofort sichtbar; Ziffern im Namen («TEST 12») gehen |
+| R (Standby setzen) | ACK nach 28–35 ms; 132.505 (8.33) und 123.450 (25 kHz) korrekt angezeigt |
+| Abruf am Gerät (MEM, Knopf) | sendet R mit Frequenz und Namen, aber **ohne Platznummer** |
+
+Folgen für 0.4.0: Schreiben ist sicher (ACK je Platz, Wiederholung bei NAK/Zeitablauf). Eine automatische Sicherung
+der alten Programmierung gibt es nicht; «Sichern» heisst: am Gerät mit MEM ab Platz 00 Platz für Platz weiterdrehen,
+die App zeichnet jede R-Meldung der Reihe nach auf (Platznummer aus der Reihenfolge, Nutzer bestätigt). Ob jeder
+Knopfschritt eine R-Meldung erzeugt, ist [likely] (Test 13.11.: zwei Abrufe, zwei Meldungen) und wird vor dem Bau kurz
+geprüft. Nach dem Schreiben dient derselbe Mechanismus als Stichprobe: abgerufene Plätze werden mit dem Soll verglichen.
+Beim Test wurden die Plätze 97 und 98 mit Testwerten überschrieben (136.975 «TEST», «TEST2»); ihr alter Inhalt ist
+nicht gesichert.
 
 ## 5 Prüfen
 
