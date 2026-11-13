@@ -87,6 +87,16 @@ export function channel(raw) {
   return { ch: null, note: 'kein gültiger Kanal: ' + s };
 }
 
+// Gleiche Frequenz in zwei Kanalrastern: 25-kHz-Angabe (x.xx0/25/50/75) und 8.33-Kanalname derselben Frequenz (+5 kHz),
+// z. B. OurAirports 123.550 und openAIP 123.555 (Birrfeld). Für das KRT2 gilt der 8.33-Kanalname, wo der Dienst 8.33 nutzt.
+export function sameFreq(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const k = x => Math.round(Number(x) * 1000);
+  const [x, y] = [k(a), k(b)].sort((m, n) => m - n);
+  return y - x === 5 && x % 25 === 0;
+}
+
 const r3 = x => Math.round(x * 1000) / 1000;
 function simplifyRing(ring) {
   const out = []; let last = null;
@@ -148,8 +158,11 @@ async function country(cc, oa, samples) {
     if (o) {
       seen.add(icao);
       for (const q of o.f) {
-        const hit = freqs.find(x => x.ch && x.ch === q.ch);
-        if (hit) { if (!hit.src.includes('oa')) hit.src.push('oa'); }
+        const hit = freqs.find(x => x.ch && x.ch === q.ch) || freqs.find(x => sameFreq(x.ch, q.ch));
+        if (hit) {
+          if (!hit.src.includes('oa')) hit.src.push('oa');
+          if (hit.ch !== q.ch || hit.s !== q.s) hit.alt = { ch: q.ch, s: q.s, n: q.n };   // Abweichung der Zweitquelle festhalten
+        }
         else freqs.push({ ch: q.ch, note: q.note, raw: q.raw, s: q.s, n: q.n, pri: false, src: ['oa'] });
       }
     }
