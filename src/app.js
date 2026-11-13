@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.3';
+  const VERSION = '0.3.4';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -286,7 +286,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     pop.id = 'fpop'; pop.className = 'fpop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', t('ed_f_' + c));
     if (c === 'k') pop.innerHTML = `<label class="stack" style="gap:4px"><span class="small muted">${t('ed_f_k_hint')}</span><input id="fk" type="search" class="mono" value="${esc(ui.colF.k)}" placeholder="${esc(t('ed_f_ph'))}" style="width:160px"></label>`;
     else {
-      const val = e => (c === 'd' ? e.dienst : (e.ort && e.ort.cc) || '–');
+      const val = e => (c === 'd' ? e.dienst : M.ccOf(e) || '–');
       const counts = {}; cfg.eintraege.forEach(e => { const v = val(e); counts[v] = (counts[v] || 0) + 1; });
       const x = ui.colF[c + 'x'] || [];
       pop.innerHTML = `<div class="row nowrap" style="gap:6px;margin-bottom:6px"><button type="button" class="ghost small" data-act="fall" data-v="${c}">${t('ed_f_all')}</button><button type="button" class="ghost small" data-act="fnone" data-v="${c}">${t('ed_f_none')}</button></div>
@@ -312,7 +312,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       if (ui.filter !== 'all' && ui.filter !== 'active' && ui.filter !== 'check' && e.block !== ui.filter) return false;
       if (ui.colF.k.trim() && !M.entryShort(e).toUpperCase().includes(ui.colF.k.trim().toUpperCase())) return false;
       if (ui.colF.dx.includes(e.dienst)) return false;
-      if (ui.colF.ccx.includes((e.ort && e.ort.cc) || '–')) return false;
+      if (ui.colF.ccx.includes(M.ccOf(e) || '–')) return false;
       return !q || [M.entryShort(e), e.ch, e.klar, e.dienst, e.ort && e.ort.name, e.ort && e.ort.icao].some(v => String(v || '').toUpperCase().includes(q));
     };
     const colOn = anyFilter();
@@ -327,7 +327,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     if (ui.sort.by !== 'nr') {
       // Sortierte Ansicht: flache Liste, Plätze bleiben wie sie sind; Verschieben nur in der Blockansicht
       const num = v => (v == null || v === '' ? Infinity : Number(v));
-      const key = { k: e => M.entryShort(e), d: e => e.dienst, dist: e => num(e.dist), cc: e => ((e.ort && e.ort.cc) || '~') }[ui.sort.by];
+      const key = { k: e => M.entryShort(e), d: e => e.dienst, dist: e => num(e.dist), cc: e => (M.ccOf(e) || '~') }[ui.sort.by];
       const cmp = (a, b) => { const x = key(a), y = key(b); return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y))) * ui.sort.dir || num(a.dist) - num(b.dist) || (L.slotOf[a.id] ?? 999) - (L.slotOf[b.id] ?? 999); };
       const on = new Set(cfg.bloecke.filter(b => b.on).map(b => b.id));
       const list = cfg.eintraege.filter(e => on.has(e.block) && match(e)).sort(cmp);
@@ -388,7 +388,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 <td><input type="text" class="klar" data-f="klar" value="${esc(e.klar)}" aria-label="${esc(t('col_t'))}"></td>
 <td><select class="svc" data-f="dienst" aria-label="${esc(t('col_d'))}">${svcOptions(e.dienst)}</select></td>
 <td class="small muted" style="white-space:nowrap">${esc(dist)}</td>
-<td class="small">${(e.quellen || []).includes('eigen') ? `<input type="text" class="mono" data-f="cc" value="${esc((e.ort && e.ort.cc) || '')}" maxlength="2" style="width:42px;text-transform:uppercase" aria-label="${esc(t('col_cc'))}">` : `<span class="mono">${esc((e.ort && e.ort.cc) || '–')}</span>`}</td>
+<td class="small">${(e.quellen || []).includes('eigen') ? `<input type="text" class="mono" data-f="cc" value="${esc(M.ccOf(e))}" maxlength="2" style="width:42px;text-transform:uppercase" aria-label="${esc(t('col_cc'))}">` : `<span class="mono">${esc(M.ccOf(e) || '–')}</span>`}</td>
 <td class="q"><div class="qrow"><span class="badge ${qcls}" title="${esc(qtitle)}">${esc(qtxt)}</span>${conf}<button type="button" class="ghost" data-act="del" aria-label="${esc(t('ed_del'))}" title="${esc(t('ed_del'))}">×</button></div>${extra}</td>
 </tr>`;
   }
@@ -675,7 +675,12 @@ ${footerNote()}`;
       title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
       sub = t('a6_draft') + ' · ' + fmtDT(new Date());
     }
-    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${starts.has(d.nr) && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
+    // Blockname je Platz; erscheint klein auf der Trennlinie, wo ein Block beginnt, und oben in jeder Spalte
+    const blockAt = {};
+    if (dev) groupsFromDevice(dev.aktuell.plaetze).forEach(g => g.rows.forEach(r => { blockAt[r.nr] = g.name; }));
+    else { const L2 = M.layout(cfg); if (L2.slots[0].kind === 'fixed') blockAt[0] = t('blk_fixed'); L2.ranges.forEach(r => { for (let i = r.from; i <= r.to; i++) blockAt[i] = r.name; }); L2.slots.forEach(x => { if (x.kind === 'free') blockAt[x.nr] = t('blk_free'); }); if (L2.slots[99].kind === 'fixed') blockAt[99] = t('blk_emerg'); }
+    const label = d => (d.nr % 25 === 0 || blockAt[d.nr] !== blockAt[d.nr - 1]) ? `<span class="bl">${esc(blockAt[d.nr] || '')}${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' …' : ''}</span>` : '';
+    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${blockAt[d.nr] !== blockAt[d.nr - 1] && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}">${label(d)}<span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
     const page = (p) => `<div class="a6" role="img" aria-label="${esc(t('a6_title'))} ${p + 1}/2">
   <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · ${t('a6_slots', { a: pad2(p * 50), b: pad2(p * 50 + 49) })} · ${p + 1}/2 · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
   <div class="cols">${[0, 1].map(c => `<div>${D.slice(p * 50 + c * 25, p * 50 + c * 25 + 25).map(row).join('')}</div>`).join('')}</div>

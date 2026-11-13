@@ -77,6 +77,10 @@
     if (e.kurzModus === 'frei') return e.kurz || '';
     return shortName(entryParts(e), e.kurzModus === 'icao' ? 'icao' : 'kurz');
   }
+  // Land aus dem ICAO-Präfix, für Einträge ohne gespeichertes Land (z. B. Vorschläge vor 0.3.1)
+  const ICAO_CC = { LS: 'CH', ED: 'DE', ET: 'DE', LO: 'AT', LF: 'FR', LI: 'IT', LJ: 'SI', LK: 'CZ', LZ: 'SK', LH: 'HU', EP: 'PL', EB: 'BE', EH: 'NL', EL: 'LU', EG: 'GB', EI: 'IE',
+    EK: 'DK', ES: 'SE', EN: 'NO', EF: 'FI', EE: 'EE', EV: 'LV', EY: 'LT', LE: 'ES', LP: 'PT', LG: 'GR', LD: 'HR', LQ: 'BA', LY: 'RS', LW: 'MK', LA: 'AL', LB: 'BG', LR: 'RO', LU: 'MD', UK: 'UA', LM: 'MT', LC: 'CY', BI: 'IS', LN: 'MC' };
+  function ccOf(e) { const o = (e && e.ort) || {}; return o.cc || ICAO_CC[String(o.icao || '').slice(0, 2)] || ''; }
   function hasIcao(e) { return !!(e.ort && /^[A-Z]{4}$/.test(e.ort.icao || '')); }
 
   // ---------- Einträge ----------
@@ -172,7 +176,7 @@
         if (b.max != null && i >= b.max) { notPlaced.push({ e, why: 'max' }); return; }
         if (next > LAST_SLOT) { notPlaced.push({ e, why: 'voll' }); return; }
         slotOf[e.id] = next;
-        slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, cc: (e.ort && e.ort.cc) || '', block: b.id, entryId: e.id };
+        slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, cc: ccOf(e), block: b.id, entryId: e.id };
         next++;
       });
       if (next > from) ranges.push({ block: b.id, name: b.name, from, to: next - 1 });
@@ -271,7 +275,7 @@
 
   return {
     SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, defaultBlocks, defaultConfig, uid,
-    locCode, shortName, entryParts, entryShort, hasIcao,
+    locCode, shortName, entryParts, entryShort, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
     layout, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
   };

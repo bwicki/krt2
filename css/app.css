@@ -180,14 +180,16 @@ dialog .row{justify-content:flex-end;margin-top:16px}
 .a6 .hd strong{font-size:8pt;display:block}
 .a6 .hd span{font-size:6.2pt;color:#444}
 .a6 .hd img{height:6.5mm;width:auto}
-.a6 .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:3mm;flex:1}
-.a6 .r{display:grid;grid-template-columns:4.2mm 13.2mm 11.6mm minmax(0,1fr) 3.6mm;column-gap:1mm;align-items:baseline;font-size:6.6pt;line-height:3.48mm;white-space:nowrap}
+.a6 .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:3mm;flex:1 1 0;min-height:0}
+.a6 .cols>div{display:grid;grid-template-rows:repeat(25,minmax(0,1fr));min-height:0}
+.a6 .r{position:relative;display:grid;grid-template-columns:4.2mm 13.2mm 11.6mm minmax(0,1fr) 3mm;column-gap:1mm;align-items:center;font-size:6.5pt;line-height:1;white-space:nowrap;min-height:0;overflow:visible}
 .a6 .r .n,.a6 .r .k,.a6 .r b{font-family:var(--mono)}
 .a6 .r .k,.a6 .r b{font-weight:600;white-space:pre}
-.a6 .r .t{overflow:hidden;text-overflow:ellipsis;font-size:6.2pt;color:#222}
-.a6 .r .c{font-family:var(--mono);font-size:6pt;color:#444;text-align:right}
-.a6 .r.free{color:#888}.a6 .r.free .k,.a6 .r.free b{font-weight:400}
+.a6 .r .t{overflow:hidden;text-overflow:ellipsis;font-size:6.1pt;color:#222}
+.a6 .r .c{font-family:var(--mono);font-size:4.6pt;color:#555;text-align:right;letter-spacing:.02em}
+.a6 .r.free{color:#888}
 .a6 .r.start{border-top:.25mm solid #111}
+.a6 .r .bl{position:absolute;right:0;top:0;transform:translateY(-55%);font-size:4.4pt;line-height:1;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:#fff;color:#111;padding:0 .6mm}
 .a6 .r.emerg .k,.a6 .r.emerg b,.a6 .r.emerg .t{font-weight:700;color:#000}
 
 @media (max-width:1479px){
