@@ -92,8 +92,14 @@ table.grid{width:100%;border-collapse:collapse;font-size:14px}
 table.grid th{text-align:left;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:10px 10px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface);position:sticky;top:0;z-index:1}
 table.grid th button.sort{all:unset;cursor:pointer;border-bottom:1px dashed var(--border-strong)}
 table.grid th button.sort.on{color:var(--primary);border-bottom-color:var(--primary)}
-table.grid tr.filters th{padding:4px 8px 8px;top:38px;text-transform:none;letter-spacing:0}
-table.grid tr.filters select,table.grid tr.filters input{min-height:28px;padding:2px 6px;font-size:13px}
+.ficon{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:4px;border-radius:5px;color:var(--muted);opacity:.65;vertical-align:-5px}
+.ficon.on,.ficon:hover{opacity:1}
+.ficon:hover{background:var(--hair);color:var(--muted)}
+.ficon.on{color:#fff;background:var(--primary)}
+.ficon:focus-visible{outline:2px solid var(--primary)}
+.fpop{position:fixed;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(20,32,46,.18);padding:10px 12px;min-width:160px}
+.fpop-list{display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;font-size:14px}
+.fpop-list label{gap:8px;padding:2px 0}
 table.grid th button.sort:focus-visible{outline:2px solid var(--primary)}
 table.grid td{padding:6px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}
 table.grid tr.head td{padding:12px 10px 6px;background:var(--bg);border-bottom:1px solid var(--border)}

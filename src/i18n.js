@@ -17,7 +17,7 @@
     sample_note: 'Beispieldaten aus openAIP und OurAirports, ungeprüft – zum Ausprobieren, nicht zur Flugvorbereitung.',
     disclaimer: 'Hilfsmittel ohne Gewähr. Massgebend sind AIP, VFR-Manual und NOTAM. Quellen: openAIP (CC BY-NC 4.0), OurAirports (Public Domain).',
     legal: 'Lizenz', testlink: 'Machbarkeitstest',
-    col_nr: 'Platz', col_k: 'Kurzname', col_f: 'Frequenz', col_t: 'Klartext', col_d: 'Dienst', col_on: 'An', col_move: 'Verschieben', col_km: 'Distanz', col_q: 'Quellen', col_cc: 'Land', ed_sort_by: 'nach {c} sortieren', ed_f_k: 'Kurzname filtern', ed_f_d: 'Dienst filtern', ed_f_cc: 'Land filtern', ed_f_ph: 'Filter', ed_f_reset: 'Filter/Sortierung aus', ed_sorted_view: 'Ansicht sortiert nach {c} – die Plätze bleiben unverändert. Verschieben geht in der Blockansicht (Spalte «Platz»).',
+    col_nr: 'Platz', col_k: 'Kurzname', col_f: 'Frequenz', col_t: 'Klartext', col_d: 'Dienst', col_on: 'An', col_move: 'Verschieben', col_km: 'Distanz', col_q: 'Quellen', col_cc: 'Land', ed_sort_by: 'nach {c} sortieren', ed_f_k: 'Kurzname filtern', ed_f_d: 'Dienste ein- und ausblenden', ed_f_cc: 'Länder ein- und ausblenden', ed_f_ph: 'z. B. ZRH', ed_f_reset: 'Filter und Sortierung aufheben', ed_f_reset_s: 'Filter aus', ed_f_k_hint: 'Kurzname enthält', ed_f_all: 'alle', ed_f_none: 'keine', print_card: 'Karte 2 × A6 drucken', ed_sorted_view: 'Ansicht sortiert nach {c} – die Plätze bleiben unverändert. Verschieben geht in der Blockansicht (Spalte «Platz»).',
     blk_fixed: 'FEST', blk_free: 'FREI', blk_emerg: 'NOTFREQUENZ', fest: 'fest',
     // Editor
     ed_unsaved: 'Entwurf, nur in diesem Browser', ed_name_ph: 'Name der Konfiguration', ed_all: 'Alle', ed_active: 'nur aktive', ed_check: 'nur zu prüfen',
@@ -141,7 +141,7 @@ ge_map: 'Karte für das Gebiet', ge_lg_ad: 'Flugplatz mit Frequenz', ge_lg_out: 
     sample_note: 'Sample data from openAIP and OurAirports, unchecked – for trying out, not for flight preparation.',
     disclaimer: 'Aid without warranty. AIP, VFR manual and NOTAM prevail. Sources: openAIP (CC BY-NC 4.0), OurAirports (public domain).',
     legal: 'Licence', testlink: 'Feasibility test',
-    col_nr: 'Slot', col_k: 'Short name', col_f: 'Frequency', col_t: 'Plain text', col_d: 'Service', col_on: 'On', col_move: 'Move', col_km: 'Distance', col_q: 'Sources', col_cc: 'Country', ed_sort_by: 'sort by {c}', ed_f_k: 'Filter short name', ed_f_d: 'Filter service', ed_f_cc: 'Filter country', ed_f_ph: 'Filter', ed_f_reset: 'Clear filter/sort', ed_sorted_view: 'View sorted by {c} – the slots stay as they are. Moving works in the block view (column «Slot»).',
+    col_nr: 'Slot', col_k: 'Short name', col_f: 'Frequency', col_t: 'Plain text', col_d: 'Service', col_on: 'On', col_move: 'Move', col_km: 'Distance', col_q: 'Sources', col_cc: 'Country', ed_sort_by: 'sort by {c}', ed_f_k: 'Filter short name', ed_f_d: 'Show or hide services', ed_f_cc: 'Show or hide countries', ed_f_ph: 'e.g. ZRH', ed_f_reset: 'Clear filter and sorting', ed_f_reset_s: 'Filter off', ed_f_k_hint: 'Short name contains', ed_f_all: 'all', ed_f_none: 'none', print_card: 'Print card 2 × A6', ed_sorted_view: 'View sorted by {c} – the slots stay as they are. Moving works in the block view (column «Slot»).',
     blk_fixed: 'FIXED', blk_free: 'FREE', blk_emerg: 'EMERGENCY', fest: 'fixed',
     ed_unsaved: 'Draft, this browser only', ed_name_ph: 'Configuration name', ed_all: 'All', ed_active: 'active only', ed_check: 'to check only',
     ed_own: '+ Own frequency', ed_ad: 'Aerodromes:', ed_all_icao: 'all ICAO', ed_all_short: 'all codes',

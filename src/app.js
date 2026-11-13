@@ -3,10 +3,10 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.2';
+  const VERSION = '0.3.3';
   const LS = 'krt2.draft';
 
-  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', d: '', cc: '' }, sort: { by: 'nr', dir: 1 } };
+  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
   try { ui.deviceSel = localStorage.getItem('krt2.device'); } catch (e) { /* egal */ }
   let cfg = loadDraft() || S.sampleConfig();
 
@@ -95,6 +95,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   </div>
   <div class="top-right">
     <a class="btn sec iconbtn" id="logbtn" href="#protokoll" title="${esc(t('log_title'))}"${r === 'protokoll' ? ' aria-current="page"' : ''}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbadge" id="logbadge" hidden></span></a>
+    <a class="btn sec iconbtn" href="#karte" data-act="printcard" title="${esc(t('print_card'))}" aria-label="${esc(t('print_card'))}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/></svg></a>
     <div class="seg" role="group" aria-label="Sprache / language"><button type="button" data-act="lang" data-v="de" aria-pressed="${I.lang === 'de'}">DE</button><button type="button" data-act="lang" data-v="en" aria-pressed="${I.lang === 'en'}">EN</button></div>
     ${!API.enabled ? `<button type="button" class="sec" disabled title="${esc(t('login_off'))}">${t('login')}</button>`
       : API.user ? `<button type="button" class="sec" data-act="account" title="${esc(API.user.name || '')}">${esc(API.user.login)} ▾</button>`
@@ -267,17 +268,38 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     edRefresh();
   }
 
-  /** Tabellenkopf: Sortieren (Platz = Blockansicht) und Filter je Spalte. */
+  /** Tabellenkopf: Sortieren (Platz = Blockansicht); Filter-Symbol hinter Kurzname, Dienst und Land öffnet eine kleine Auswahl. */
+  const FUNNEL = '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg>';
+  const fActive = c => (c === 'k' ? !!ui.colF.k.trim() : (ui.colF[c + 'x'] || []).length > 0);
+  const anyFilter = () => fActive('k') || fActive('d') || fActive('cc');
   function edHead() {
     const sb = (by, label) => { const on = ui.sort.by === by; return `<button type="button" class="sort${on ? ' on' : ''}" data-act="colsort" data-v="${by}" aria-pressed="${on}" title="${esc(t('ed_sort_by', { c: label }))}">${esc(label)}${on && by !== 'nr' ? (ui.sort.dir > 0 ? ' ▲' : ' ▼') : ''}</button>`; };
-    const svcs = [...new Set(cfg.eintraege.map(e => e.dienst))].sort();
-    const ccs = [...new Set(cfg.eintraege.map(e => (e.ort && e.ort.cc) || ''))].filter(Boolean).sort();
-    const opt = (list, sel) => `<option value="">${t('ed_all')}</option>` + list.map(v => `<option${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
-    return `<tr><th><span class="sr">${t('col_move')}</span></th><th>${sb('nr', t('col_nr'))}</th><th>${t('col_on')}</th><th>${sb('k', t('col_k'))}</th><th>${t('col_f')}</th><th>${t('col_t')}</th><th>${sb('d', t('col_d'))}</th><th>${sb('dist', t('col_km'))}</th><th>${sb('cc', t('col_cc'))}</th><th>${t('col_q')}</th></tr>
-<tr class="filters"><th></th><th></th><th></th><th><label class="sr" for="fk">${t('ed_f_k')}</label><input id="fk" type="search" class="mono" value="${esc(ui.colF.k)}" placeholder="${esc(t('ed_f_ph'))}" style="width:112px"></th><th></th><th></th>
-<th><label class="sr" for="fd">${t('ed_f_d')}</label><select id="fd">${opt(svcs, ui.colF.d)}</select></th><th></th><th><label class="sr" for="fc">${t('ed_f_cc')}</label><select id="fc">${opt(ccs, ui.colF.cc)}</select></th>
-<th>${ui.colF.k || ui.colF.d || ui.colF.cc || ui.sort.by !== 'nr' ? `<button type="button" class="ghost small" data-act="colreset">${t('ed_f_reset')}</button>` : ''}</th></tr>`;
+    const fb = (c, label) => `<button type="button" class="ficon${fActive(c) ? ' on' : ''}" data-act="fopen" data-v="${c}" aria-haspopup="true" aria-label="${esc(t('ed_f_' + c))}" title="${esc(t('ed_f_' + c))}">${FUNNEL}</button>`;
+    return `<tr><th><span class="sr">${t('col_move')}</span></th><th>${sb('nr', t('col_nr'))}</th><th>${t('col_on')}</th><th>${sb('k', t('col_k'))}${fb('k')}</th><th>${t('col_f')}</th><th>${t('col_t')}</th><th>${sb('d', t('col_d'))}${fb('d')}</th><th>${sb('dist', t('col_km'))}</th><th>${sb('cc', t('col_cc'))}${fb('cc')}</th>
+<th>${t('col_q')}${anyFilter() || ui.sort.by !== 'nr' ? ` <button type="button" class="ghost small" data-act="colreset" title="${esc(t('ed_f_reset'))}">✕ ${t('ed_f_reset_s')}</button>` : ''}</th></tr>`;
   }
+  /** Auswahl unter dem Filter-Symbol: Text für Kurzname, Häkchen je Wert für Dienst und Land (ein- und ausblenden). */
+  function openFilter(btn) {
+    closeFilter();
+    const c = btn.dataset.v, r = btn.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.id = 'fpop'; pop.className = 'fpop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', t('ed_f_' + c));
+    if (c === 'k') pop.innerHTML = `<label class="stack" style="gap:4px"><span class="small muted">${t('ed_f_k_hint')}</span><input id="fk" type="search" class="mono" value="${esc(ui.colF.k)}" placeholder="${esc(t('ed_f_ph'))}" style="width:160px"></label>`;
+    else {
+      const val = e => (c === 'd' ? e.dienst : (e.ort && e.ort.cc) || '–');
+      const counts = {}; cfg.eintraege.forEach(e => { const v = val(e); counts[v] = (counts[v] || 0) + 1; });
+      const x = ui.colF[c + 'x'] || [];
+      pop.innerHTML = `<div class="row nowrap" style="gap:6px;margin-bottom:6px"><button type="button" class="ghost small" data-act="fall" data-v="${c}">${t('ed_f_all')}</button><button type="button" class="ghost small" data-act="fnone" data-v="${c}">${t('ed_f_none')}</button></div>
+<div class="fpop-list">${Object.keys(counts).sort().map(v => `<label><input type="checkbox" data-fchk="${c}" value="${esc(v)}" ${x.includes(v) ? '' : 'checked'}> <span class="mono">${esc(v)}</span> <span class="small muted">${counts[v]}</span></label>`).join('')}</div>`;
+    }
+    document.body.appendChild(pop);
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+    pop.style.top = (r.bottom + 6) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+    const f = pop.querySelector('input'); if (f) f.focus();
+  }
+  function closeFilter() { const p = $('#fpop'); if (p) p.remove(); }
+  function applyFilter() { $('#edhead').innerHTML = edHead(); edRefresh(); }
 
   function svcOptions(sel) { const l = M.servicesOf(cfg).slice(); if (sel && !l.includes(sel)) l.push(sel); return l.map(s => `<option${s === sel ? ' selected' : ''}>${esc(s)}</option>`).join(''); }
 
@@ -288,12 +310,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       if (ui.filter === 'active' && !e.aktiv) return false;
       if (ui.filter === 'check' && !(R.byEntry[e.id] || []).length) return false;
       if (ui.filter !== 'all' && ui.filter !== 'active' && ui.filter !== 'check' && e.block !== ui.filter) return false;
-      if (ui.colF.k && !M.entryShort(e).toUpperCase().includes(ui.colF.k.trim().toUpperCase())) return false;
-      if (ui.colF.d && e.dienst !== ui.colF.d) return false;
-      if (ui.colF.cc && ((e.ort && e.ort.cc) || '') !== ui.colF.cc) return false;
+      if (ui.colF.k.trim() && !M.entryShort(e).toUpperCase().includes(ui.colF.k.trim().toUpperCase())) return false;
+      if (ui.colF.dx.includes(e.dienst)) return false;
+      if (ui.colF.ccx.includes((e.ort && e.ort.cc) || '–')) return false;
       return !q || [M.entryShort(e), e.ch, e.klar, e.dienst, e.ort && e.ort.name, e.ort && e.ort.icao].some(v => String(v || '').toUpperCase().includes(q));
     };
-    const colOn = !!(ui.colF.k || ui.colF.d || ui.colF.cc);
+    const colOn = anyFilter();
     const showFixed = ui.filter === 'all' && !q && !colOn && ui.sort.by === 'nr';
     let h = '';
     const fixedRow = (key, nr) => {  // 00 und 99: fest, nur 99 abwählbar
@@ -399,7 +421,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const act = b.dataset.act, e = entryOf(b);
     if (act === 'filter') { ui.filter = b.dataset.v; pageEditor(); return; }
     if (act === 'colsort') { const by = b.dataset.v; ui.sort = { by, dir: ui.sort.by === by ? -ui.sort.dir : 1 }; if (by === 'nr') ui.sort.dir = 1; $('#edhead').innerHTML = edHead(); edRefresh(); return; }
-    if (act === 'colreset') { ui.colF = { k: '', d: '', cc: '' }; ui.sort = { by: 'nr', dir: 1 }; $('#edhead').innerHTML = edHead(); edRefresh(); return; }
+    if (act === 'colreset') { ui.colF = { k: '', dx: [], ccx: [] }; ui.sort = { by: 'nr', dir: 1 }; closeFilter(); applyFilter(); return; }
+    if (act === 'fopen') { if ($('#fpop') && $('#fpop').getAttribute('aria-label') === t('ed_f_' + b.dataset.v)) closeFilter(); else openFilter(b); return; }
+    if (act === 'fall' || act === 'fnone') {
+      const c = b.dataset.v, all = [...document.querySelectorAll(`#fpop [data-fchk="${c}"]`)];
+      all.forEach(x => { x.checked = act === 'fall'; }); ui.colF[c + 'x'] = act === 'fall' ? [] : all.map(x => x.value); applyFilter(); return;
+    }
     if (act === 'up' || act === 'down') { if (M.moveEntry(cfg, e.id, act === 'up' ? -1 : 1)) afterChange(edRefresh); return; }
     if (act === 'kmode') { e.kurzModus = b.dataset.v; e.kurz = M.entryShort(e); afterChange(edRefresh); return; }
     if (act === 'confirm' || act === 'unconfirm') { e.bestaetigt = act === 'confirm'; afterChange(edRefresh); return; }
@@ -437,7 +464,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 
   function onEditorChange(ev) {
     const el = ev.target;
-    if (el.id === 'fd' || el.id === 'fc') { ui.colF[el.id === 'fd' ? 'd' : 'cc'] = el.value; $('#edhead').innerHTML = edHead(); edRefresh(); const x = $('#' + el.id); if (x) x.focus(); return; }
+    if (el.dataset.fchk) { const c = el.dataset.fchk; ui.colF[c + 'x'] = [...document.querySelectorAll(`#fpop [data-fchk="${c}"]`)].filter(x => !x.checked).map(x => x.value); applyFilter(); return; }
     if (el.id === 'cname') { cfg.name = el.value.trim(); saveDraft(); const b = $('#savestate'); if (b) { b.textContent = saveState(); b.className = 'badge' + (cfg.server ? ' y' : ''); } return; }
     if (el.id === 'file') return;
     const f = el.dataset.f; if (!f) return;
@@ -862,6 +889,8 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
 
   // ---------- Ereignisse ----------
   document.addEventListener('click', ev => {
+    if ($('#fpop') && !ev.target.closest('#fpop') && !ev.target.closest('[data-act=fopen]')) closeFilter();
+    if (ev.target.closest('[data-act=printcard]')) { ev.preventDefault(); const go = () => setTimeout(() => window.print(), 350); if (route() === 'karte') go(); else { location.hash = '#karte'; go(); } return; }
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
@@ -903,7 +932,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   });
   document.addEventListener('input', ev => {
     if (route() !== 'editor') return;
-    if (ev.target.id === 'fk') { ui.colF.k = ev.target.value; edRefresh(); const r = document.querySelector('#edhead [data-act=colreset]'); if (!!r !== !!(ui.colF.k || ui.colF.d || ui.colF.cc || ui.sort.by !== 'nr')) { const pos = ev.target.selectionStart; $('#edhead').innerHTML = edHead(); const x = $('#fk'); x.focus(); x.setSelectionRange(pos, pos); } return; }
+    if (ev.target.id === 'fk') { ui.colF.k = ev.target.value; applyFilter(); return; }
     onKurzInput(ev);
   });
   document.addEventListener('focusin', ev => { const tr = ev.target.closest && ev.target.closest('#edt tr[data-id]'); if (tr) ui.lastRow = tr.dataset.id; });
@@ -918,7 +947,8 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     rd.readAsText(f);
   }
 
-  window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', () => { closeFilter(); render(); window.scrollTo(0, 0); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#fpop')) { closeFilter(); } });
   I.setLang(I.lang);
   API.onLogout = () => { msg(t('m_session_end'), 'warn'); render(); };
   render();
