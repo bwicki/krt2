@@ -74,13 +74,26 @@ Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berech
 |---|---|---|
 | 0.1.0 ✓ | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
 | 0.2.0 ✓ | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
-| 0.3.0 | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
+| 0.3.0 ✓ | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
 | 0.4.0 | Gerät: Schreiben (Z), Sichern/Auslesen (W) gemäss Testergebnis, Vorschau alt→neu | ja |
 | 0.5.0 | Startseite öffentlich, PWA offline, GPS-Hervorhebung, Portal-Eintrag | teilweise |
 | 1.0.0 | Abnahme Zürich (A1–A7) | ja |
 
+## 4a Gebiet und Vorschlag (0.3.0)
+
+- `src/area.js` (ohne DOM): Kreis um den Startort, Rechteck, Vieleck, Korridor (Mittellinie ab Startort, Breite links/rechts
+  je Schenkel, runde Knicke). Lufträume zählen, wenn sie das Gebiet schneiden und im Höhenband liegen (Radar wahlweise
+  ohne Obergrenze); Flugplätze, wenn sie im Gebiet oder innerhalb des Rands liegen (Heliports und geschlossene ausgelassen).
+- Länderwahl über Gitterzellen 1° je Land im `index.json` (Schema 3).
+- Entdoppeln: regionale Dienste (FIS/INFO, APP/ARR/DEP, RDR, ACC, VOLMET) je Kanal und Dienst einmal; Flugplatzdienste je
+  Kanal und Flugplatz; Luftraumfrequenz, die schon ein Flugplatz liefert, ergänzt nur die Quellen. Zwei Quellen = grün.
+- Kurzname: IATA bzw. drei Buchstaben des Orts (Dübendorf → DUB), Zusatz aus dem Rufnamen (Radar East → ZRHE RDR,
+  Radar M3 → ZRH3 RDR); Klartext mit ICAO-Abkürzungen («Birrfeld AD», «Zuerich ATIS DEP»).
+- `src/gebiet.js`: Seite mit Leaflet (lib/leaflet 1.9.4), OSM-Kacheln, Ortssuche Nominatim (Auswahlliste), GPX/GeoJSON-Import.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/area.test.mjs [freq-ch.json]` (Formen, Höhenband, Rufnamen; mit Datendatei Vorschlag um Zürich)
 - `node tests/worker.test.mjs` gegen einen lokalen Worker mit leerer Datenbank (SETUP.md, Abschnitt 5)
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus

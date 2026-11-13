@@ -67,7 +67,7 @@ ${hasStart() ? `<div class="row" style="gap:6px"><span class="badge g">S</span><
 ${g.typ === 'kreis' ? `<label class="row nowrap">${t('ge_radius')} <input type="number" min="1" max="500" data-gg="r" value="${esc(g.r)}" style="width:80px"> km</label><p class="note" style="margin:0">${t('ge_kreis_note')}</p>` : ''}
 ${g.typ === 'rechteck' ? `<p class="note" style="margin:0">${t('ge_rect_note')}</p>${g.rect ? `<span class="small mono muted">${fmt(g.rect.s, 2)}–${fmt(g.rect.n, 2)} N · ${fmt(g.rect.w, 2)}–${fmt(g.rect.e, 2)} E</span>` : ''}` : ''}
 ${g.typ === 'vieleck' ? `<p class="note" style="margin:0">${t('ge_poly_note')}</p>${pts}<div class="row"><button type="button" class="sec" data-ge="ptlast" ${g.poly.length ? '' : 'disabled'}>${t('ge_pt_last')}</button><button type="button" class="sec" data-ge="clear" ${g.poly.length ? '' : 'disabled'}>${t('ge_clear')}</button></div>` : ''}
-${g.typ === 'korridor' ? `<div class="row nowrap" style="gap:6px"><span class="small">${t('ge_def')}</span><label class="small">${t('ge_left')} <input type="number" min="0" max="200" data-gg="defL" value="${esc(g.defL)}" style="width:64px"></label><label class="small">${t('ge_right')} <input type="number" min="0" max="200" data-gg="defR" value="${esc(g.defR)}" style="width:64px"></label><span class="small">km</span></div>
+${g.typ === 'korridor' ? `<div class="row" style="gap:6px"><span class="small">${t('ge_def')}</span><label class="small">${t('ge_left')} <input type="number" min="0" max="200" data-gg="defL" value="${esc(g.defL)}" style="width:64px"></label><label class="small">${t('ge_right')} <input type="number" min="0" max="200" data-gg="defR" value="${esc(g.defR)}" style="width:64px"></label><span class="small">km</span></div>
 <p class="note" style="margin:0">${t('ge_kor_note')}</p>
 ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b class="mono">S</b><span class="small">${t('ge_start')} ${esc(s.name || '')}</span><span class="small muted">${t('ge_fixed')}</span></div></div>` : ''}${legs}
 <div class="row"><button type="button" class="sec" data-ge="ptlast" ${g.pts.length ? '' : 'disabled'}>${t('ge_pt_last')}</button><label class="btn sec" style="cursor:pointer">${t('ge_import')}<input type="file" id="geimport" accept=".gpx,.geojson,.json,application/gpx+xml,application/geo+json" hidden></label></div>` : ''}
@@ -125,6 +125,7 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
       else if (S && S.ring) L.polygon(S.ring.map(([x, y]) => P.from(x, y)), style).addTo(st.lyArea);
       else if (S && S.legs) {
         S.legs.forEach(lg => L.polygon(lg.corners.map(([x, y]) => P.from(x, y)), { ...style, weight: 1 }).addTo(st.lyArea));
+        (S.joints || []).forEach(j => { if (j.r > 0) L.circle(P.from(j.c[0], j.c[1]), { radius: j.r * 1000, ...style, weight: 1 }).addTo(st.lyArea); });
         L.polyline([[s.lat, s.lon]].concat(g.pts.map(p => [p.lat, p.lon])), { color: '#1f5fbf', weight: 2, dashArray: '6 6' }).addTo(st.lyArea);
       }
       if (fit && st.map) { try { st.map.fitBounds(st.lyArea.getLayers()[0].getBounds().pad(0.15)); } catch (e) { /* egal */ } }

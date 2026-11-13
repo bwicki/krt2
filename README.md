@@ -14,7 +14,7 @@ analyze.wicki.aero.
 > **Hilfsmittel ohne Gewähr.** Frequenzen aus öffentlichen Quellen können falsch oder veraltet sein.
 > Massgebend sind AIP, VFR-Manual, NOTAM und die Handbücher des Funkgeräts.
 
-Stand: **App 0.2.0** (Editor, Einstellungen, A6-Karte, Konten, Konfigurationen mit Versionen, Geräte) und
+Stand: **App 0.3.0** (Gebiet und Vorschlag, Editor, Einstellungen, A6-Karte, Konten, Konfigurationen, Geräte) und
 Machbarkeitstest am Gerät. Einrichtung des Workers: `SETUP.md`.
 Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs/BUILD.md`.
 
@@ -30,7 +30,8 @@ Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs
 | `#karte` | A6-Karte quer (148 × 105 mm), eine Seite zum Laminieren | 0.1.0 |
 | `#konfigurationen` | eigene Konfigurationen (Öffnen, Duplizieren, Löschen), eigene Geräte, Konfigurationen anderer Konten als Kopie übernehmen | 0.2.0 |
 | `#konten` | nur Supermaster: Konten anlegen, Kennwort zurücksetzen, sperren | 0.2.0 |
-| `#gebiet`, `#geraet` | Karte und Vorschlag, Gerät schreiben/auslesen | 0.3.0, 0.4.0 |
+| `#gebiet` | Startort (Ortssuche mit Auswahlliste), Kreis/Rechteck/Vieleck/Korridor auf der OSM-Karte, Höhenband, Länder, Vorschlag aus den Frequenzdaten | 0.3.0 |
+| `#geraet` | Gerät schreiben/auslesen | 0.4.0 |
 
 Belegung: 00 = BALLOON 122.255 (fest, freigebbar), Blöcke ab 01 lückenlos, freie Plätze (118.000 FREE) nur am
 Ende, 99 = EMERGENC 121.500. Kurzname = Ortskürzel (IATA, sonst drei Buchstaben) + ICAO-Dienstkürzel, höchstens

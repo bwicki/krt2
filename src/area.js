@@ -70,7 +70,7 @@
         return best;
       };
       const samples = pts.map(p => p.xy).concat(...legs.map(g => g.corners));
-      return { legs, samples, edges: legs.flatMap(g => g.corners.map((c, i) => [c, g.corners[(i + 1) % 4]])), inside: (x, y) => dist(x, y) === 0, dist, along, length: cum };
+      return { legs, joints, samples, edges: legs.flatMap(g => g.corners.map((c, i) => [c, g.corners[(i + 1) % 4]])), inside: (x, y) => dist(x, y) === 0, dist, along, length: cum };
     }
     return null;
   }
