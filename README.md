@@ -14,7 +14,7 @@ analyze.wicki.aero.
 > **Hilfsmittel ohne Gewähr.** Frequenzen aus öffentlichen Quellen können falsch oder veraltet sein.
 > Massgebend sind AIP, VFR-Manual, NOTAM und die Handbücher des Funkgeräts.
 
-Stand: **App 0.3.0** (Gebiet und Vorschlag, Editor, Einstellungen, A6-Karte, Konten, Konfigurationen, Geräte) und
+Stand: **App 0.3.1** (Gebiet und Vorschlag, Editor, Einstellungen, A6-Karte, Konten, Konfigurationen, Geräte) und
 Machbarkeitstest am Gerät. Einrichtung des Workers: `SETUP.md`.
 Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs/BUILD.md`.
 
@@ -25,9 +25,10 @@ Konzept: Dropbox «046 WebAPP krt2\01_Konzept». Bauplan und Datenformate: `docs
 | Seite | Inhalt | Stand |
 |---|---|---|
 | `#aktuell` | ohne Anmeldung: Liste aller Geräte, Programmierung des gewählten Geräts (sonst der Entwurf), Suche, A6-Karte | 0.2.0 |
-| `#editor` | Einträge an/aus, verschieben (Griff oder ▲▼, auch über Blockgrenzen), Kurzname mit ICAO/Kürzel-Umschalter, Frequenz, Klartext, Dienst; Prüfliste; «nicht aufgenommen»; Speichern unter (JSON), Laden, CSV | 0.1.0 |
+| `#editor` | Spalten Land, Filter je Spalte (Kurzname, Dienst, Land), Sortieren nach Kurzname/Dienst/Distanz/Land ohne Platzverlust; Einträge an/aus (folgende rücken nach), verschieben (Griff oder ▲▼, auch über Blockgrenzen), Kurzname mit ICAO/Kürzel-Umschalter, Frequenz, Klartext, Dienst; Prüfliste; «nicht aufgenommen»; Speichern unter (JSON), Laden, CSV | 0.1.0 |
 | `#einstellungen` | Aufteilung 00–99, feste Plätze (00 frei gebbar, 99 nur mit zweifacher Bestätigung), Blöcke mit Diensten, Höchstzahl und Reihenfolge, Platzhalter, Kurznamenregel | 0.1.0 |
-| `#karte` | A6-Karte quer (148 × 105 mm), eine Seite zum Laminieren | 0.1.0 |
+| `#karte` | Karte 2 × A6 quer (Vorder-/Rückseite zum Laminieren): Plätze 00–49 und 50–99 mit Kurzname, Frequenz, Klartext, Land | 0.3.1 |
+| `#protokoll` | alle Meldungen mit Zeit, kopierbar (Symbolknopf oben rechts mit Zähler); Warnungen/Fehler zusätzlich unten rechts | 0.3.1 |
 | `#konfigurationen` | eigene Konfigurationen (Öffnen, Duplizieren, Löschen), eigene Geräte, Konfigurationen anderer Konten als Kopie übernehmen | 0.2.0 |
 | `#konten` | nur Supermaster: Konten anlegen, Kennwort zurücksetzen, sperren | 0.2.0 |
 | `#gebiet` | Startort (Ortssuche mit Auswahlliste), Kreis/Rechteck/Vieleck/Korridor auf der OSM-Karte, Höhenband, Länder, Vorschlag aus den Frequenzdaten | 0.3.0 |

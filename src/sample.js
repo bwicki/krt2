@@ -44,7 +44,7 @@
       const o = Object.assign({}, ort);
       const x = extra || {};
       const dist = o.lat != null ? Math.round(M.distKm(STANDORT.lat, STANDORT.lon, o.lat, o.lon)) : x.lage === 'gebiet' ? 0 : null;
-      M.addEntry(cfg, Object.assign({ ch, dienst, klar, ort: { icao: o.icao || '', iata: o.iata || '', code: o.code || '', qual: o.qual || '', name: o.name || '' }, quellen, vertrauen, note, dist, kurzModus: 'kurz' }, extra || {}));
+      M.addEntry(cfg, Object.assign({ ch, dienst, klar, ort: { icao: o.icao || '', iata: o.iata || '', code: o.code || '', qual: o.qual || '', name: o.name || '', cc: 'CH' }, quellen, vertrauen, note, dist, kurzModus: 'kurz' }, extra || {}));
     }
     cfg.bloecke.forEach(b => { if (b.order !== 'corridor') M.sortBlock(cfg, b.id); });
     return cfg;

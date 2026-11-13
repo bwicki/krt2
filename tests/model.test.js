@@ -79,4 +79,11 @@ eq(M.servicesOf(c4), M.SERVICES); c4.settings.services = ['TWR', 'APP', 'BALL'];
 ok(M.SVC_RE.test('BALL') && !M.SVC_RE.test('b') && !M.SVC_RE.test('TOOLONG'));
 eq(M.fromJSON(JSON.stringify(Object.assign({}, c4, { settings: Object.assign({}, c4.settings, { services: [] }) }))).settings.services, M.SERVICES, 'leer → Vorgabe');
 eq(M.entryShort({ dienst: 'BALL', ort: { code: 'ZRH' }, kurzModus: 'kurz' }), 'ZRH BALL', 'eigener Dienst im Kurznamen');
+// Abwählen gibt den Platz frei, der nächste rückt nach – auch bei Höchstzahl des Blocks
+const c5 = S.sampleConfig(); const radar = c5.bloecke.find(b => b.id === 'b-radar'); radar.max = 3;
+let L5 = M.layout(c5); const inR = M.entriesOf(c5, 'b-radar').filter(e => e.aktiv); const fourth = inR[3];
+ok(L5.slotOf[fourth.id] == null && L5.notPlaced.some(x => x.e.id === fourth.id && x.why === 'max'), 'vierter Radar ausserhalb der Höchstzahl');
+const before = L5.slotOf[inR[1].id]; inR[0].aktiv = false; L5 = M.layout(c5);
+ok(L5.slotOf[fourth.id] != null, 'rückt nach, Block wieder voll'); eq(L5.slotOf[inR[1].id], before - 1, 'folgende rücken einen Platz vor');
+eq(L5.ranges.find(r => r.block === 'b-radar').to - L5.ranges.find(r => r.block === 'b-radar').from + 1, 3);
 console.log(n + ' Prüfungen bestanden');

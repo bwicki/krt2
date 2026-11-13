@@ -3,12 +3,11 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.0';
+  const VERSION = '0.3.1';
   const LS = 'krt2.draft';
 
-  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null };
+  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', d: '', cc: '' }, sort: { by: 'nr', dir: 1 } };
   try { ui.deviceSel = localStorage.getItem('krt2.device'); } catch (e) { /* egal */ }
-  const msgs = [];
   let cfg = loadDraft() || S.sampleConfig();
 
   // ---------- Hilfen ----------
@@ -29,16 +28,33 @@
   }
   function loadDraft() { try { const s = localStorage.getItem(LS); return s ? M.fromJSON(s) : null; } catch (e) { return null; } }
 
-  /** Meldungen bleiben stehen, bis man sie schliesst; Text ist markier- und kopierbar. */
+  /** Meldungen gehen ins Protokoll (Reiter mit Symbolknopf); Warnungen und Fehler erscheinen zusätzlich unten rechts,
+      bis man sie schliesst. Alles bleibt markier- und kopierbar und schiebt die Seite nicht nach unten. */
+  const LOG = 'krt2.log';
+  const msgs = (() => { try { return JSON.parse(localStorage.getItem(LOG) || '[]'); } catch (e) { return []; } })();
+  function saveLog() { try { localStorage.setItem(LOG, JSON.stringify(msgs.slice(0, 300))); } catch (e) { /* egal */ } }
   function msg(text, kind) {
-    msgs.unshift({ id: M.uid('m'), text, kind: kind || 'info', time: new Date() });
-    msgs.length = Math.min(msgs.length, 6);
-    renderMsgs();
+    msgs.unshift({ id: M.uid('m'), text, kind: kind || 'info', time: new Date().toISOString(), seen: route() === 'protokoll', toast: kind === 'warn' || kind === 'err' });
+    msgs.length = Math.min(msgs.length, 300);
+    saveLog(); renderMsgs();
+    if (route() === 'protokoll') pageProtokoll();
   }
+  const tm = iso => new Date(iso).toLocaleTimeString(I.lang === 'de' ? 'de-CH' : 'en-GB');
   function renderMsgs() {
-    const box = $('#msgs'); if (!box) return;
-    box.innerHTML = msgs.map(m => `<div class="msg ${m.kind}" role="status" data-mid="${m.id}"><time>${esc(m.time.toLocaleTimeString(I.lang === 'de' ? 'de-CH' : 'en-GB'))}</time><span class="txt">${esc(m.text)}</span>` +
+    const n = msgs.filter(m => !m.seen).length;
+    const b = $('#logbadge'); if (b) { b.textContent = n > 99 ? '99+' : String(n); b.hidden = !n; }
+    const lb = $('#logbtn'); if (lb) lb.setAttribute('aria-label', t('log_title') + (n ? ' (' + t('log_new', { n }) + ')' : ''));
+    const box = $('#toasts'); if (!box) return;
+    box.innerHTML = msgs.filter(m => m.toast).slice(0, 3).map(m => `<div class="msg ${m.kind}" role="alert" data-mid="${m.id}"><time>${esc(tm(m.time))}</time><span class="txt">${esc(m.text)}</span>` +
       `<button type="button" class="ghost" data-act="mcopy">${t('m_copy')}</button><button type="button" class="ghost" data-act="mclose" aria-label="${t('m_close')}">×</button></div>`).join('');
+  }
+  function pageProtokoll() {
+    msgs.forEach(m => { m.seen = true; }); saveLog(); renderMsgs();
+    const lbl = { ok: 'g', info: '', warn: 'y', err: 'r' };
+    $('#page').innerHTML = `<div class="spread"><h1>${t('log_title')}</h1><div class="row"><button type="button" class="sec" data-act="logcopy" ${msgs.length ? '' : 'disabled'}>${t('log_copy_all')}</button><button type="button" class="sec" data-act="logclear" ${msgs.length ? '' : 'disabled'}>${t('log_clear')}</button></div></div>
+<section class="card flush"><table class="grid"><thead><tr><th style="width:150px">${t('log_time')}</th><th style="width:90px">${t('log_kind')}</th><th>${t('log_text')}</th><th style="width:90px"></th></tr></thead><tbody>
+${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${esc(fmtDT(new Date(m.time)))}</td><td><span class="badge ${lbl[m.kind] || ''}">${esc(t('log_k_' + m.kind))}</span></td><td style="white-space:pre-wrap;user-select:text">${esc(m.text)}</td><td><button type="button" class="ghost" data-act="mcopy">${t('m_copy')}</button></td></tr>`).join('') : `<tr><td colspan="4" class="muted">${t('log_none')}</td></tr>`}
+</tbody></table></section>${footerNote()}`;
   }
 
   function download(name, text, type) {
@@ -61,7 +77,7 @@
   }
 
   // ---------- Gerüst ----------
-  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten'];
+  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten', 'protokoll'];
   const isSuper = () => !!(API.user && API.user.role === 'super');
   function nav() {
     const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
@@ -78,6 +94,7 @@
     <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : ''}>${t(l)}</a>`).join('')}</nav>
   </div>
   <div class="top-right">
+    <a class="btn sec iconbtn" id="logbtn" href="#protokoll" title="${esc(t('log_title'))}"${r === 'protokoll' ? ' aria-current="page"' : ''}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbadge" id="logbadge" hidden></span></a>
     <div class="seg" role="group" aria-label="Sprache / language"><button type="button" data-act="lang" data-v="de" aria-pressed="${I.lang === 'de'}">DE</button><button type="button" data-act="lang" data-v="en" aria-pressed="${I.lang === 'en'}">EN</button></div>
     ${!API.enabled ? `<button type="button" class="sec" disabled title="${esc(t('login_off'))}">${t('login')}</button>`
       : API.user ? `<button type="button" class="sec" data-act="account" title="${esc(API.user.name || '')}">${esc(API.user.login)} ▾</button>`
@@ -85,8 +102,8 @@
     <div class="logo"><img src="./img/logo.png" alt="Wicki Partners Ballonteam"><span class="ver">${VERSION}</span></div>
   </div>
 </header>
-<div class="msgwrap"><div id="msgs" aria-live="polite"></div></div>
 <main id="page"></main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 <div id="bar"></div>
 <dialog id="dlg"></dialog>
 <input type="file" id="file" accept=".json,application/json" hidden>`;
@@ -97,7 +114,7 @@
     const r = route();
     if (window.KRT2GEBIET) window.KRT2GEBIET.leave();
     shell(r);
-    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten })[r]();
+    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
   }
 
   function footerNote() {
@@ -235,9 +252,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <span class="small muted">${t('ed_ad')}</span><div class="seg"><button type="button" data-act="allmode" data-v="icao" aria-pressed="false">${t('ed_all_icao')}</button><button type="button" data-act="allmode" data-v="kurz" aria-pressed="false">${t('ed_all_short')}</button></div>
 </div>
 <div class="ed-layout">
-  <section class="card flush"><table class="grid" id="edt"><thead><tr>
-    <th><span class="sr">${t('col_move')}</span></th><th>${t('col_nr')}</th><th>${t('col_on')}</th><th>${t('col_k')}</th><th>${t('col_f')}</th><th>${t('col_t')}</th><th>${t('col_d')}</th><th>${t('col_km')}</th><th>${t('col_q')}</th>
-  </tr></thead><tbody id="edbody"></tbody></table></section>
+  <section class="card flush"><table class="grid" id="edt"><thead id="edhead">${edHead()}</thead><tbody id="edbody"></tbody></table></section>
   <aside><section class="card" id="issues"></section><section class="card" id="left"></section></aside>
 </div>`;
     $('#bar').innerHTML = `<div class="bar-actions"><span class="status" id="edstatus"></span>
@@ -251,6 +266,18 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     edRefresh();
   }
 
+  /** Tabellenkopf: Sortieren (Platz = Blockansicht) und Filter je Spalte. */
+  function edHead() {
+    const sb = (by, label) => { const on = ui.sort.by === by; return `<button type="button" class="sort${on ? ' on' : ''}" data-act="colsort" data-v="${by}" aria-pressed="${on}" title="${esc(t('ed_sort_by', { c: label }))}">${esc(label)}${on && by !== 'nr' ? (ui.sort.dir > 0 ? ' ▲' : ' ▼') : ''}</button>`; };
+    const svcs = [...new Set(cfg.eintraege.map(e => e.dienst))].sort();
+    const ccs = [...new Set(cfg.eintraege.map(e => (e.ort && e.ort.cc) || ''))].filter(Boolean).sort();
+    const opt = (list, sel) => `<option value="">${t('ed_all')}</option>` + list.map(v => `<option${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
+    return `<tr><th><span class="sr">${t('col_move')}</span></th><th>${sb('nr', t('col_nr'))}</th><th>${t('col_on')}</th><th>${sb('k', t('col_k'))}</th><th>${t('col_f')}</th><th>${t('col_t')}</th><th>${sb('d', t('col_d'))}</th><th>${sb('dist', t('col_km'))}</th><th>${sb('cc', t('col_cc'))}</th><th>${t('col_q')}</th></tr>
+<tr class="filters"><th></th><th></th><th></th><th><label class="sr" for="fk">${t('ed_f_k')}</label><input id="fk" type="search" class="mono" value="${esc(ui.colF.k)}" placeholder="${esc(t('ed_f_ph'))}" style="width:112px"></th><th></th><th></th>
+<th><label class="sr" for="fd">${t('ed_f_d')}</label><select id="fd">${opt(svcs, ui.colF.d)}</select></th><th></th><th><label class="sr" for="fc">${t('ed_f_cc')}</label><select id="fc">${opt(ccs, ui.colF.cc)}</select></th>
+<th>${ui.colF.k || ui.colF.d || ui.colF.cc || ui.sort.by !== 'nr' ? `<button type="button" class="ghost small" data-act="colreset">${t('ed_f_reset')}</button>` : ''}</th></tr>`;
+  }
+
   function svcOptions(sel) { const l = M.servicesOf(cfg).slice(); if (sel && !l.includes(sel)) l.push(sel); return l.map(s => `<option${s === sel ? ' selected' : ''}>${esc(s)}</option>`).join(''); }
 
   function edRefresh() {
@@ -260,31 +287,44 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       if (ui.filter === 'active' && !e.aktiv) return false;
       if (ui.filter === 'check' && !(R.byEntry[e.id] || []).length) return false;
       if (ui.filter !== 'all' && ui.filter !== 'active' && ui.filter !== 'check' && e.block !== ui.filter) return false;
+      if (ui.colF.k && !M.entryShort(e).toUpperCase().includes(ui.colF.k.trim().toUpperCase())) return false;
+      if (ui.colF.d && e.dienst !== ui.colF.d) return false;
+      if (ui.colF.cc && ((e.ort && e.ort.cc) || '') !== ui.colF.cc) return false;
       return !q || [M.entryShort(e), e.ch, e.klar, e.dienst, e.ort && e.ort.name, e.ort && e.ort.icao].some(v => String(v || '').toUpperCase().includes(q));
     };
-    const showFixed = ui.filter === 'all' && !q;
+    const colOn = !!(ui.colF.k || ui.colF.d || ui.colF.cc);
+    const showFixed = ui.filter === 'all' && !q && !colOn && ui.sort.by === 'nr';
     let h = '';
     const fixedRow = (key, nr) => {  // 00 und 99: fest, nur 99 abwählbar
       const p = cfg.fixed[key];
       const is99 = key === 'p99';
       const box = is99 ? `<input type="checkbox" data-act="e99" ${p.on ? 'checked' : ''} aria-label="${t('col_on')} 99">` : `<span class="fixtag">${t('fest')}</span>`;
-      return `<tr class="fixed${p.on ? '' : ' off'}"><td class="mv"></td><td class="nr">${pad2(nr)}</td><td>${box}</td><td class="k">${esc(p.kurz)}</td><td class="f">${esc(p.ch)}</td><td>${esc(p.klar)}</td><td class="small muted">${t('fest')}</td><td class="small muted">–</td><td><span class="badge">${t('fest')}</span></td></tr>`;
+      return `<tr class="fixed${p.on ? '' : ' off'}"><td class="mv"></td><td class="nr">${pad2(nr)}</td><td>${box}</td><td class="k">${esc(p.kurz)}</td><td class="f">${esc(p.ch)}</td><td>${esc(p.klar)}</td><td class="small muted">${t('fest')}</td><td class="small muted">–</td><td class="small muted">–</td><td><span class="badge">${t('fest')}</span></td></tr>`;
     };
-    if (showFixed && cfg.fixed.p00.on) h += `<tr class="head"><td colspan="9"><b>${t('blk_fixed')}</b> <span class="small muted">00</span></td></tr>` + fixedRow('p00', 0);
-    for (const b of cfg.bloecke.filter(x => x.on)) {
+    if (ui.sort.by !== 'nr') {
+      // Sortierte Ansicht: flache Liste, Plätze bleiben wie sie sind; Verschieben nur in der Blockansicht
+      const num = v => (v == null || v === '' ? Infinity : Number(v));
+      const key = { k: e => M.entryShort(e), d: e => e.dienst, dist: e => num(e.dist), cc: e => ((e.ort && e.ort.cc) || '~') }[ui.sort.by];
+      const cmp = (a, b) => { const x = key(a), y = key(b); return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y))) * ui.sort.dir || num(a.dist) - num(b.dist) || (L.slotOf[a.id] ?? 999) - (L.slotOf[b.id] ?? 999); };
+      const on = new Set(cfg.bloecke.filter(b => b.on).map(b => b.id));
+      const list = cfg.eintraege.filter(e => on.has(e.block) && match(e)).sort(cmp);
+      h = `<tr class="head"><td colspan="10"><span class="small muted">${esc(t('ed_sorted_view', { c: t({ k: 'col_k', d: 'col_d', dist: 'col_km', cc: 'col_cc' }[ui.sort.by]) }))}</span></td></tr>` + list.map(e => entryRow(e, L, R, true)).join('');
+    }
+    if (showFixed && cfg.fixed.p00.on) h += `<tr class="head"><td colspan="10"><b>${t('blk_fixed')}</b> <span class="small muted">00</span></td></tr>` + fixedRow('p00', 0);
+    if (ui.sort.by === 'nr') for (const b of cfg.bloecke.filter(x => x.on)) {
       const list = M.entriesOf(cfg, b.id);
       const rg = L.ranges.find(r => r.block === b.id);
       const vis = list.filter(match);
-      if (!vis.length && (q || (ui.filter !== 'all' && ui.filter !== b.id))) continue;
-      h += `<tr class="head" data-block="${b.id}"><td colspan="9"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="small muted">${rg ? range(rg.from, rg.to) : '–'} · ${t('ord_' + b.order)}</span>` +
+      if (!vis.length && (q || colOn || (ui.filter !== 'all' && ui.filter !== b.id))) continue;
+      h += `<tr class="head" data-block="${b.id}"><td colspan="10"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="small muted">${rg ? range(rg.from, rg.to) : '–'} · ${t('ord_' + b.order)}</span>` +
         `<button type="button" class="ghost small" data-act="sort" data-b="${b.id}">${t('ed_sort')}</button></div></td></tr>`;
       for (const e of vis) h += entryRow(e, L, R);
     }
     if (showFixed) {
-      if (L.freeTo != null) h += `<tr class="head" data-block="__free"><td colspan="9"><b>${t('blk_free')}</b> <span class="small muted">${range(L.freeFrom, L.freeTo)}: ${esc(cfg.settings.free.ch)} ${esc(cfg.settings.free.kurz)}</span></td></tr>`;
-      h += `<tr class="head"><td colspan="9"><b>${t('blk_emerg')}</b> <span class="small muted">99</span></td></tr>` + fixedRow('p99', 99);
+      if (L.freeTo != null) h += `<tr class="head" data-block="__free"><td colspan="10"><b>${t('blk_free')}</b> <span class="small muted">${range(L.freeFrom, L.freeTo)}: ${esc(cfg.settings.free.ch)} ${esc(cfg.settings.free.kurz)}</span></td></tr>`;
+      h += `<tr class="head"><td colspan="10"><b>${t('blk_emerg')}</b> <span class="small muted">99</span></td></tr>` + fixedRow('p99', 99);
     }
-    $('#edbody').innerHTML = h || `<tr><td colspan="9" class="muted">${t('cur_none')}</td></tr>`;
+    $('#edbody').innerHTML = h || `<tr><td colspan="10" class="muted">${t('cur_none')}</td></tr>`;
     // Prüfliste
     const codes = Object.entries(R.count.codes);
     const lvlOf = c => (['freq', 'nameLeer', 'nameLang', 'nameZeichen'].includes(c) || (c === 'widerspruch' && cfg.eintraege.some(e => e.vertrauen === 'r' && !e.bestaetigt && L.slotOf[e.id] != null))) ? 'r' : 'y';
@@ -298,7 +338,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     $('#edstatus').textContent = t('ed_status', { used: L.used + (cfg.fixed.p99.on ? 1 : 0), r: R.count.r, y: R.count.y });
   }
 
-  function entryRow(e, L, R) {
+  function entryRow(e, L, R, noMove) {
     const nr = L.slotOf[e.id];
     const iss = R.byEntry[e.id] || [];
     const has = c => iss.find(i => i.code === c);
@@ -317,7 +357,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       : ` <button type="button" class="sec small" data-act="confirm" style="min-height:26px;padding:2px 8px">${t('ed_confirm')}</button>`) : '';
     const dist = e.dist != null ? e.dist + ' km' : e.lage ? t('lage_' + e.lage) : '–';
     return `<tr data-id="${e.id}" class="${e.aktiv ? '' : 'off'}">
-<td class="mv"><span class="handle" data-drag draggable="true" title="${esc(t('col_move'))}"><span aria-hidden="true">⋮⋮</span></span><button type="button" class="ghost" data-act="up" aria-label="${esc(t('ed_up'))}">▲</button><button type="button" class="ghost" data-act="down" aria-label="${esc(t('ed_down'))}">▼</button></td>
+<td class="mv">${noMove ? '' : `<span class="handle" data-drag draggable="true" title="${esc(t('col_move'))}"><span aria-hidden="true">⋮⋮</span></span><button type="button" class="ghost" data-act="up" aria-label="${esc(t('ed_up'))}">▲</button><button type="button" class="ghost" data-act="down" aria-label="${esc(t('ed_down'))}">▼</button>`}</td>
 <td class="nr">${nr != null ? pad2(nr) : '–'}${np && np.why !== 'blockAus' ? `<div class="small" style="color:var(--warn-fg)">${esc(t('why_' + np.why))}</div>` : ''}</td>
 <td><input type="checkbox" data-f="aktiv" ${e.aktiv ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(k)}"></td>
 <td><div class="kcell"><input type="text" data-f="kurz" value="${esc(k)}" maxlength="12" spellcheck="false" autocomplete="off" class="${kBad ? 'bad' : ''}" aria-label="${esc(t('col_k'))}" title="${e.kurzModus === 'frei' ? esc(t('ed_free_name')) : ''}"><span class="kcount${k.length > 8 ? ' bad' : ''}">${k.length}/8</span>${seg}</div></td>
@@ -325,6 +365,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 <td><input type="text" class="klar" data-f="klar" value="${esc(e.klar)}" aria-label="${esc(t('col_t'))}"></td>
 <td><select class="svc" data-f="dienst" aria-label="${esc(t('col_d'))}">${svcOptions(e.dienst)}</select></td>
 <td class="small muted" style="white-space:nowrap">${esc(dist)}</td>
+<td class="small">${(e.quellen || []).includes('eigen') ? `<input type="text" class="mono" data-f="cc" value="${esc((e.ort && e.ort.cc) || '')}" maxlength="2" style="width:42px;text-transform:uppercase" aria-label="${esc(t('col_cc'))}">` : `<span class="mono">${esc((e.ort && e.ort.cc) || '–')}</span>`}</td>
 <td class="q"><div class="qrow"><span class="badge ${qcls}" title="${esc(qtitle)}">${esc(qtxt)}</span>${conf}<button type="button" class="ghost" data-act="del" aria-label="${esc(t('ed_del'))}" title="${esc(t('ed_del'))}">×</button></div>${extra}</td>
 </tr>`;
   }
@@ -356,6 +397,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const b = ev.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act, e = entryOf(b);
     if (act === 'filter') { ui.filter = b.dataset.v; pageEditor(); return; }
+    if (act === 'colsort') { const by = b.dataset.v; ui.sort = { by, dir: ui.sort.by === by ? -ui.sort.dir : 1 }; if (by === 'nr') ui.sort.dir = 1; $('#edhead').innerHTML = edHead(); edRefresh(); return; }
+    if (act === 'colreset') { ui.colF = { k: '', d: '', cc: '' }; ui.sort = { by: 'nr', dir: 1 }; $('#edhead').innerHTML = edHead(); edRefresh(); return; }
     if (act === 'up' || act === 'down') { if (M.moveEntry(cfg, e.id, act === 'up' ? -1 : 1)) afterChange(edRefresh); return; }
     if (act === 'kmode') { e.kurzModus = b.dataset.v; e.kurz = M.entryShort(e); afterChange(edRefresh); return; }
     if (act === 'confirm' || act === 'unconfirm') { e.bestaetigt = act === 'confirm'; afterChange(edRefresh); return; }
@@ -393,6 +436,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 
   function onEditorChange(ev) {
     const el = ev.target;
+    if (el.id === 'fd' || el.id === 'fc') { ui.colF[el.id === 'fd' ? 'd' : 'cc'] = el.value; $('#edhead').innerHTML = edHead(); edRefresh(); const x = $('#' + el.id); if (x) x.focus(); return; }
     if (el.id === 'cname') { cfg.name = el.value.trim(); saveDraft(); const b = $('#savestate'); if (b) { b.textContent = saveState(); b.className = 'badge' + (cfg.server ? ' y' : ''); } return; }
     if (el.id === 'file') return;
     const f = el.dataset.f; if (!f) return;
@@ -401,6 +445,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     else if (f === 'kurz') { e.kurzModus = 'frei'; e.kurz = el.value.toUpperCase().replace(/\s+$/, ''); }
     else if (f === 'ch') { const r = C.encodeFreq(el.value); e.ch = r.ok ? r.display : el.value.trim(); }
     else if (f === 'klar') e.klar = el.value;
+    else if (f === 'cc') e.ort = Object.assign({}, e.ort, { cc: el.value.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) });
     else if (f === 'dienst') { e.dienst = el.value; if (e.kurzModus !== 'frei') e.kurz = M.entryShort(e); saveDraft(); checkBlockFit(e); return; }
     afterChange(edRefresh);
   }
@@ -583,12 +628,14 @@ ${footerNote()}`;
   }
 
   // ---------- A6-Karte ----------
+  /** Ausdruck auf 2 × A6 quer (Vorder- und Rückseite zum Laminieren): Seite 1 Plätze 00–49, Seite 2 Plätze 50–99,
+      je zwei Spalten à 25 Zeilen mit Platz, Kurzname, Frequenz, Klartext und Land. */
   function pageKarte() {
     const dev = ui.device && ui.device.id === ui.deviceSel && ui.device.aktuell && ui.device.aktuell.plaetze ? ui.device : null;
     let D, starts = new Set(), freeSet = new Set(), title, sub;
     if (dev) {
       const a = dev.aktuell;
-      D = a.plaetze.map(p => ({ nr: p.nr, ch: p.ch, name: (String(p.name || '') + '        ').slice(0, 8) }));
+      D = a.plaetze.map(p => ({ nr: p.nr, ch: p.ch, name: String(p.name || ''), klar: p.klar || '', cc: p.cc || '' }));
       groupsFromDevice(a.plaetze).forEach(g => { starts.add(g.rows[0].nr); if (g.free) g.rows.forEach(r => freeSet.add(r.nr)); });
       title = dev.bezeichnung + (a.configName ? ' · «' + a.configName + '»' + (a.version ? ' v' + a.version : '') : '');
       sub = t(a.herkunft === 'ausgelesen' ? 'cur_read_from' : 'a6_programmed') + ' ' + fmtDT(new Date(a.zeit));
@@ -600,15 +647,15 @@ ${footerNote()}`;
       title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
       sub = t('a6_draft') + ' · ' + fmtDT(new Date());
     }
-    const rows = D.map((d, i) => `<div class="r${freeSet.has(i) ? ' free' : ''}${starts.has(i) && i > 0 ? ' start' : ''}${i === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span>${pad2(d.nr)} ${esc(d.name)}</span><b>${esc(d.ch)}</b></div>`);
-    const cols = [0, 1, 2, 3].map(c => `<div>${rows.slice(c * 25, c * 25 + 25).join('')}</div>`).join('');
+    const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${starts.has(d.nr) && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${esc(String(d.name).trimEnd())}</span><b>${esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span><span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;
+    const page = (p) => `<div class="a6" role="img" aria-label="${esc(t('a6_title'))} ${p + 1}/2">
+  <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · ${t('a6_slots', { a: pad2(p * 50), b: pad2(p * 50 + 49) })} · ${p + 1}/2 · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
+  <div class="cols">${[0, 1].map(c => `<div>${D.slice(p * 50 + c * 25, p * 50 + c * 25 + 25).map(row).join('')}</div>`).join('')}</div>
+</div>`;
     $('#page').innerHTML = `
 <div class="spread"><h1>${t('a6_title')}</h1><div class="row"><a class="btn sec" href="#aktuell">← ${t('nav_aktuell')}</a><button type="button" data-act="print">${t('a6_print')}</button></div></div>
 <p class="note">${t('a6_note')}</p>
-<div class="a6wrap"><div class="a6" role="img" aria-label="${esc(t('a6_title'))}">
-  <div class="hd"><div><strong>${esc(title)}</strong><span>${esc(sub)} · krt2.wicki.aero · ${t('a6_nosort')}</span></div><img src="./img/logo.png" alt="Wicki Partners Ballonteam"></div>
-  <div class="cols">${cols}</div>
-</div></div>`;
+<div class="a6wrap">${page(0)}${page(1)}</div>`;
     $('#page').addEventListener('click', ev => { if (ev.target.closest('[data-act=print]')) window.print(); });
   }
 
@@ -817,7 +864,9 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
-    if (b.dataset.act === 'mclose') { const id = b.closest('[data-mid]').dataset.mid; const i = msgs.findIndex(m => m.id === id); if (i >= 0) msgs.splice(i, 1); renderMsgs(); return; }
+    if (b.dataset.act === 'mclose') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m) { m.toast = false; m.seen = true; saveLog(); } renderMsgs(); return; }
+    if (b.dataset.act === 'logclear') { msgs.length = 0; saveLog(); renderMsgs(); pageProtokoll(); return; }
+    if (b.dataset.act === 'logcopy') { const txt = msgs.map(m => fmtDT(new Date(m.time)) + '\t' + m.kind + '\t' + m.text).join('\n'); if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {}); return; }
     if (b.dataset.act === 'mcopy') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m && navigator.clipboard) navigator.clipboard.writeText(m.text).catch(() => {}); return; }
     if (b.dataset.act === 'login') { loginDialog(); return; }
     if (b.dataset.act === 'account') { accountDialog(); return; }
@@ -851,7 +900,11 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);
   });
-  document.addEventListener('input', ev => { if (route() === 'editor') onKurzInput(ev); });
+  document.addEventListener('input', ev => {
+    if (route() !== 'editor') return;
+    if (ev.target.id === 'fk') { ui.colF.k = ev.target.value; edRefresh(); const r = document.querySelector('#edhead [data-act=colreset]'); if (!!r !== !!(ui.colF.k || ui.colF.d || ui.colF.cc || ui.sort.by !== 'nr')) { const pos = ev.target.selectionStart; $('#edhead').innerHTML = edHead(); const x = $('#fk'); x.focus(); x.setSelectionRange(pos, pos); } return; }
+    onKurzInput(ev);
+  });
   document.addEventListener('focusin', ev => { const tr = ev.target.closest && ev.target.closest('#edt tr[data-id]'); if (tr) ui.lastRow = tr.dataset.id; });
 
   function onFile(inp) {

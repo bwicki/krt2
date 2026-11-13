@@ -4,7 +4,7 @@
 // Kennwörter: PBKDF2-SHA-256 (100 000 Runden, Höchstwert der Workers-Laufzeit). Sitzungen: zufälliges Token, in D1 nur
 // als SHA-256 gespeichert – deshalb braucht der Worker kein eigenes Secret.
 
-const VERSION = '0.2.1';
+const VERSION = '0.3.1';
 const SUPER_LOGIN = 'bwicki';
 const PBKDF2_ITER = 100000;
 const SESSION_DAYS = 180;
@@ -73,7 +73,7 @@ function checkPlaetze(p) {
     const ch = String(x && x.ch || ''), name = String(x && x.name || '');
     if (!FREQ_RE.test(ch) || name.length > 8 || !/^[A-Z0-9 \-]*$/.test(name)) throw bad('plaetze', `Platz ${i}: ungültig`);
     const o = { nr: i, ch, name };
-    for (const [k, max] of [['klar', 60], ['dienst', 8], ['block', 20], ['kind', 8]]) if (x[k] != null) o[k] = String(x[k]).slice(0, max);
+    for (const [k, max] of [['klar', 60], ['dienst', 8], ['block', 20], ['kind', 8], ['cc', 2]]) if (x[k] != null) o[k] = String(x[k]).slice(0, max);
     return o;
   });
 }

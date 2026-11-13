@@ -172,7 +172,7 @@
         if (b.max != null && i >= b.max) { notPlaced.push({ e, why: 'max' }); return; }
         if (next > LAST_SLOT) { notPlaced.push({ e, why: 'voll' }); return; }
         slotOf[e.id] = next;
-        slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, block: b.id, entryId: e.id };
+        slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, cc: (e.ort && e.ort.cc) || '', block: b.id, entryId: e.id };
         next++;
       });
       if (next > from) ranges.push({ block: b.id, name: b.name, from, to: next - 1 });
@@ -191,7 +191,7 @@
     const L = lay || layout(cfg);
     return L.slots.map(s => {
       const n = C.normalizeName(s.kurz, cfg.settings.allowDigits);
-      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), kind: s.kind, ok: n.ok && C.encodeFreq(s.ch).ok };
+      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, ok: n.ok && C.encodeFreq(s.ch).ok };
     });
   }
 

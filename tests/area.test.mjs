@@ -51,7 +51,7 @@ if (existsSync(file)) {
   const klar = r.entries.map(e => e.klar);
   ok(klar.includes('Zuerich ATIS DEP') && klar.includes('Zuerich ATIS ARR'), 'ATIS ARR/DEP unterscheidbar');
   eq(r.entries.filter(e => e.ch === '124.700').length, 1, 'FIS 124.700 nur einmal'); eq(M.entryShort(Object.assign({ kurzModus: 'kurz' }, by('124.700'))), 'ZRH INFO');
-  ok(!r.entries.some(e => e.ort.icao === 'LSHZ'), 'Heliport ausgelassen'); ok(by('133.900').ort.qual === 'E');
+  ok(!r.entries.some(e => e.ort.icao === 'LSHZ'), 'Heliport ausgelassen'); ok(r.entries.every(e => /^[A-Z]{2}$/.test(e.ort.cc)), 'Land je Station'); eq(twr.ort.cc, 'CH'); ok(by('133.900').ort.qual === 'E');
   M.SERVICES.forEach(() => 0);
   A.applyProposal(cfg, r.entries);
   const L = M.layout(cfg);

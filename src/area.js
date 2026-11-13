@@ -167,7 +167,7 @@
     const bandLo = isNaN(opt.bandLo) ? 0 : opt.bandLo, bandHi = isNaN(opt.bandHi) ? Infinity : opt.bandHi;
     const sxy = st ? P.to(st.lat, st.lon) : null;
     const byPlace = new Map();
-    for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name }); }
+    for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name, cc: String(d.cc || '').toUpperCase() }); }
     const out = [], byCh = new Map();
     const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, outsideBand: 0 };
     const layers = { airports: [], airspaces: [] };
@@ -194,8 +194,9 @@
         const pk = normPlace(call.place.split(' ')[0]);
         const foreign = REGIONAL.has(dienst) && pk && pk !== adKey;            // z. B. «Zurich Information» bei Birrfeld
         const hit = foreign ? byPlace.get(pk) : null;
-        const ort = foreign ? { icao: '', iata: hit ? hit.iata : '', code: hit ? hit.iata : M.locCode(call.place), qual: call.qual, name: hit ? title(hit.name) : title(call.place) }
-          : { icao: a.icao || '', iata: a.iata || '', code: a.iata || M.locCode(cleanName(a.name)), qual: call.qual, name: adName };
+        const CC = String(d.cc || '').toUpperCase();
+        const ort = foreign ? { icao: '', iata: hit ? hit.iata : '', code: hit ? hit.iata : M.locCode(call.place), qual: call.qual, name: hit ? title(hit.name) : title(call.place), cc: hit ? hit.cc : CC }
+          : { icao: a.icao || '', iata: a.iata || '', code: a.iata || M.locCode(cleanName(a.name)), qual: call.qual, name: adName, cc: CC };
         const key = REGIONAL.has(dienst) ? 'R|' + f.ch + '|' + dienst : 'L|' + f.ch + '|' + (a.icao || a.id);
         const notes = [];
         if (f.alt && f.alt.ch && f.alt.ch !== f.ch) notes.push('OurAirports: ' + f.alt.ch + ' (25-kHz-Angabe derselben Frequenz)');
@@ -233,7 +234,7 @@
         const distKm = sxy ? (inside ? 0 : Math.round(Math.min(...rings.map(r => ringDist(sxy[0], sxy[1], r))))) : null;
         const alongs = rings.flatMap(r => r.filter(([x, y]) => S.inside(x, y)).map(([x, y]) => S.along(x, y))).filter(v => v != null);
         const e = { ch: f.ch, dienst, klar: (placeName + ' ' + svcLabel(dienst, false) + extraText(call, dienst)).trim(),
-          ort: { icao: '', iata: hitAd ? hitAd.iata : '', code, qual: call.qual, name: placeName }, quellen: ['openAIP', 'Luftraum ' + s.name], vertrauen: 'y',
+          ort: { icao: '', iata: hitAd ? hitAd.iata : '', code, qual: call.qual, name: placeName, cc: hitAd ? hitAd.cc : String(d.cc || '').toUpperCase() }, quellen: ['openAIP', 'Luftraum ' + s.name], vertrauen: 'y',
           note: [f.note, f.n ? '' : 'Rufname fehlt, Dienst aus dem Luftraumtyp'].filter(Boolean).join(' · '), dist: distKm, along: alongs.length ? Math.min(...alongs) : null, kurzModus: 'kurz' };
         byCh.set(f.ch, [e]); out.push(e); stats.freqs++;
       }
