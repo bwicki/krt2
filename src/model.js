@@ -1,0 +1,268 @@
+/* krt2.wicki.aero – Modell: Konfiguration, Blöcke, Belegung der 100 Plätze, Kurznamen, Prüfung.
+   Reine Logik ohne DOM; läuft im Browser (window.KRT2MODEL) und in Node (Tests). */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./krt2codec.js'));
+  else root.KRT2MODEL = factory(root.KRT2CODEC);
+})(typeof self !== 'undefined' ? self : this, function (C) {
+  'use strict';
+
+  const SCHEMA = 1;
+  const LAST_SLOT = 98;                       // 99 ist der Notfrequenz vorbehalten
+
+  // ICAO-Dienste (Doc 8400) und ihr Kürzel im 8-stelligen Kurznamen
+  const SERVICES = ['FIS', 'INFO', 'AFIS', 'RDO', 'APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET', 'RDR', 'ACC', 'MIL', 'GND', 'APN', 'DEL', 'GLD', 'CTAF', 'UCOM', 'OTH'];
+  const SVC_SHORT = { FIS: 'INFO', INFO: 'INFO', UCOM: 'UNIC', OTH: '' };
+  const svcShort = s => (s in SVC_SHORT ? SVC_SHORT[s] : (s || ''));
+
+  const ORDERS = ['dist', 'ad', 'corridor', 'freq', 'manual'];
+
+  function defaultBlocks() {
+    return [
+      { id: 'b-info', name: 'INFO', on: true, svc: ['FIS', 'INFO', 'AFIS', 'RDO'], max: null, order: 'dist' },
+      { id: 'b-apptwr', name: 'APP/TWR', on: true, svc: ['APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET'], max: null, order: 'ad' },
+      { id: 'b-radar', name: 'RADAR', on: true, svc: ['RDR', 'ACC', 'MIL'], max: null, order: 'corridor' },
+      { id: 'b-more', name: 'WEITERE', on: false, svc: ['GLD', 'CTAF', 'UCOM', 'OTH'], max: 10, order: 'dist' },
+      { id: 'b-ground', name: 'GROUND', on: false, svc: ['GND', 'APN', 'DEL'], max: null, order: 'ad' }
+    ];
+  }
+
+  function defaultConfig() {
+    const now = new Date().toISOString();
+    return {
+      schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
+      standort: { name: '', lat: null, lon: null },
+      gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
+      settings: { adLoc: 'kurz', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' } },
+      fixed: {
+        p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
+        p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' }
+      },
+      bloecke: defaultBlocks(),
+      eintraege: []
+    };
+  }
+
+  let counter = 0;
+  function uid(p) { counter = (counter + 1) % 1e6; return p + '-' + Date.now().toString(36) + '-' + counter.toString(36) + Math.random().toString(36).slice(2, 5); }
+
+  // ---------- Kurznamen ----------
+  function plain(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
+  /** Ortskürzel aus einem Namen: die ersten drei Buchstaben (Dübendorf → DUB). */
+  function locCode(name) { return plain(name).replace(/[^A-Z]/g, '').slice(0, 3); }
+
+  /**
+   * Kurzname = Ortsteil + Leerzeichen + Dienstkürzel, höchstens 8 Zeichen.
+   * ICAO-Code mit vierstelligem Dienst ohne Leerzeichen (LSZHATIS). Zu lang → Ortsteil kürzen, nie den Dienst.
+   */
+  function shortName(parts, mode) {
+    const p = parts || {};
+    const svc = svcShort(p.svc);
+    const useIcao = mode === 'icao' && /^[A-Z]{4}$/.test(p.icao || '');
+    let loc = useIcao ? p.icao : ((p.loc || '') + (p.qual || ''));
+    loc = plain(loc).replace(/[^A-Z0-9-]/g, '');
+    if (!svc) return loc.slice(0, 8);
+    if (!loc) return svc.slice(0, 8);
+    if (loc.length + 1 + svc.length <= 8) return loc + ' ' + svc;
+    if (useIcao && loc.length + svc.length <= 8) return loc + svc;
+    const room = 8 - 1 - svc.length;
+    return room >= 1 ? loc.slice(0, room) + ' ' + svc : svc.slice(0, 8);
+  }
+
+  function entryParts(e) {
+    const o = e.ort || {};
+    return { loc: o.code || o.iata || locCode(o.name), icao: o.icao || '', qual: o.qual || '', svc: e.dienst };
+  }
+  /** Kurzname eines Eintrags nach seinem Modus: 'kurz' | 'icao' | 'frei' (von Hand). */
+  function entryShort(e) {
+    if (e.kurzModus === 'frei') return e.kurz || '';
+    return shortName(entryParts(e), e.kurzModus === 'icao' ? 'icao' : 'kurz');
+  }
+  function hasIcao(e) { return !!(e.ort && /^[A-Z]{4}$/.test(e.ort.icao || '')); }
+
+  // ---------- Einträge ----------
+  function blockById(cfg, id) { return cfg.bloecke.find(b => b.id === id) || null; }
+  function blockForService(cfg, svc) {
+    return cfg.bloecke.find(b => b.on && b.svc.includes(svc)) || cfg.bloecke.find(b => b.svc.includes(svc)) || null;
+  }
+  function entriesOf(cfg, blockId) { return cfg.eintraege.filter(e => e.block === blockId).sort((a, b) => a.pos - b.pos); }
+
+  function addEntry(cfg, partial) {
+    const e = Object.assign({
+      id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', block: null, aktiv: true,
+      quellen: ['eigen'], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, lage: null, along: null, bestaetigt: false
+    }, partial || {});
+    if (!e.block || !blockById(cfg, e.block)) { const b = blockForService(cfg, e.dienst) || cfg.bloecke[0]; e.block = b ? b.id : null; }
+    if (e.kurzModus !== 'frei') e.kurz = entryShort(e);
+    const same = cfg.eintraege.filter(x => x.block === e.block);
+    e.pos = same.length ? Math.max(...same.map(x => x.pos)) + 1 : 0;
+    cfg.eintraege.push(e);
+    return e;
+  }
+
+  function renumber(cfg, blockId) { entriesOf(cfg, blockId).forEach((e, i) => { e.pos = i; }); }
+
+  /** Eintrag um einen Platz verschieben; am Blockrand in den vorigen/nächsten eingeschalteten Block. */
+  function moveEntry(cfg, id, dir) {
+    const e = cfg.eintraege.find(x => x.id === id); if (!e) return false;
+    const list = entriesOf(cfg, e.block);
+    const i = list.indexOf(e), j = i + dir;
+    if (j >= 0 && j < list.length) { const o = list[j]; const t = o.pos; o.pos = e.pos; e.pos = t; return true; }
+    const on = cfg.bloecke.filter(b => b.on);
+    const bi = on.findIndex(b => b.id === e.block);
+    const nb = on[bi + dir]; if (!nb) return false;
+    return moveTo(cfg, id, nb.id, dir < 0 ? Infinity : 0);
+  }
+  /** Eintrag in einen Block an eine Stelle setzen (Ziehen und Ablegen). */
+  function moveTo(cfg, id, blockId, index) {
+    const e = cfg.eintraege.find(x => x.id === id); if (!e || !blockById(cfg, blockId)) return false;
+    const from = e.block;
+    const list = entriesOf(cfg, blockId).filter(x => x !== e);
+    const k = Math.max(0, Math.min(list.length, index));
+    list.splice(k, 0, e);
+    e.block = blockId;
+    list.forEach((x, n) => { x.pos = n; });
+    if (from !== blockId) renumber(cfg, from);
+    return true;
+  }
+
+  const SVC_RANK = s => { const i = SERVICES.indexOf(s); return i < 0 ? 99 : i; };
+  /** Block nach seiner Regel ordnen. */
+  function sortBlock(cfg, blockId) {
+    const b = blockById(cfg, blockId); if (!b) return;
+    const num = v => (v == null || v === '' || isNaN(v) ? Infinity : Number(v));
+    const list = entriesOf(cfg, blockId);
+    const by = {
+      dist: (x, y) => num(x.dist) - num(y.dist),
+      corridor: (x, y) => num(x.along) - num(y.along) || num(x.dist) - num(y.dist),
+      ad: (x, y) => String((x.ort && (x.ort.icao || x.ort.name)) || '').localeCompare(String((y.ort && (y.ort.icao || y.ort.name)) || '')) ||
+        b.svc.indexOf(x.dienst) - b.svc.indexOf(y.dienst) || SVC_RANK(x.dienst) - SVC_RANK(y.dienst),
+      freq: (x, y) => String(x.ch).localeCompare(String(y.ch)),
+      manual: () => 0
+    }[b.order] || (() => 0);
+    list.sort((x, y) => by(x, y) || x.pos - y.pos).forEach((e, i) => { e.pos = i; });
+  }
+
+  // ---------- Belegung der 100 Plätze ----------
+  /**
+   * Blöcke folgen ab 00 (oder ab 01, wenn 00 fest belegt ist) lückenlos; freie Plätze nur am Ende vor 99.
+   * Ergebnis: slots[100] = { nr, kind:'fixed'|'entry'|'free', ch, kurz, klar, dienst, block, entryId }.
+   */
+  function layout(cfg) {
+    const slots = new Array(100).fill(null);
+    const free = cfg.settings.free;
+    const fx = cfg.fixed;
+    let next = 0;
+    if (fx.p00.on) { slots[0] = { nr: 0, kind: 'fixed', fixed: 'p00', ch: fx.p00.ch, kurz: fx.p00.kurz, klar: fx.p00.klar, dienst: '', block: null }; next = 1; }
+    const ranges = [], notPlaced = [], slotOf = {};
+    for (const b of cfg.bloecke) {
+      const all = entriesOf(cfg, b.id);
+      if (!b.on) { all.filter(e => e.aktiv).forEach(e => notPlaced.push({ e, why: 'blockAus' })); continue; }
+      const items = all.filter(e => e.aktiv);
+      const from = next;
+      items.forEach((e, i) => {
+        if (b.max != null && i >= b.max) { notPlaced.push({ e, why: 'max' }); return; }
+        if (next > LAST_SLOT) { notPlaced.push({ e, why: 'voll' }); return; }
+        slotOf[e.id] = next;
+        slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, block: b.id, entryId: e.id };
+        next++;
+      });
+      if (next > from) ranges.push({ block: b.id, name: b.name, from, to: next - 1 });
+    }
+    cfg.eintraege.filter(e => e.aktiv && !blockById(cfg, e.block)).forEach(e => notPlaced.push({ e, why: 'ohneBlock' }));
+    const freeFrom = next;
+    for (let n = next; n <= LAST_SLOT; n++) slots[n] = { nr: n, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
+    slots[99] = fx.p99.on
+      ? { nr: 99, kind: 'fixed', fixed: 'p99', ch: fx.p99.ch, kurz: fx.p99.kurz, klar: fx.p99.klar, dienst: '', block: null }
+      : { nr: 99, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
+    return { slots, ranges, notPlaced, slotOf, freeFrom, freeTo: freeFrom <= LAST_SLOT ? LAST_SLOT : null, used: freeFrom };
+  }
+
+  /** Was ins Gerät geht: 100 × { nr, ch, name (8 Zeichen) } – Grundlage für Z-Befehle und die A6-Karte. */
+  function deviceSlots(cfg, lay) {
+    const L = lay || layout(cfg);
+    return L.slots.map(s => {
+      const n = C.normalizeName(s.kurz, cfg.settings.allowDigits);
+      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), kind: s.kind, ok: n.ok && C.encodeFreq(s.ch).ok };
+    });
+  }
+
+  // ---------- Prüfung ----------
+  /** Befunde je Eintrag: { lvl:'r'|'y', code, arg } – r verhindert das Programmieren, ausser bewusst bestätigt. */
+  function check(cfg) {
+    const lay = layout(cfg);
+    const by = {};
+    const add = (id, lvl, code, arg) => { (by[id] = by[id] || []).push({ lvl, code, arg }); };
+    const placedCh = {};
+    lay.slots.forEach(s => { if (s.kind !== 'free' && s.ch) (placedCh[s.ch] = placedCh[s.ch] || []).push(s.nr); });
+    for (const e of cfg.eintraege) {
+      const f = C.encodeFreq(e.ch);
+      if (!f.ok) add(e.id, 'r', 'freq', e.ch);
+      const k = entryShort(e);
+      const n = C.normalizeName(k, cfg.settings.allowDigits);
+      if (!k.trim()) add(e.id, 'r', 'nameLeer');
+      else if (!n.ok) add(e.id, 'r', n.tooLong ? 'nameLang' : 'nameZeichen', n.bad || k);
+      if (e.vertrauen === 'r') add(e.id, e.bestaetigt ? 'y' : 'r', 'widerspruch', e.note);
+      if (e.vertrauen === 'y') add(e.id, 'y', 'eineQuelle');
+      if (f.ok && lay.slotOf[e.id] != null && (placedCh[f.display] || []).length > 1) add(e.id, 'y', 'doppelt', placedCh[f.display].map(x => String(x).padStart(2, '0')).join(', '));
+    }
+    const fixedIssues = [];
+    for (const key of ['p00', 'p99']) {
+      const p = cfg.fixed[key];
+      if (!p.on) continue;
+      if (!C.encodeFreq(p.ch).ok) fixedIssues.push({ key, lvl: 'r', code: 'freq', arg: p.ch });
+      const n = C.normalizeName(p.kurz, cfg.settings.allowDigits);
+      if (!n.ok) fixedIssues.push({ key, lvl: 'r', code: n.tooLong ? 'nameLang' : 'nameZeichen', arg: n.bad || p.kurz });
+    }
+    if (!C.encodeFreq(cfg.settings.free.ch).ok) fixedIssues.push({ key: 'free', lvl: 'r', code: 'freq', arg: cfg.settings.free.ch });
+    const placedIds = new Set(Object.keys(lay.slotOf));
+    const count = { r: 0, y: 0, codes: {} };
+    for (const id of Object.keys(by)) {
+      if (!placedIds.has(id)) continue;                 // nur, was ins Gerät geht, zählt für die Freigabe
+      for (const i of by[id]) { count[i.lvl]++; count.codes[i.code] = (count.codes[i.code] || 0) + 1; }
+    }
+    for (const i of fixedIssues) { count[i.lvl]++; count.codes[i.code] = (count.codes[i.code] || 0) + 1; }
+    return { byEntry: by, fixed: fixedIssues, count, canProgram: count.r === 0, layout: lay };
+  }
+
+  // ---------- Speichern / Laden ----------
+  function toJSON(cfg) { return JSON.stringify(cfg, null, 1); }
+  /** Konfiguration aus Datei/Speicher übernehmen; fehlende Felder mit Vorgaben ergänzen. */
+  function fromJSON(text) {
+    const o = typeof text === 'string' ? JSON.parse(text) : text;
+    if (!o || typeof o !== 'object' || !Array.isArray(o.eintraege) || !Array.isArray(o.bloecke)) throw new Error('keine KRT2-Konfiguration');
+    const d = defaultConfig();
+    const cfg = Object.assign(d, o);
+    cfg.settings = Object.assign(defaultConfig().settings, o.settings || {});
+    cfg.settings.free = Object.assign({ ch: '118.000', kurz: 'FREE' }, (o.settings || {}).free || {});
+    cfg.fixed = { p00: Object.assign(d.fixed.p00, (o.fixed || {}).p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, (o.fixed || {}).p99 || {}) };
+    cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
+    cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
+    cfg.schema = SCHEMA;
+    return cfg;
+  }
+
+  /** Belegung als CSV (Semikolon, für Excel): Platz;Frequenz;Kurzname;Klartext;Dienst;Block */
+  function toCSV(cfg) {
+    const lay = layout(cfg);
+    const name = id => (blockById(cfg, id) || {}).name || '';
+    const q = v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+    return ['Platz;Frequenz;Kurzname;Klartext;Dienst;Block']
+      .concat(lay.slots.map(s => [String(s.nr).padStart(2, '0'), s.ch, s.kurz, s.klar, s.dienst, s.kind === 'fixed' ? 'fest' : s.kind === 'free' ? 'frei' : name(s.block)].map(q).join(';')))
+      .join('\r\n') + '\r\n';
+  }
+
+  /** Entfernung in km (Haversine). */
+  function distKm(lat1, lon1, lat2, lon2) {
+    if ([lat1, lon1, lat2, lon2].some(v => v == null || isNaN(v))) return null;
+    const R = 6371, r = Math.PI / 180;
+    const a = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lon2 - lon1) * r / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  return {
+    SCHEMA, LAST_SLOT, SERVICES, ORDERS, svcShort, defaultBlocks, defaultConfig, uid,
+    locCode, shortName, entryParts, entryShort, hasIcao,
+    blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
+    layout, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
+  };
+});

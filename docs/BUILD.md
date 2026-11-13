@@ -50,14 +50,18 @@ hält fest, was für den Code gilt, damit eine neue Sitzung ohne Vorgeschichte w
 - Luftraumtyp `t` (openAIP; bestätigt: 1 R, 2 D, 4 CTR, 5 TMZ, 6 RMZ, 7 TMA, 21 Segelflugsektor, 26 CTA,
   33 FIS-Sektor; übrige gemäss `OAIP_ASPTYPE` in `tools/build-frequencies.mjs` [likely]). `cls` 0 = A … 6 = G, 8 = SUA.
 
-**Konfiguration** (Worker/D1, lokal als Entwurf in localStorage):
+**Konfiguration** (`src/model.js`, Schema 1; lokal als Entwurf in localStorage `krt2.draft`, ab 0.2.0 im Worker/D1):
 
 ```
-{ id, owner, name, version, created, updated, standort:{name:'CH-Zürich', lat, lon},
-  gebiet:{ form:'kreis'|'rechteck'|'vieleck'|'korridor', punkte:[[lat,lon]…], breiten:[[l,r]…], radiusKm },
-  hoehe:{ von:'GND', bis:'FL195', radarOhneGrenze:bool }, bloecke:[…], datenStand,
-  plaetze:[{ nr:0..99, ch, kurz, klar, dienst, block, quellen[], vertrauen:'g'|'y'|'r', aktiv, geo? }] }
+{ schema:1, id, name, version, created, updated, beispiel?, standort:{name, lat, lon}, gebiet, datenStand,
+  hoehe:{ von:'GND', bis:'FL195', radarOhneGrenze },
+  settings:{ adLoc:'kurz'|'icao', allowDigits, free:{ch:'118.000', kurz:'FREE'}, area:{von, bis, radar, marginKm} },
+  fixed:{ p00:{on, ch, kurz, klar}, p99:{on, ch, kurz, klar} },
+  bloecke:[{ id, name, on, svc:['FIS',…], max:null|n, order:'dist'|'ad'|'corridor'|'freq'|'manual' }],
+  eintraege:[{ id, ch, kurz, klar, dienst, block, pos, aktiv, quellen[], vertrauen:'g'|'y'|'r'|'s', note, bestaetigt,
+               ort:{icao, iata, code, qual, name}, kurzModus:'kurz'|'icao'|'frei', dist, lage:'gebiet'|'angrenzend'|null, along }] }
 ```
+Die Platznummern werden nicht gespeichert, sondern aus Blöcken und `pos` berechnet (`layout()`).
 
 **Gerät**: `{ id, owner, bezeichnung, aktuell:{ plaetze[100], herkunft:'geschrieben'|'ausgelesen', zeit, configId, version } }`
 
@@ -65,7 +69,7 @@ hält fest, was für den Code gilt, damit eine neue Sitzung ohne Vorgeschichte w
 
 | Version | Inhalt | Abhängig vom Test |
 |---|---|---|
-| 0.1.0 | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
+| 0.1.0 ✓ | App-Gerüst (Kopfzeile, Navigation, DE/EN, Meldungen), Editor mit lokalem Entwurf, Kurznamen-Regeln, Blöcke, Validierung, A6-Karte | nein |
 | 0.2.0 | Worker + D1 (Konten, Geräte, Konfigurationen), Setup-Workflow, Anleitung für die Secrets | nein |
 | 0.3.0 | Gebiet und Vorschlag: Karte (Leaflet/OSM), Ortssuche, Korridor, Frequenzdaten laden und schneiden | nein |
 | 0.4.0 | Gerät: Schreiben (Z), Sichern/Auslesen (W) gemäss Testergebnis, Vorschau alt→neu | ja |
@@ -74,5 +78,5 @@ hält fest, was für den Code gilt, damit eine neue Sitzung ohne Vorgeschichte w
 
 ## 5 Prüfen
 
-- `node tests/codec.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus
