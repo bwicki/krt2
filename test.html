@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KRT2 – Machbarkeitstest</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/test.css">
+<script src="https://portal.wicki.aero/hit.js" data-app="krt2" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><strong>KRT2-Speicherplätze · Machbarkeitstest</strong><span>krt2.wicki.aero · Protokoll TQ Rev. 003 · 9600 Bd 8N1</span></div>
+  <div class="right"><img src="./img/logo.png" alt="Wicki Partners Ballonteam"><span class="ver" id="ver"></span></div>
+</header>
+
+<main>
+<section class="wide warn" id="unsupported" hidden>
+  Dieser Browser kann nicht auf serielle Anschlüsse zugreifen. Bitte die Seite mit <b>Google Chrome</b> oder <b>Microsoft Edge</b> auf dem Laptop öffnen.
+  Ist es schon Chrome/Edge, sperrt vermutlich die Firmenverwaltung den Zugriff: privaten Laptop nehmen.
+</section>
+
+<section>
+  <h2>1 · Verbindung</h2>
+  <div class="row">
+    <button id="btnConnect">Adapter verbinden</button>
+    <button id="btnDisconnect" class="sec" disabled>Trennen</button>
+    <span id="connStatus" class="status">nicht verbunden</span>
+  </div>
+  <div class="row gates">
+    <label><input type="checkbox" id="optSend"> <b>Senden freigeben</b> (Antworten S, ACK)</label>
+    <label><input type="checkbox" id="optCmd"> <b>Befehle an das Funkgerät freigeben</b> (Z, R, W)</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="optAnswer" checked> auf «S» mit «x» antworten</label>
+    <label><input type="checkbox" id="optAck" checked> Meldungen des Funkgeräts mit ACK bestätigen</label>
+    <button id="btnQuery" class="sec">Eigene Abfrage «S»</button>
+  </div>
+  <p class="muted small">Adapter DA-70156 (FTDI): Erscheint «r» nicht, im Geräte-Manager unter Anschlüsse → USB Serial Port → Eigenschaften → Anschlusseinstellungen → Erweitert die «Wartezeit (ms)» auf 1 setzen.</p>
+</section>
+
+<section>
+  <h2>Stand</h2>
+  <div class="kv">
+    <div>Verbindung «r»</div><div id="linkState">noch keine Abfrage «S» gesehen</div>
+    <div>Abfragen «S»</div><div id="pingStats">0</div>
+    <div>Aktiv</div><div><span id="fActive" class="mono">–</span> <span id="fActiveName" class="muted"></span></div>
+    <div>Standby</div><div><span id="fStandby" class="mono">–</span> <span id="fStandbyName" class="muted"></span></div>
+    <div>Senden/Empfang</div><div id="txrx">–</div>
+    <div>Letzter Fehler</div><div id="lastErr">–</div>
+  </div>
+</section>
+
+<section class="wide">
+  <h2>2 · Tests</h2>
+  <ol class="tests">
+    <li><b>T1 Verbindung.</b> Adapter verbinden, «Senden freigeben» setzen. Erscheint rechts oben im Funkgerät «r»? Sonst «Eigene Abfrage S». Beobachtung als Notiz eintragen.</li>
+    <li><b>T2 Einen Platz schreiben.</b> Vorher am Funkgerät mit MEM nachsehen, was auf <b>Platz 98</b> steht, und als Notiz eintragen. Dann «Befehle freigeben», Vorgabe T2 wählen, «Platz schreiben». Danach am Gerät Platz 98 ansehen.</li>
+    <li><b>T3 Ziffern im Namen.</b> Wie T2 mit Vorgabe T3 (Platz 97, «TEST 12»); vorher Platz 97 notieren. Zeigt das Gerät die Ziffern?</li>
+    <li><b>T4 Blättern.</b> Standby notieren. «W ×1» drücken: kommt eine Standby-Meldung (Tabelle unten)? Dann «W ×5». Danach «Standby zurücksetzen». Blättert das Gerät über leere Plätze? (Nur prüfbar, wenn leere Plätze vorhanden sind.)</li>
+    <li><b>T5 Kanalraster.</b> Standby auf 132.505 setzen (8.33 kHz), dann auf 123.450 (25 kHz). Zeigt das Gerät genau diese Werte? Danach Standby zurücksetzen.</li>
+    <li><b>T6 Zurückstellen.</b> Plätze 98 und 97 mit den notierten Werten wieder schreiben. Zum Schluss «Protokoll speichern» und die Datei in <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> ablegen.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Platz schreiben (Z)</h2>
+  <div class="row presets">
+    <button class="sec" data-preset="98|121.500|TEST">Vorgabe T2</button>
+    <button class="sec" data-preset="97|121.500|TEST 12">Vorgabe T3</button>
+  </div>
+  <div class="form">
+    <label>Platz <input id="zSlot" type="number" min="0" max="99" value="98"></label>
+    <label>Frequenz <input id="zFreq" type="text" value="121.500" class="mono"></label>
+    <label>Name <input id="zName" type="text" value="TEST" maxlength="12" class="mono"></label>
+  </div>
+  <div id="zCheck" class="small muted"></div>
+  <div class="row"><button id="btnZ">Platz schreiben</button><span id="zResult" class="status"></span></div>
+</section>
+
+<section>
+  <h2>Standby und Blättern (R, W)</h2>
+  <div class="form">
+    <label>Frequenz <input id="rFreq" type="text" value="132.505" class="mono"></label>
+    <label>Name <input id="rName" type="text" value="TEST" maxlength="12" class="mono"></label>
+  </div>
+  <div class="row presets">
+    <button class="sec" data-r="132.505|T5 833">T5: 132.505</button>
+    <button class="sec" data-r="123.450|T5 25">T5: 123.450</button>
+    <button id="btnR">Standby setzen</button>
+    <button id="btnRestore" class="sec">Standby zurücksetzen</button>
+  </div>
+  <div class="small muted" id="savedStandby">Gemerkter Standby: –</div>
+  <div class="row">
+    <button id="btnW1">W ×1</button>
+    <button id="btnW5">W ×5</button>
+    <button id="btnWprev" class="sec">w ×1 (zurück)</button>
+    <span id="wResult" class="status"></span>
+  </div>
+  <table class="browse"><thead><tr><th>#</th><th>Befehl</th><th>Antwort nach</th><th>Standby-Meldung</th></tr></thead><tbody id="browse"></tbody></table>
+</section>
+
+<section class="wide">
+  <h2>3 · Notiz und Protokoll</h2>
+  <div class="row"><input id="note" type="text" placeholder="Beobachtung am Funkgerät, Enter = ins Protokoll" class="grow"><button id="btnNote" class="sec">Notiz</button></div>
+  <div class="row">
+    <button id="btnSave">Protokoll speichern (.txt)</button>
+    <button id="btnCopy" class="sec">Alles kopieren</button>
+    <button id="btnClear" class="sec">Leeren</button>
+    <span id="saveStatus" class="status"></span>
+  </div>
+  <div id="logbox"><table><thead><tr><th>Zeit</th><th>Δ ms</th><th></th><th>Bytes</th><th>Bedeutung</th></tr></thead><tbody id="log"></tbody></table></div>
+</section>
+</main>
+
+<script src="./src/krt2decoder.js"></script>
+<script src="./src/krt2codec.js"></script>
+<script src="./src/test.js"></script>
+</body>
+</html>

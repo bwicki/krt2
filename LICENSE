@@ -1,0 +1,73 @@
+KRT2-Speicherplätze (krt2.wicki.aero) — Lizenz / License
+=========================================================
+
+© 2026 Balthasar Wicki, Wicki Aero GmbH, Schweiz. Alle Rechte vorbehalten.
+
+DEUTSCH
+
+1. Einsicht. Der Quelltext ist zur Einsicht veröffentlicht («source-available»).
+   Das Lesen und das Studium des Quelltexts sind gestattet.
+
+2. Zustimmung. Jede weitere Nutzung des Werks oder von Teilen davon —
+   insbesondere Ausführen auf eigenen Systemen, Kopieren, Verändern, Übersetzen,
+   Verbreiten, öffentliches Zugänglichmachen, Einbinden in andere Werke sowie
+   jede gewerbliche Verwendung — bedarf der vorherigen ausdrücklichen Zustimmung
+   des Rechtsinhabers (Anfrage an Balthasar Wicki / Wicki Aero GmbH).
+
+3. Quellenangabe. Bei erteilter Zustimmung ist die Quelle anzugeben:
+   «KRT2-Speicherplätze — Balthasar Wicki / Wicki Aero GmbH,
+   https://github.com/bwicki/krt2», und zwar im Quelltext und an einer für
+   Nutzer sichtbaren Stelle (z. B. Impressum, Über-Seite). Diese Lizenzdatei ist
+   beizulegen. Der Rechtsinhaber kann die Zustimmung an weitere Bedingungen
+   knüpfen und sie mit Wirkung für die Zukunft widerrufen.
+
+4. Drittkomponenten. Zur Laufzeit geladene Komponenten Dritter (Schriften IBM
+   Plex, OFL 1.1; künftig Leaflet, BSD-2-Clause) sowie genutzte Dienste und
+   Daten (openAIP, CC BY-NC; OurAirports, gemeinfrei; OpenStreetMap und
+   Nominatim; Cloudflare Workers/D1; GitHub Pages) unterliegen ihren eigenen
+   Lizenzen und Nutzungsbedingungen; siehe README. Die Marken und Logos «Wicki
+   Aero», «Wicki Partners» und «Wicki Partners Ballonteam» sind nicht Teil
+   dieser Lizenz. Daten, die Nutzer in der App speichern (Konfigurationen,
+   Geräteprogrammierungen), bleiben deren Eigentum. «TQ» und «KRT2» sind
+   Bezeichnungen der TQ-Systems GmbH; diese App ist kein Produkt von TQ.
+
+5. Gewährleistung. Das Werk wird ohne jede Gewähr bereitgestellt. Es ist eine
+   Hilfe zum Programmieren der Speicherplätze; massgebend sind AIP, VFR-Manual,
+   NOTAM und die Handbücher des Funkgeräts. Frequenzen aus öffentlichen Quellen
+   können falsch oder veraltet sein und sind vor der Fahrt zu prüfen. Jede
+   Haftung für Schäden aus der Nutzung ist, soweit gesetzlich zulässig,
+   ausgeschlossen. Anwendbar ist schweizerisches Recht.
+
+ENGLISH
+
+1. Inspection. The source code is published for inspection ("source-available").
+   Reading and studying the source code is permitted.
+
+2. Consent. Any further use of the work or parts of it — in particular running it
+   on your own systems, copying, modifying, translating, distributing, making it
+   publicly available, incorporating it into other works, and any commercial
+   use — requires the prior express consent of the rights holder (request to
+   Balthasar Wicki / Wicki Aero GmbH).
+
+3. Attribution. Where consent is granted, the source must be credited:
+   "KRT2-Speicherplätze — Balthasar Wicki / Wicki Aero GmbH,
+   https://github.com/bwicki/krt2", both in the source code and in a place
+   visible to users (e.g. imprint, about page), and this licence file must be
+   included. The rights holder may attach further conditions to the consent and
+   may revoke it with effect for the future.
+
+4. Third-party components. Third-party components loaded at run time (IBM Plex
+   fonts, OFL 1.1; later Leaflet, BSD-2-Clause) and the services and data used
+   (openAIP, CC BY-NC; OurAirports, public domain; OpenStreetMap and Nominatim;
+   Cloudflare Workers/D1; GitHub Pages) are subject to their own licences and
+   terms; see README. The trademarks and logos "Wicki Aero", "Wicki Partners"
+   and "Wicki Partners Ballonteam" are not part of this licence. Data that users
+   store in the app (configurations, radio programmings) remain their property.
+   "TQ" and "KRT2" are designations of TQ-Systems GmbH; this app is not a TQ
+   product.
+
+5. Warranty. The work is provided without any warranty. It is an aid for
+   programming the memory channels; the AIP, VFR manual, NOTAMs and the radio's
+   manuals prevail. Frequencies from public sources may be wrong or outdated and
+   must be checked before the flight. Any liability for damages arising from its
+   use is excluded to the extent permitted by law. Swiss law applies.
