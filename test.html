@@ -76,32 +76,62 @@
 </section>
 
 <section class="wide step" id="s3">
-  <h2><span class="num">3</span> Ganzen Speicher auslesen = Sicherung <span class="badge" id="b3"></span></h2>
+  <h2><span class="num">3</span> Speicher von Hand auslesen = Sicherung <span class="badge" id="b3"></span></h2>
+  <p>Über die Schnittstelle lässt sich der Speicher nicht auslesen (Test vom 13.11.: «W» blättert, meldet aber nichts). Holt man einen Platz aber am Gerät mit <b>MEM</b> und Drehknopf, meldet das Gerät Frequenz und Namen – ohne Platznummer. Die Seite zählt deshalb mit; die Nummer aus der Anzeige <span class="mono">SEL[..]</span> gibst Du ein. Das braucht es nur einmal: Danach gilt, was die App auf das Gerät schreibt.</p>
+  <p class="muted small">Nur «Senden freigeben» setzen, Befehle braucht es nicht. Das «r» muss im Display stehen. Den Knopf nur drehen, solange <span class="mono">SEL[..]</span> sichtbar ist – sonst verstellt er die Lautstärke oder die Frequenz.</p>
+
+  <p><b>A · Wann meldet das Gerät?</b> (drei kurze Versuche, je 12 s)</p>
   <ol class="small">
-    <li>Am Funkgerät <b>Speicherplatz 99</b> in die Standby-Frequenz holen (wie am 13.11. mit den Plätzen 00, 10, 12). Dann beginnt das Blättern mit Platz 00.</li>
-    <li>«Auslesen starten». Die Seite sendet 100 × «W» und schreibt jede Meldung in die Tabelle (etwa 1 Minute).</li>
-    <li>Danach «Sicherung speichern (CSV)» und «(JSON)»; beide Dateien nach <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> verschieben.</li>
-    <li>Drei Plätze am Gerät mit MEM nachsehen und mit der Tabelle vergleichen (Vorschlag: 03, 47, 98).</li>
+    <li>«Versuch 1», dann sofort am Gerät <b>MEM</b> drücken, nicht drehen, warten.</li>
+    <li>«Versuch 2», dann <b>MEM</b> drücken und im Sekundentakt <b>3 Rasten im Uhrzeigersinn</b> drehen, warten.</li>
+    <li>«Versuch 3», dann <b>MEM</b> drücken, <b>1 Raste</b> drehen und sofort nochmals <b>MEM</b> drücken.</li>
   </ol>
   <div class="row">
-    <label>Erster Platz nach dem Start <input type="number" id="startSlot" min="0" max="99" value="0"></label>
-    <button id="btnSim99" class="sec" hidden>Simulation: Platz 99 am Gerät holen</button>
-    <button id="btnRead">Auslesen starten</button>
-    <button id="btnStop" class="sec" disabled>Anhalten</button>
-    <span id="readProg" class="status"></span>
+    <button id="btnT1">Versuch 1: nur MEM</button>
+    <button id="btnT2">Versuch 2: MEM + 3 Rasten</button>
+    <button id="btnT3">Versuch 3: MEM, 1 Raste, MEM</button>
+    <span id="trialProg" class="status"></span>
+  </div>
+  <div class="auto" id="a3a">Noch kein Versuch.</div>
+  <div class="row">
+    <span>Das Gerät meldet</span>
+    <label><input type="radio" name="hmode" value="raste"> bei jeder Raste</label>
+    <label><input type="radio" name="hmode" value="verlassen" checked> erst beim Verlassen des Speichermodus</label>
+    <span class="muted small">(stellt sich nach Versuch 2 selbst ein)</span>
+  </div>
+
+  <p><b>B · Alle 100 Plätze auslesen</b></p>
+  <ol class="small" id="handSteps"></ol>
+  <div class="row">
+    <button id="btnHand">Aufnahme starten</button>
+    <button id="btnHandStop" class="sec" disabled>Aufnahme beenden</button>
+    <button id="btnUndo" class="sec" disabled>Letzte Meldung zurücknehmen</button>
+    <button id="btnCount" class="sec" disabled>Übergangene Meldung doch zählen</button>
+    <button id="btnHandClear" class="sec">Tabelle leeren</button>
+    <label class="small"><input type="checkbox" id="optDup" checked> gleiche Meldung innert 0.3 s nur einmal zählen</label>
+  </div>
+  <div class="row">
+    <label>Die letzte Meldung war Platz <input type="number" id="selNr" min="0" max="99" disabled></label>
+    <button id="btnSel" disabled>Nummer übernehmen</button>
+    <span id="handProg" class="status"></span>
+  </div>
+  <div class="row" id="simHand" hidden>
+    <span class="muted small">Simulation:</span>
+    <button class="sec" id="simMem">MEM drücken</button>
+    <button class="sec" id="simTurn">1 Raste drehen</button>
+    <span class="mono small" id="simDisp"></span>
   </div>
   <div class="auto" id="a3">–</div>
   <div class="row">
     <button id="btnCsv" class="sec" disabled>Sicherung speichern (CSV)</button>
     <button id="btnJson" class="sec" disabled>Sicherung speichern (JSON)</button>
-    <button class="sec" data-restore>Standby zurücksetzen</button>
   </div>
-  <div class="tablebox"><table class="mem"><thead><tr><th>Platz</th><th>Frequenz</th><th>Name</th><th>Antwort</th></tr></thead><tbody id="memBody"></tbody></table></div>
+  <div class="tablebox" id="memBox"><table class="mem"><thead><tr><th>Platz</th><th>Frequenz</th><th>Name</th><th>Δ</th><th>Hinweis</th></tr></thead><tbody id="memBody"></tbody></table></div>
   <div class="ask">
-    <span>Stimmen die drei verglichenen Plätze mit dem Gerät überein?</span>
+    <span>Stimmen drei Stichproben mit dem Gerät überein?</span>
     <label><input type="radio" name="m3" value="ja"> ja</label>
     <label><input type="radio" name="m3" value="nein"> nein</label>
-    <input type="text" placeholder="z. B. 03 ok, 47 ok, 98 ok" data-note="3">
+    <input type="text" placeholder="z. B. 05 ok, 47 ok, 93 ok" data-note="3">
   </div>
 </section>
 

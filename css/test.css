@@ -68,3 +68,11 @@ pre.auto{font-family:var(--mono);font-size:12px;max-height:40vh;overflow:auto}
 table.mem td{font-family:var(--mono)}
 table.mem tr.gap td{color:var(--muted)}
 #r97f,#r98f{width:90px} #r97n,#r98n{width:110px}
+/* Schritt 3 von Hand (test 0.3) */
+.auto.warn{background:var(--warn-bg);border:1px solid var(--warn-border)}
+#selNr{width:64px}
+table.mem tr.rel td{color:var(--muted);font-style:italic}
+table.mem tr.cur td{background:#eef4ff;font-weight:600}
+table.mem tr.chk td{background:var(--ok-bg)}
+table.mem tr.unsure td{background:var(--warn-bg)}
+table.mem tr.conflict td{background:var(--bad-bg);color:var(--bad-text)}

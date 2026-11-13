@@ -110,6 +110,19 @@ geprüft. Nach dem Schreiben dient derselbe Mechanismus als Stichprobe: abgerufe
 Beim Test wurden die Plätze 97 und 98 mit Testwerten überschrieben (136.975 «TEST», «TEST2»); ihr alter Inhalt ist
 nicht gesichert.
 
+Nachtrag zur Auswertung des Protokolls: Beide R-Meldungen vom Abruf kamen 16 ms **vor** einer verspäteten Abfrage «S»
+(die fällige Abfrage blieb 1.4 s bzw. 7.6 s aus). Das spricht dafür [likely], dass das Gerät im Speichermodus nicht
+abfragt und R erst **beim Verlassen** des Speichermodus sendet (Anleitung S. 23: Rückkehr «nach einigen Sekunden
+ohne Bedienung»), nicht bei jeder Raste. Die Anzeige zeigt die Platznummer als `SEL[nn]` (Anleitung S. 23).
+
+**test 0.3.0, Schritt 3 «Speicher von Hand auslesen»** klärt das mit drei Versuchen (nur MEM · MEM + 3 Rasten ·
+MEM, Raste, MEM) und liest danach alle 100 Plätze: jede gezählte R-Meldung gilt als nächster Platz; die Nummer aus
+`SEL[..]` verankert die Zählung und prüft sie (stimmt eine Kontrolle nicht, werden die Plätze seit der letzten
+Kontrolle «unsicher» und sind nachzuholen). Zustandsmeldungen nach «U», doppelte Meldungen innert 0.3 s und (im Modus
+«bei jeder Raste») Wiederholungen nach einer Pause zählen nicht. Ergebnis: `krt2_sicherung_hand_<Zeit>.csv/.json`
+(typ `krt2-sicherung`, Plätze 0–99 mit Status gelesen/kontrolliert/unsicher/widerspruch/fehlt) – dieselbe Datei
+übernimmt 0.4.0 als Ausgangszustand.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
