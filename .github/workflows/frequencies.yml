@@ -1,0 +1,46 @@
+# Nächtliche Frequenzdaten für ganz Europa – aus den schlüssellosen openAIP-Länderexporten und OurAirports.
+# WARUM: openAIP weist Live-Abrufe aus Cloudflare Workern und Browsern ab (siehe s2ground); die Exporte sind der
+# Weg, den openAIP für Programme anbietet. tools/build-frequencies.mjs baut je Land eine Datei; das Ergebnis wird
+# als einzelner Commit auf den Zweig `data` geschoben (ohne Verlauf, das Repository wächst nicht) und von der App
+# über raw.githubusercontent.com gelesen.
+name: Frequenzdaten (openAIP + OurAirports)
+
+on:
+  schedule:
+    - cron: '41 3 * * *'         # 03:41 UTC, nach dem nächtlichen openAIP-Export
+  workflow_dispatch:
+    inputs:
+      countries:
+        description: "Länderkürzel, kommagetrennt (leer = ganz Europa)"
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prüfungen
+        run: node tests/codec.test.js && node tests/frequencies.test.mjs
+      - name: Exporte laden und Länderdateien bauen
+        env:
+          COUNTRIES: ${{ inputs.countries }}
+          OUT: ${{ runner.temp }}/freq
+        run: node tools/build-frequencies.mjs
+      - name: Auf dem Zweig data veröffentlichen (ein Commit, überschrieben)
+        env:
+          OUT: ${{ runner.temp }}/freq
+        run: |
+          set -e
+          cd "$OUT"
+          git init -q -b data
+          git config user.name "krt2-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add .
+          git commit -q -m "Frequenzdaten $(date -u +%Y-%m-%d)"
+          git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/data
