@@ -20,11 +20,12 @@ Stand: Phase 1 (Machbarkeitstest am Gerät). Konzept: Dropbox «046 WebAPP krt2\
 
 ## Machbarkeitstest — `test.html`
 
-Testseite für die Fragen, die die Protokollbeschreibung offenlässt (Schreiben eines Speicherplatzes mit «Z»,
-Ziffern im Namen, Blättern mit «W» als einziger Weg zum Auslesen, Kanalumrechnung 8.33/25 kHz). Baut auf
-der Seite «KRT2 mitlesen» aus Projekt 024 auf. Befehle gehen nur hinaus, wenn «Senden freigeben» und
-«Befehle an das Funkgerät freigeben» gesetzt sind; gesendet werden nur S, ACK, Z, R und W.
-`test.html?sim=1` startet ein nachgebildetes Funkgerät zum Ausprobieren ohne Adapter.
+Geführter Test in acht Schritten (Version test 0.2): Verbindung «r», Blättern mit «W», ganzen Speicher
+auslesen und als Sicherung speichern (CSV/JSON), einen Platz schreiben, Ziffern im Namen, Kanalraster,
+Zurückstellen der Testplätze aus der Sicherung, Ergebnis speichern. Jeder Schritt hat ein automatisches
+Resultat und eine Frage zur Anzeige am Gerät. Befehle gehen nur hinaus, wenn «Senden freigeben» und
+«Befehle an das Funkgerät freigeben» gesetzt sind; gesendet werden nur «x» (Antwort auf «S»), ACK, W, Z
+und R. `test.html?sim=1` startet ein nachgebildetes Funkgerät zum Üben ohne Adapter.
 
 ## Protokoll
 

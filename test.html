@@ -11,106 +11,174 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><strong>KRT2-Speicherplätze · Machbarkeitstest</strong><span>krt2.wicki.aero · Protokoll TQ Rev. 003 · 9600 Bd 8N1</span></div>
+  <div class="brand"><strong>KRT2-Speicherplätze · Machbarkeitstest</strong><span>krt2.wicki.aero · geführter Test · Protokoll TQ Rev. 003 · 9600 Bd 8N1</span></div>
   <div class="right"><img src="./img/logo.png" alt="Wicki Partners Ballonteam"><span class="ver" id="ver"></span></div>
 </header>
+
+<div class="statusbar" id="statusbar">
+  <span>Adapter: <b id="sbPort">nicht verbunden</b></span>
+  <span>Verbindung «r»: <b id="sbLink">–</b></span>
+  <span>Aktiv: <b class="mono" id="sbActive">–</b></span>
+  <span>Standby: <b class="mono" id="sbStandby">–</b></span>
+  <span id="sbTx"></span>
+</div>
 
 <main>
 <section class="wide warn" id="unsupported" hidden>
   Dieser Browser kann nicht auf serielle Anschlüsse zugreifen. Bitte die Seite mit <b>Google Chrome</b> oder <b>Microsoft Edge</b> auf dem Laptop öffnen.
   Ist es schon Chrome/Edge, sperrt vermutlich die Firmenverwaltung den Zugriff: privaten Laptop nehmen.
 </section>
+<section class="wide note" id="simnote" hidden>
+  <b>Simulation.</b> Es ist kein Funkgerät angeschlossen; ein nachgebildetes Gerät antwortet so, wie es die Protokollbeschreibung erwarten lässt. Zum Üben der Abläufe.
+</section>
 
-<section>
-  <h2>1 · Verbindung</h2>
+<section class="wide step" id="s0">
+  <h2><span class="num">0</span> Vorbereitung <span class="badge" id="b0"></span></h2>
+  <ul class="checks">
+    <li><label><input type="checkbox" data-prep> Funkgerät am Boden, eingeschaltet, kein Funkverkehr, kein Sendebetrieb geplant</label></li>
+    <li><label><input type="checkbox" data-prep> Prüfkabel an der Binder-Buchse der ART-36A, Adapter DA-70156 am Laptop (Wartezeit im Geräte-Manager 1 ms)</label></li>
+    <li><label><input type="checkbox" data-prep> Laptop am Netzteil oder Akku genügend geladen; Chrome oder Edge</label></li>
+    <li><label><input type="checkbox" data-prep> Am Funkgerät notiert: aktive Frequenz, Standby-Frequenz, Lautstärke</label></li>
+  </ul>
   <div class="row">
     <button id="btnConnect">Adapter verbinden</button>
     <button id="btnDisconnect" class="sec" disabled>Trennen</button>
-    <span id="connStatus" class="status">nicht verbunden</span>
+    <label><input type="checkbox" id="optSend"> <b>Senden freigeben</b></label>
+    <label><input type="checkbox" id="optCmd"> <b>Befehle an das Funkgerät freigeben</b> (W, Z, R)</label>
   </div>
-  <div class="row gates">
-    <label><input type="checkbox" id="optSend"> <b>Senden freigeben</b> (Antworten S, ACK)</label>
-    <label><input type="checkbox" id="optCmd"> <b>Befehle an das Funkgerät freigeben</b> (Z, R, W)</label>
-  </div>
-  <div class="row">
-    <label><input type="checkbox" id="optAnswer" checked> auf «S» mit «x» antworten</label>
-    <label><input type="checkbox" id="optAck" checked> Meldungen des Funkgeräts mit ACK bestätigen</label>
-    <button id="btnQuery" class="sec">Eigene Abfrage «S» (Diagnose)</button>
-  </div>
-  <p class="muted small">Die Verbindung «r» entsteht nur, wenn die Seite die Abfragen «S» des Funkgeräts beantwortet (etwa alle 10 s); eine eigene Abfrage «S» genügt nicht (Mitlese-Protokoll 12.11.2026). Ohne Antwort verschwindet «r» nach etwa 13–15 s.</p>
-  <p class="muted small">Adapter DA-70156 (FTDI): Erscheint «r» nicht, im Geräte-Manager unter Anschlüsse → USB Serial Port → Eigenschaften → Anschlusseinstellungen → Erweitert die «Wartezeit (ms)» auf 1 setzen.</p>
+  <p class="muted small">Ohne «Senden freigeben» hört die Seite nur mit. Ohne «Befehle freigeben» sendet sie nur die Antworten auf «S» und ACK. Nie gesendet werden: aktive Frequenz, Lautstärke, Squelch, Kanalraster, Sendetasten.</p>
 </section>
 
-<section>
-  <h2>Stand</h2>
-  <div class="kv">
-    <div>Verbindung «r»</div><div id="linkState">noch keine Abfrage «S» gesehen</div>
-    <div>Abfragen «S»</div><div id="pingStats">0</div>
-    <div>Aktiv</div><div><span id="fActive" class="mono">–</span> <span id="fActiveName" class="muted"></span></div>
-    <div>Standby</div><div><span id="fStandby" class="mono">–</span> <span id="fStandbyName" class="muted"></span></div>
-    <div>Senden/Empfang</div><div id="txrx">–</div>
-    <div>Letzter Fehler</div><div id="lastErr">–</div>
+<section class="wide step" id="s1">
+  <h2><span class="num">1</span> Verbindung «r» <span class="badge" id="b1"></span></h2>
+  <p>«Senden freigeben» setzen. Das Funkgerät fragt etwa alle 10 s mit «S»; die Seite antwortet sofort. Nach rund 4 s erscheint rechts oben im Display ein kleines «r».</p>
+  <div class="auto" id="a1">Noch keine Abfrage «S» gesehen.</div>
+  <div class="ask">
+    <span>Ist das «r» im Display sichtbar?</span>
+    <label><input type="radio" name="m1" value="ja"> ja</label>
+    <label><input type="radio" name="m1" value="nein"> nein</label>
+    <input type="text" placeholder="Bemerkung" data-note="1">
+  </div>
+  <p class="muted small">Ohne «r» nicht weiterfahren. Ein einzelnes Zeichen 00 mit «Break» beim Einstecken ist normal.</p>
+</section>
+
+<section class="wide step" id="s2">
+  <h2><span class="num">2</span> Blättern mit «W» (einmal) <span class="badge" id="b2"></span></h2>
+  <p>«Befehle freigeben» setzen, dann «W einmal». Erwartet: Das Funkgerät holt den nächsten Speicherplatz in die Standby-Frequenz und meldet ihn mit Frequenz und Namen.</p>
+  <div class="row"><button id="btnW1">W einmal</button><button class="sec" data-restore>Standby zurücksetzen</button></div>
+  <div class="auto" id="a2">–</div>
+  <div class="ask">
+    <span>Stimmt die Standby-Anzeige am Gerät mit der Meldung überein?</span>
+    <label><input type="radio" name="m2" value="ja"> ja</label>
+    <label><input type="radio" name="m2" value="nein"> nein</label>
+    <input type="text" placeholder="Welcher Platz/Name steht im Display?" data-note="2">
   </div>
 </section>
 
-<section class="wide">
-  <h2>2 · Tests</h2>
-  <ol class="tests">
-    <li><b>T1 Verbindung.</b> Adapter verbinden, «Senden freigeben» setzen, «auf S antworten» eingeschaltet lassen. Nach spätestens 10 s erscheint rechts oben im Funkgerät «r». Beobachtung als Notiz eintragen.</li>
-    <li><b>T2 Einen Platz schreiben.</b> Vorher am Funkgerät mit MEM nachsehen, was auf <b>Platz 98</b> steht, und als Notiz eintragen. Dann «Befehle freigeben», Vorgabe T2 wählen, «Platz schreiben». Danach am Gerät Platz 98 ansehen.</li>
-    <li><b>T3 Ziffern im Namen.</b> Wie T2 mit Vorgabe T3 (Platz 97, «TEST 12»); vorher Platz 97 notieren. Zeigt das Gerät die Ziffern? (Im Speicher steht bereits «MIN-8» – Ziffern und Bindestrich kann das Gerät also speichern.)</li>
-    <li><b>T4 Blättern.</b> Standby notieren. «W ×1» drücken: kommt eine Standby-Meldung (Tabelle unten)? Dann «W ×5». Danach «Standby zurücksetzen». Blättert das Gerät über leere Plätze? (Nur prüfbar, wenn leere Plätze vorhanden sind.)</li>
-    <li><b>T5 Kanalraster.</b> Standby auf 132.505 setzen (8.33 kHz), dann auf 123.450 (25 kHz). Zeigt das Gerät genau diese Werte? Danach Standby zurücksetzen.</li>
-    <li><b>T6 Zurückstellen.</b> Plätze 98 und 97 mit den notierten Werten wieder schreiben. Zum Schluss «Protokoll speichern» und die Datei in <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> ablegen.</li>
+<section class="wide step" id="s3">
+  <h2><span class="num">3</span> Ganzen Speicher auslesen = Sicherung <span class="badge" id="b3"></span></h2>
+  <ol class="small">
+    <li>Am Funkgerät <b>Speicherplatz 99</b> in die Standby-Frequenz holen (wie am 13.11. mit den Plätzen 00, 10, 12). Dann beginnt das Blättern mit Platz 00.</li>
+    <li>«Auslesen starten». Die Seite sendet 100 × «W» und schreibt jede Meldung in die Tabelle (etwa 1 Minute).</li>
+    <li>Danach «Sicherung speichern (CSV)» und «(JSON)»; beide Dateien nach <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> verschieben.</li>
+    <li>Drei Plätze am Gerät mit MEM nachsehen und mit der Tabelle vergleichen (Vorschlag: 03, 47, 98).</li>
   </ol>
-</section>
-
-<section>
-  <h2>Platz schreiben (Z)</h2>
-  <div class="row presets">
-    <button class="sec" data-preset="98|121.500|TEST">Vorgabe T2</button>
-    <button class="sec" data-preset="97|121.500|TEST 12">Vorgabe T3</button>
-  </div>
-  <div class="form">
-    <label>Platz <input id="zSlot" type="number" min="0" max="99" value="98"></label>
-    <label>Frequenz <input id="zFreq" type="text" value="121.500" class="mono"></label>
-    <label>Name <input id="zName" type="text" value="TEST" maxlength="12" class="mono"></label>
-  </div>
-  <div id="zCheck" class="small muted"></div>
-  <div class="row"><button id="btnZ">Platz schreiben</button><span id="zResult" class="status"></span></div>
-</section>
-
-<section>
-  <h2>Standby und Blättern (R, W)</h2>
-  <div class="form">
-    <label>Frequenz <input id="rFreq" type="text" value="132.505" class="mono"></label>
-    <label>Name <input id="rName" type="text" value="TEST" maxlength="12" class="mono"></label>
-  </div>
-  <div class="row presets">
-    <button class="sec" data-r="132.505|T5 833">T5: 132.505</button>
-    <button class="sec" data-r="123.450|T5 25">T5: 123.450</button>
-    <button id="btnR">Standby setzen</button>
-    <button id="btnRestore" class="sec">Standby zurücksetzen</button>
-  </div>
-  <div class="small muted" id="savedStandby">Gemerkter Standby: –</div>
   <div class="row">
-    <button id="btnW1">W ×1</button>
-    <button id="btnW5">W ×5</button>
-    <button id="btnWprev" class="sec">w ×1 (zurück)</button>
-    <span id="wResult" class="status"></span>
+    <label>Erster Platz nach dem Start <input type="number" id="startSlot" min="0" max="99" value="0"></label>
+    <button id="btnSim99" class="sec" hidden>Simulation: Platz 99 am Gerät holen</button>
+    <button id="btnRead">Auslesen starten</button>
+    <button id="btnStop" class="sec" disabled>Anhalten</button>
+    <span id="readProg" class="status"></span>
   </div>
-  <table class="browse"><thead><tr><th>#</th><th>Befehl</th><th>Antwort nach</th><th>Standby-Meldung</th></tr></thead><tbody id="browse"></tbody></table>
+  <div class="auto" id="a3">–</div>
+  <div class="row">
+    <button id="btnCsv" class="sec" disabled>Sicherung speichern (CSV)</button>
+    <button id="btnJson" class="sec" disabled>Sicherung speichern (JSON)</button>
+    <button class="sec" data-restore>Standby zurücksetzen</button>
+  </div>
+  <div class="tablebox"><table class="mem"><thead><tr><th>Platz</th><th>Frequenz</th><th>Name</th><th>Antwort</th></tr></thead><tbody id="memBody"></tbody></table></div>
+  <div class="ask">
+    <span>Stimmen die drei verglichenen Plätze mit dem Gerät überein?</span>
+    <label><input type="radio" name="m3" value="ja"> ja</label>
+    <label><input type="radio" name="m3" value="nein"> nein</label>
+    <input type="text" placeholder="z. B. 03 ok, 47 ok, 98 ok" data-note="3">
+  </div>
 </section>
 
-<section class="wide">
-  <h2>3 · Notiz und Protokoll</h2>
-  <div class="row"><input id="note" type="text" placeholder="Beobachtung am Funkgerät, Enter = ins Protokoll" class="grow"><button id="btnNote" class="sec">Notiz</button></div>
+<section class="wide step" id="s4">
+  <h2><span class="num">4</span> Einen Platz schreiben (Platz 98) <span class="badge" id="b4"></span></h2>
+  <p>Schreibt <span class="mono">121.500 «TEST»</span> auf Platz 98. Erwartet: ACK. Danach am Gerät Platz 98 mit MEM ansehen.</p>
+  <div class="row"><button id="btnZ98">Platz 98 schreiben</button><span id="z98" class="status"></span></div>
+  <div class="ask">
+    <span>Zeigt das Gerät auf Platz 98 «TEST» 121.500?</span>
+    <label><input type="radio" name="m4" value="ja"> ja</label>
+    <label><input type="radio" name="m4" value="nein"> nein</label>
+    <input type="text" placeholder="Bemerkung" data-note="4">
+  </div>
+</section>
+
+<section class="wide step" id="s5">
+  <h2><span class="num">5</span> Ziffern im Namen (Platz 97) <span class="badge" id="b5"></span></h2>
+  <p>Schreibt <span class="mono">121.500 «TEST 12»</span> auf Platz 97. Danach am Gerät Platz 97 ansehen.</p>
+  <div class="row"><button id="btnZ97">Platz 97 schreiben</button><span id="z97" class="status"></span></div>
+  <div class="ask">
+    <span>Zeigt das Gerät «TEST 12» mit den Ziffern?</span>
+    <label><input type="radio" name="m5" value="ja"> ja</label>
+    <label><input type="radio" name="m5" value="nein"> nein</label>
+    <input type="text" placeholder="Was steht im Display?" data-note="5">
+  </div>
+</section>
+
+<section class="wide step" id="s6">
+  <h2><span class="num">6</span> Kanalraster (Standby setzen) <span class="badge" id="b6"></span></h2>
+  <p>Setzt die Standby-Frequenz nacheinander auf einen 8.33-kHz-Kanal und einen 25-kHz-Kanal. Der Speicher bleibt unberührt.</p>
   <div class="row">
-    <button id="btnSave">Protokoll speichern (.txt)</button>
+    <button id="btnR833">Standby 132.505</button><span id="r833" class="status"></span>
+    <button id="btnR25">Standby 123.450</button><span id="r25" class="status"></span>
+  </div>
+  <div class="ask">
+    <span>Zeigt das Gerät beide Werte genau so an?</span>
+    <label><input type="radio" name="m6" value="ja"> ja</label>
+    <label><input type="radio" name="m6" value="nein"> nein</label>
+    <input type="text" placeholder="Bemerkung" data-note="6">
+  </div>
+</section>
+
+<section class="wide step" id="s7">
+  <h2><span class="num">7</span> Zurückstellen <span class="badge" id="b7"></span></h2>
+  <p>Schreibt die Plätze 97 und 98 mit den Werten aus der Sicherung (Schritt 3) zurück und setzt die Standby-Frequenz zurück. Ohne Sicherung die Werte von Hand eintragen.</p>
+  <div class="form">
+    <label>Platz 97 <input type="text" id="r97f" class="mono" placeholder="Frequenz"> <input type="text" id="r97n" class="mono" placeholder="Name" maxlength="8"></label>
+    <label>Platz 98 <input type="text" id="r98f" class="mono" placeholder="Frequenz"> <input type="text" id="r98n" class="mono" placeholder="Name" maxlength="8"></label>
+  </div>
+  <div class="row">
+    <button id="btnFill" class="sec">Aus Sicherung übernehmen</button>
+    <button id="btnBack">97 und 98 zurückschreiben</button>
+    <button class="sec" data-restore>Standby zurücksetzen</button>
+    <span id="back" class="status"></span>
+  </div>
+  <div class="ask">
+    <span>Stimmen Platz 97, 98 und die Standby-Frequenz wieder mit dem Ausgangszustand überein?</span>
+    <label><input type="radio" name="m7" value="ja"> ja</label>
+    <label><input type="radio" name="m7" value="nein"> nein</label>
+    <input type="text" placeholder="Bemerkung" data-note="7">
+  </div>
+</section>
+
+<section class="wide step" id="s8">
+  <h2><span class="num">8</span> Ergebnis speichern</h2>
+  <p>Speichert Zusammenfassung, Antworten, Sicherung und das ganze Protokoll als Textdatei. Datei nach <span class="mono">046 WebAPP krt2\02_Machbarkeitstest</span> verschieben.</p>
+  <div class="row">
+    <button id="btnSave">Ergebnis speichern (.txt)</button>
     <button id="btnCopy" class="sec">Alles kopieren</button>
-    <button id="btnClear" class="sec">Leeren</button>
     <span id="saveStatus" class="status"></span>
   </div>
+  <pre id="summary" class="auto"></pre>
+</section>
+
+<section class="wide">
+  <h2>Notiz und Protokoll</h2>
+  <div class="row"><input id="note" type="text" placeholder="Beobachtung, Enter = ins Protokoll" class="grow"><button id="btnNote" class="sec">Notiz</button><button id="btnQuery" class="sec">Eigene Abfrage «S» (Diagnose)</button><button id="btnClear" class="sec">Protokoll leeren</button></div>
   <div id="logbox"><table><thead><tr><th>Zeit</th><th>Δ ms</th><th></th><th>Bytes</th><th>Bedeutung</th></tr></thead><tbody id="log"></tbody></table></div>
 </section>
 </main>
