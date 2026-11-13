@@ -17,7 +17,7 @@ async function api(method, path, body, token, expect = 200) {
 
 const h = await api('GET', '/api/health'); assert.ok(h.ok);
 assert.deepStrictEqual(await api('GET', '/api/setup'), { needed: true, login: 'bwicki' });
-await api('POST', '/api/setup', { password: 'kurz' }, null, 400);
+await api('POST', '/api/setup', { password: 'abc' }, null, 400);
 const su = await api('POST', '/api/setup', { password: 'geheim-12345', name: 'Balthasar Wicki' });
 assert.strictEqual(su.user.role, 'super'); const T = su.token;
 await api('POST', '/api/setup', { password: 'nochmal-12345' }, null, 409);

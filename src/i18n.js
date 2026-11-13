@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   const de = {
-    title: 'KRT2-Speicherplätze', sub: 'Frequenztabelle des Funkgeräts',
+    title: 'TQ KRT2-S2 Memory Manager', sub: 'Frequenztabelle des Funkgeräts',
     nav_aktuell: 'Aktuell', nav_gebiet: 'Gebiet', nav_editor: 'Editor', nav_geraet: 'Gerät', nav_konfig: 'Konfigurationen', nav_einst: 'Einstellungen',
     login: 'Anmelden', login_later: 'Konten folgen mit Version 0.2.0',
     later_title: 'Folgt mit Version {v}', later_gebiet: 'Startort, Gebiet auf der Karte, Korridor und der Vorschlag aus den Frequenzdaten.',
@@ -71,7 +71,7 @@
     ed_changed: 'ungespeicherte Änderungen', ed_saved: 'gespeichert', ed_srv_login: 'Anmelden und speichern', ed_srv_save: 'Speichern (v{v})',
     ed_srv_copy: 'Als eigene Kopie speichern', ed_srv_new: 'Als Konfiguration speichern',
     m_need_name: 'Bitte zuerst einen Namen für die Konfiguration eingeben.', m_srv_saved: '«{n}» als Version {v} gespeichert.', m_api_err: 'Server: {e}',
-    su_title: 'Supermaster einrichten', su_note: 'Noch gibt es kein Konto. Das erste Konto heisst «bwicki» und ist der Supermaster; nur er legt weitere Konten an. Kennwort mindestens 8 Zeichen, im Passwortmanager ablegen.',
+    su_title: 'Supermaster einrichten', su_note: 'Noch gibt es kein Konto. Das erste Konto heisst «bwicki» und ist der Supermaster; nur er legt weitere Konten an. Kennwort mindestens 4 Zeichen, im Passwortmanager ablegen.',
     su_go: 'Einrichten', m_su_done: 'Supermaster bwicki eingerichtet und angemeldet.',
     acc_login: 'Konto', acc_name: 'Name', acc_pw: 'Kennwort', acc_pw_new: 'Neues Kennwort', acc_pw_again: 'Neues Kennwort wiederholen', acc_pw_old: 'Bisheriges Kennwort',
     acc_pw_mismatch: 'Die beiden Kennwörter stimmen nicht überein.', acc_super: 'Supermaster', acc_user: 'Konto', acc_change_pw: 'Kennwort ändern',
@@ -95,7 +95,7 @@
     m_pw_reset: 'Neues Kennwort für {n}: {p}', m_user_created: 'Konto {n} angelegt. Anfangskennwort: {p}', m_locked: 'Konto {n} gesperrt.', m_unlocked: 'Konto {n} entsperrt.',
   };
   const en = {
-    title: 'KRT2 memory slots', sub: 'Frequency table of the radio',
+    title: 'TQ KRT2-S2 Memory Manager', sub: 'Frequency table of the radio',
     nav_aktuell: 'Current', nav_gebiet: 'Area', nav_editor: 'Editor', nav_geraet: 'Device', nav_konfig: 'Configurations', nav_einst: 'Settings',
     login: 'Sign in', login_later: 'Accounts come with version 0.2.0',
     later_title: 'Coming with version {v}', later_gebiet: 'Start location, area on the map, corridor and the proposal from the frequency data.',
@@ -158,7 +158,7 @@
     ed_changed: 'unsaved changes', ed_saved: 'saved', ed_srv_login: 'Sign in and save', ed_srv_save: 'Save (v{v})',
     ed_srv_copy: 'Save as own copy', ed_srv_new: 'Save as configuration',
     m_need_name: 'Please enter a name for the configuration first.', m_srv_saved: '«{n}» saved as version {v}.', m_api_err: 'Server: {e}',
-    su_title: 'Set up supermaster', su_note: 'There is no account yet. The first account is «bwicki», the supermaster; only he creates further accounts. Password at least 8 characters, keep it in the password manager.',
+    su_title: 'Set up supermaster', su_note: 'There is no account yet. The first account is «bwicki», the supermaster; only he creates further accounts. Password at least 4 characters, keep it in the password manager.',
     su_go: 'Set up', m_su_done: 'Supermaster bwicki set up and signed in.',
     acc_login: 'Account', acc_name: 'Name', acc_pw: 'Password', acc_pw_new: 'New password', acc_pw_again: 'Repeat new password', acc_pw_old: 'Current password',
     acc_pw_mismatch: 'The two passwords do not match.', acc_super: 'Supermaster', acc_user: 'Account', acc_change_pw: 'Change password',

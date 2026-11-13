@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null };
@@ -601,7 +601,7 @@ ${footerNote()}`;
     try { needed = await API.setupNeeded(); } catch (e) { msg(t('m_api_err', { e: e.message }), 'err'); return; }
     if (needed) {
       await formDialog(t('su_title'), `<p class="note" style="margin:0">${t('su_note')}</p>` + field('su_name', t('acc_name'), 'text', 'value="Balthasar Wicki" autocomplete="name"') +
-        field('su_pw', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="8"') + field('su_pw2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="8"'),
+        field('su_pw', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="4"') + field('su_pw2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="4"'),
       t('su_go'), async f => {
         if (f.su_pw.value !== f.su_pw2.value) throw new Error(t('acc_pw_mismatch'));
         await API.setup(f.su_pw.value, f.su_name.value);
@@ -626,7 +626,7 @@ ${footerNote()}`;
     if (v === 'out') { await API.logout(); msg(t('m_logout'), 'info'); render(); }
     if (v === 'pw') {
       await formDialog(t('acc_change_pw'), field('pw_old', t('acc_pw_old'), 'password', 'autocomplete="current-password" required') +
-        field('pw_new', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="8"') + field('pw_new2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="8"'),
+        field('pw_new', t('acc_pw_new'), 'password', 'autocomplete="new-password" required minlength="4"') + field('pw_new2', t('acc_pw_again'), 'password', 'autocomplete="new-password" required minlength="4"'),
       t('acc_change_pw'), async f => {
         if (f.pw_new.value !== f.pw_new2.value) throw new Error(t('acc_pw_mismatch'));
         await API.changePw(f.pw_old.value, f.pw_new.value); msg(t('m_pw_changed'), 'ok');
@@ -731,7 +731,7 @@ ${footerNote()}`;
   <form class="row" data-form="useradd" style="align-items:flex-end">
     <label class="stack" style="gap:4px" for="nu_login"><span class="small muted">${t('acc_login')}</span><input id="nu_login" type="text" required pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,31}" autocapitalize="none" spellcheck="false" placeholder="amuster" style="width:160px"></label>
     <label class="stack" style="gap:4px" for="nu_name"><span class="small muted">${t('acc_name')}</span><input id="nu_name" type="text" maxlength="80" placeholder="Anna Muster" style="width:220px"></label>
-    <label class="stack" style="gap:4px" for="nu_pw"><span class="small muted">${t('kt_initial_pw')}</span><input id="nu_pw" type="text" class="mono" required minlength="8" value="${randomPw()}" style="width:200px"></label>
+    <label class="stack" style="gap:4px" for="nu_pw"><span class="small muted">${t('kt_initial_pw')}</span><input id="nu_pw" type="text" class="mono" required minlength="4" value="${randomPw()}" style="width:200px"></label>
     <button type="submit">${t('kt_create')}</button></form>
   <p class="note">${t('kt_new_note')}</p></section>
 <section class="card flush"><table class="grid"><thead><tr><th>${t('acc_login')}</th><th>${t('acc_name')}</th><th>${t('kt_role')}</th><th>${t('nav_konfig')}</th><th>${t('kt_devices')}</th><th>${t('kt_last')}</th><th>${t('kf_actions')}</th></tr></thead><tbody>

@@ -1,4 +1,4 @@
-# KRT2-Speicherplätze — krt2.wicki.aero
+# TQ KRT2-S2 Memory Manager — krt2.wicki.aero
 
 Programmiert die 100 Speicherplätze des Flugfunkgeräts TQ KRT2 über die RS-232-Fernsteuerschnittstelle:
 Frequenzen für ein auf der Karte markiertes Gebiet (Kreis, Rechteck, Vieleck, Korridor) aus öffentlichen

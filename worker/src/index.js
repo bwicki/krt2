@@ -4,7 +4,7 @@
 // Kennwörter: PBKDF2-SHA-256 (100 000 Runden, Höchstwert der Workers-Laufzeit). Sitzungen: zufälliges Token, in D1 nur
 // als SHA-256 gespeichert – deshalb braucht der Worker kein eigenes Secret.
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const SUPER_LOGIN = 'bwicki';
 const PBKDF2_ITER = 100000;
 const SESSION_DAYS = 180;
@@ -58,7 +58,7 @@ function same(a, b) { if (a.length !== b.length) return false; let d = 0; for (l
 // ---------- Prüfungen ----------
 const LOGIN_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 function checkLogin(s) { const l = String(s || '').trim().toLowerCase(); if (!LOGIN_RE.test(l)) throw bad('login', 'Konto: 3–32 Zeichen, a–z, 0–9, Punkt, Bindestrich, Unterstrich'); return l; }
-function checkPw(s) { const p = String(s || ''); if (p.length < 8) throw bad('password', 'Kennwort: mindestens 8 Zeichen'); if (p.length > 200) throw bad('password', 'Kennwort zu lang'); return p; }
+function checkPw(s) { const p = String(s || ''); if (p.length < 4) throw bad('password', 'Kennwort: mindestens 4 Zeichen'); if (p.length > 200) throw bad('password', 'Kennwort zu lang'); return p; }
 function checkText(s, max, code) { const t = String(s == null ? '' : s).trim(); if (t.length > max) throw bad(code, `höchstens ${max} Zeichen`); return t; }
 function checkConfig(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.eintraege) || !Array.isArray(data.bloecke)) throw bad('config', 'keine KRT2-Konfiguration');
