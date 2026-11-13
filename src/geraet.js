@@ -1,10 +1,11 @@
 /* krt2.wicki.aero – Seite «Gerät» (ab 0.4.0): Funkgerät verbinden, Ausgangsstand sichern (von Hand auslesen oder aus
    Datei), alt mit neu vergleichen, alle 100 Plätze schreiben, Gerätestand festhalten, Stichprobe am Gerät.
+   Ab 0.4.1: die gespeicherte Sicherung ins Gerät zurückschreiben (Server-Verlauf, dazu eine Kopie in diesem Browser).
    Die Verbindung (src/link.js) und eine laufende Aufnahme (src/readout.js) bleiben bestehen, wenn man die Seite wechselt. */
 (function (root) {
   'use strict';
   const L = root.KRT2LINK.link, RO = root.KRT2READOUT, C = root.KRT2CODEC;
-  const LS_DEV = 'krt2.progdev', LS_LOCAL = 'krt2.lokal.aktuell';
+  const LS_DEV = 'krt2.progdev', LS_LOCAL = 'krt2.lokal.aktuell', LS_BAK = 'krt2.sicherung.';
   const pad2 = n => String(n).padStart(2, '0');
   const nm = s => String(s || '').trimEnd();
   const sameSlot = (a, b) => !!a && !!b && a.ch === b.ch && nm(a.name) === nm(b.name);
@@ -12,7 +13,7 @@
 
   const S = {
     devId: null, dev: null, devErr: '', ro: new RO.Readout(), roOn: false, roSaved: false, imp: null, impName: '',
-    prog: null, showAll: false, check: { on: false, list: [] }, asked: {}
+    prog: null, showAll: false, check: { on: false, list: [] }, asked: {}, backup: null
   };
   try { S.devId = localStorage.getItem(LS_DEV); S.devPicked = !!S.devId; } catch (e) { /* egal */ }
   let ctx = null;
@@ -38,6 +39,7 @@
       try { S.dev = await ctx.API.device(S.devId); ctx.setDeviceSel(S.devId); }
       catch (e) { S.devErr = e.message; ctx.msg(t('m_api_err', { e: e.message }), 'err'); }
     }
+    S.backup = null; await loadBackup();
     if (here()) render();
   }
   async function initDevice() {
@@ -47,7 +49,20 @@
     if (S.devId === 'lokal' && !S.devPicked && own.length) S.devId = null;   // nach dem Anmelden das eigene Gerät vorschlagen
     if (!S.devId) S.devId = (ctx.ui.deviceSel && own.find(d => d.id === ctx.ui.deviceSel) ? ctx.ui.deviceSel : own[0] ? own[0].id : 'lokal');
     if (S.devId !== 'lokal' && (!S.dev || S.dev.id !== S.devId)) await chooseDevice(S.devId);
+    else if (!S.backup) await loadBackup();
   }
+  /** Gespeicherte Sicherung des gewählten Geräts: jüngster Stand «ausgelesen» vom Server, sonst die Kopie in diesem Browser. */
+  async function loadBackup() {
+    const key = S.devId || 'lokal';
+    let b = null;
+    try { b = JSON.parse(localStorage.getItem(LS_BAK + key) || 'null'); } catch (e) { b = null; }
+    if (key !== 'lokal' && ctx.API.enabled) {
+      try { const sv = await ctx.API.sicherung(key); if (sv && (!b || sv.zeit >= b.zeit)) b = sv; } catch (e) { /* ältere API ohne Sicherung: Kopie im Browser genügt */ }
+    }
+    if ((S.devId || 'lokal') === key) S.backup = b && Array.isArray(b.plaetze) && b.plaetze.length === 100 ? b : null;
+  }
+  function keepBackup(a) { try { localStorage.setItem(LS_BAK + (S.devId || 'lokal'), JSON.stringify(a)); } catch (e) { /* Speicher voll: Server genügt */ } }
+
   /** Gerätestand speichern: beim eigenen Gerät auf dem Server (mit Verlauf), sonst nur in diesem Browser. */
   async function storeAktuell(a) {
     const plaetze = a.plaetze.map((p, i) => {
@@ -56,6 +71,7 @@
       for (const k of ['klar', 'dienst', 'block', 'kind', 'cc']) if (p[k]) o[k] = p[k];
       return o;
     });
+    if (a.herkunft === 'ausgelesen') keepBackup(Object.assign({}, a, { plaetze, zeit: new Date().toISOString() }));
     if (S.devId && S.devId !== 'lokal') {
       S.dev = await ctx.API.setAktuell(S.devId, Object.assign({}, a, { plaetze }));
       ctx.refreshDevices(S.devId);
@@ -92,7 +108,7 @@
     if (type === 'status') {
       const a = document.querySelector('nav.main a[href="#geraet"]'); if (a) a.classList.toggle('live', L.connected);
       if (L.linked) maybeAskBackup();
-      if (here()) { paintStatus(); paintProg(); }
+      if (here()) { paintStatus(); paintProg(); paintRestore(); }
       return;
     }
     if (type === 'sim') { if (here()) paintSim(); return; }
@@ -148,7 +164,7 @@
       const where = await storeAktuell({ plaetze, herkunft: 'ausgelesen', configId: null, configName: quelle || '', version: null, quittiert: null });
       ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
       if (S.imp) S.imp = null; else S.roSaved = true;
-      render();
+      await loadBackup(); render();
     } catch (e) { ctx.msg(t('m_api_err', { e: e.message }), 'err'); }
   }
   function backupFile(plaetze, ext) {
@@ -177,36 +193,60 @@
     rd.readAsText(f);
   }
 
-  // ---------- Programmieren ----------
+  // ---------- Programmieren und Zurückschreiben ----------
+  function ready() {
+    if (!L.connected) return t('gr_need_conn');
+    if (!L.linked) return t('gr_need_link');
+    if (S.roOn) return t('gr_need_ro_off');
+    if (S.prog && S.prog.running) return t('gr_busy');
+    return '';
+  }
+  /** Neuen Entwurf schreiben (only: nur diese Plätze, z. B. fehlgeschlagene). */
   async function program(only) {
-    const tg = target(), a = aktuell();
-    if (!L.connected) { ctx.msg(t('gr_need_conn'), 'warn'); return; }
-    if (!L.linked) { ctx.msg(t('gr_need_link'), 'warn'); return; }
-    if (S.roOn) { ctx.msg(t('gr_need_ro_off'), 'warn'); return; }
+    const tg = target(), a = aktuell(), why = ready();
+    if (why) { ctx.msg(why, 'warn'); return; }
     if (tg.red) { ctx.msg(t('gr_need_red', { n: tg.red }), 'warn'); return; }
     if (tg.bad.length) { ctx.msg(t('gr_need_bad', { s: tg.bad.map(pad2).join(', ') }), 'warn'); return; }
-    const list = only ? tg.slots.filter(s => only.includes(s.nr)) : tg.slots;
     const D = diff(a, tg), s99 = tg.slots[99];
     if (!only) {
-      const body = t('gr_prog_q_body', { c: ctx.cfg.name || '–', d: devLabel(), n: a ? D.changed : 100, s: nm(s99.name) + ' ' + s99.ch }) + (a ? '' : ' ' + t('gr_prog_q_nobak'));
+      const body = t('gr_prog_q_body', { c: ctx.cfg.name || '–', d: devLabel(), n: a ? D.changed : 100, s: nm(s99.name) + ' ' + s99.ch }) + (a || S.backup ? '' : ' ' + t('gr_prog_q_nobak'));
       if (!(await ctx.ask(t('gr_prog_q', { d: devLabel() }), body, t('gr_prog_go'), t('cancel'), 'primary'))) return;
     }
+    const sv = ctx.cfg.server;
+    await writeAll(tg.slots, { kind: 'draft', configId: sv ? sv.id : null, configName: ctx.cfg.name || '', version: sv ? sv.version : null, unsaved: ctx.cfg.dirty || !sv }, only);
+  }
+  /** Gespeicherte Sicherung ins Gerät zurückschreiben. */
+  async function restore(only) {
+    const B = S.backup, why = ready();
+    if (why) { ctx.msg(why, 'warn'); return; }
+    if (!B) { ctx.msg(t('gr_rs_none'), 'warn'); return; }
+    const slots = B.plaetze.map((p, i) => ({ nr: i, ch: p.ch, name: nm(p.name), klar: p.klar || '', dienst: p.dienst || '', block: p.block || '', cc: p.cc || '', kind: p.kind || '' }));
+    const bad = slots.filter(p => !C.encodeFreq(p.ch).ok || !C.normalizeName(p.name).ok).map(p => p.nr);
+    if (bad.length) { ctx.msg(t('gr_need_bad', { s: bad.map(pad2).join(', ') }), 'warn'); return; }
+    if (!only) {
+      const a = aktuell(), n = a && a.plaetze ? slots.filter((p, i) => !sameSlot(a.plaetze[i], p)).length : 100;
+      if (!(await ctx.ask(t('gr_rs_q', { d: devLabel() }), t('gr_rs_q_body', { z: ctx.fmtDT(new Date(B.zeit)), d: devLabel(), n }), t('gr_rs_go'), t('cancel'), 'primary'))) return;
+    }
+    await writeAll(slots, { kind: 'restore', configId: null, configName: t('gr_rs_name', { z: ctx.fmtDT(new Date(B.zeit)) }), version: null }, only);
+  }
+  async function writeAll(slots, meta, only) {
+    const list = only ? slots.filter(s => only.includes(s.nr)) : slots;
     S.check.on = false;
-    S.prog = { running: true, stop: false, res: Object.assign({}, only && S.prog ? S.prog.res : {}), total: list.length, done: 0, cfgName: ctx.cfg.name || '', server: ctx.cfg.server ? Object.assign({}, ctx.cfg.server) : null, slots: tg.slots };
+    const keep = only && S.prog && S.prog.meta.kind === meta.kind ? S.prog.res : {};
+    S.prog = { running: true, stop: false, res: Object.assign({}, keep), total: list.length, done: 0, meta, slots };
     ctx.msg(t('gr_m_prog_start', { n: list.length, d: devLabel() }), 'info');
     render();
-    await L.program(list, { onSlot: (nr, r) => { S.prog.res[nr] = r; S.prog.done++; if (here()) paintProg(); }, stop: () => S.prog.stop });
+    await L.program(list, { onSlot: (nr, r) => { S.prog.res[nr] = r; S.prog.done++; if (here()) { paintProg(); paintRestore(); } }, stop: () => S.prog.stop });
     S.prog.running = false;
-    const failed = S.prog.slots.map(s => s.nr).filter(nr => !S.prog.res[nr] || S.prog.res[nr].kind !== 'ACK');
+    const failed = slots.map(s => s.nr).filter(nr => !S.prog.res[nr] || S.prog.res[nr].kind !== 'ACK');
     S.prog.failed = failed;
     if (!failed.length) {
       const ms = Object.values(S.prog.res).map(r => r.ms).sort((x, y) => x - y);
-      ctx.msg(t('gr_m_prog_ok', { d: devLabel(), ms: ms[Math.floor(ms.length / 2)] }), 'ok');
+      ctx.msg(t(meta.kind === 'restore' ? 'gr_m_rs_ok' : 'gr_m_prog_ok', { d: devLabel(), ms: ms[Math.floor(ms.length / 2)] }), 'ok');
       try {
-        const sv = S.prog.server;
-        const where = await storeAktuell({ plaetze: S.prog.slots, herkunft: 'geschrieben', configId: sv ? sv.id : null, configName: S.prog.cfgName, version: sv ? sv.version : null, quittiert: 100 });
+        const where = await storeAktuell({ plaetze: slots, herkunft: 'geschrieben', configId: meta.configId, configName: meta.configName, version: meta.version, quittiert: 100 });
         ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
-        if (ctx.cfg.dirty || !sv) ctx.msg(t('gr_m_prog_unsaved'), 'info');
+        if (meta.unsaved) ctx.msg(t('gr_m_prog_unsaved'), 'info');
       } catch (e) { ctx.msg(t('gr_m_store_err', { e: e.message }), 'err'); }
     } else ctx.msg(t('gr_m_prog_fail', { n: failed.length, s: failed.map(pad2).join(', ') }), 'err');
     if (here()) render();
@@ -258,6 +298,7 @@
     <button type="button" class="sec" data-gr="file">${t('gr_file')}</button><input type="file" id="gr-file" accept=".json,.csv,application/json,text/csv" hidden></div>
   <div id="gr-ro"></div>
   ${S.imp ? impHtml() : ''}
+  <div id="gr-restore"></div>
 </section>
 
 <section class="card stack" aria-labelledby="gr-l4" id="programmieren"><span class="label" id="gr-l4">${t('gr_prog')}</span>
@@ -270,7 +311,7 @@
   <div id="gr-checklist"></div>
 </section>
 ${ctx.footerNote()}`;
-    paintStatus(); paintSim(); paintRo(); paintProg(); paintCheck();
+    paintStatus(); paintSim(); paintRo(); paintRestore(); paintProg(); paintCheck();
   }
   function paintStatus() {
     const el = $('#gr-status'); if (!el) return;
@@ -315,9 +356,10 @@ ${ro.complete || S.roSaved ? '' : `<p class="note">${t('gr_ro_partial')}</p>`}` 
   }
   function paintProg() {
     const el = $('#gr-progbox'); if (!el) return;
-    const tg = target(), a = aktuell(), D = diff(a, tg), P = S.prog, cfg = ctx.cfg;
+    const tg = target(), a = aktuell(), D = diff(a, tg), cfg = ctx.cfg;
+    const P = S.prog && S.prog.meta.kind === 'draft' ? S.prog : null, busyRs = S.prog && S.prog.running && !P;
     const src = `«${esc(cfg.name || '–')}»${cfg.server ? ' v' + cfg.server.version : ''} <span class="badge${cfg.server && !cfg.dirty ? ' g' : ' y'}">${t(cfg.server && !cfg.dirty ? 'ed_saved' : cfg.server ? 'ed_changed' : 'gr_src_draft')}</span>`;
-    const block = !L.connected ? t('gr_need_conn') : !L.linked ? t('gr_need_link') : S.roOn ? t('gr_need_ro_off') : tg.red ? t('gr_need_red', { n: tg.red }) : tg.bad.length ? t('gr_need_bad', { s: tg.bad.map(pad2).join(', ') }) : '';
+    const block = busyRs ? t('gr_busy') : !L.connected ? t('gr_need_conn') : !L.linked ? t('gr_need_link') : S.roOn ? t('gr_need_ro_off') : tg.red ? t('gr_need_red', { n: tg.red }) : tg.bad.length ? t('gr_need_bad', { s: tg.bad.map(pad2).join(', ') }) : '';
     const sum = a ? t('gr_diff', { c: D.changed, s: D.same }) : t('gr_diff_unknown');
     const res = nr => (P && P.res[nr] ? P.res[nr] : null);
     const rows0 = D.rows.filter(r => S.showAll || r.st !== 'same' || (P && res(r.nr) && res(r.nr).kind !== 'ACK'));
@@ -342,6 +384,18 @@ ${rows.length ? rows.map(r => { const w = res(r.nr);
 <td>${w ? `<span class="badge ${w.kind === 'ACK' ? 'g' : 'r'}">${w.kind === 'ACK' ? t('gr_w_ok', { ms: w.ms }) : esc(w.kind)}</span>` : `<span class="badge ${r.st === 'same' ? '' : r.st === 'changed' ? 'y' : ''}">${t('gr_st_' + r.st)}</span>`}</td></tr>`; }).join('')
   : `<tr><td colspan="4" class="muted">${t('gr_nodiff')}</td></tr>`}
 </tbody></table></div>`;
+  }
+  function paintRestore() {
+    const el = $('#gr-restore'); if (!el) return;
+    const B = S.backup, a = aktuell(), P = S.prog && S.prog.meta.kind === 'restore' ? S.prog : null, why = ready();
+    if (!B) { el.innerHTML = `<p class="note">${t('gr_rs_none_note')}</p>`; return; }
+    const same = a && a.plaetze ? B.plaetze.filter((p, i) => sameSlot(a.plaetze[i], p)).length : 0;
+    const pct = P ? Math.round(100 * P.done / P.total) : 0;
+    el.innerHTML = `<div class="spread"><div class="stack" style="gap:2px"><span>${t('gr_rs_have', { z: ctx.fmtDT(new Date(B.zeit)) })}${B.configName ? ` <span class="small muted">«${esc(B.configName)}»</span>` : ''}</span>
+<span class="small muted">${a && a.plaetze ? t('gr_rs_diff', { c: 100 - same }) : t('gr_diff_unknown')}</span></div>
+<div class="row">${P && P.running ? `<button type="button" class="danger" data-gr="progstop">${t('gr_prog_stop')}</button>`
+  : `<button type="button" class="sec" data-gr="restore" ${why ? 'disabled' : ''} title="${esc(why)}">${t('gr_rs_btn')}</button>${P && P.failed && P.failed.length ? `<button type="button" class="sec" data-gr="progfail" ${why ? 'disabled' : ''}>${t('gr_prog_retry', { n: P.failed.length })}</button>` : ''}`}</div></div>
+${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('gr_prog_state', { d: P.done, n: P.total })}</span>` : ''}`;
   }
   function paintCheck() {
     const el = $('#gr-checklist'); if (!el) return;
@@ -371,7 +425,8 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     if (a === 'impsave') { await saveReadout(S.imp, S.impName); return; }
     if (a === 'impdrop') { S.imp = null; render(); return; }
     if (a === 'prog') { program(null); return; }
-    if (a === 'progfail') { program(S.prog.failed.slice()); return; }
+    if (a === 'progfail') { if (S.prog.meta.kind === 'restore') restore(S.prog.failed.slice()); else program(S.prog.failed.slice()); return; }
+    if (a === 'restore') { restore(null); return; }
     if (a === 'progstop') { if (S.prog) S.prog.stop = true; return; }
     if (a === 'check') { S.check.on = !S.check.on; if (S.check.on) S.check.list = []; render(); return; }
   }

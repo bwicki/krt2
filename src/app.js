@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.4.0';
+  const VERSION = '0.4.1';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };

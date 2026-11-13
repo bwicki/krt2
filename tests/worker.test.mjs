@@ -55,6 +55,14 @@ await api('PUT', `/api/devices/${d.id}/aktuell`, { plaetze: pl, herkunft: 'ausge
 const dg = (await api('GET', '/api/devices/' + d.id)).device;
 assert.strictEqual(dg.aktuell.plaetze.length, 100); assert.strictEqual(dg.aktuell.herkunft, 'ausgelesen');
 assert.ok(!('plaetze' in (await api('GET', '/api/devices')).devices[0].aktuell), 'Liste ohne Plätze');
+// Sicherung (0.4.1): jüngster Stand «ausgelesen» bleibt abrufbar, auch nachdem geschrieben wurde
+assert.strictEqual((await api('GET', `/api/devices/${d.id}/sicherung`)).sicherung.herkunft, 'ausgelesen');
+await new Promise(r => setTimeout(r, 5));
+await api('PUT', `/api/devices/${d.id}/aktuell`, { plaetze: pl.map(p => Object.assign({}, p, { name: 'NEU' })), herkunft: 'geschrieben', configName: 'Zürich', quittiert: 100 }, T);
+const sb = (await api('GET', `/api/devices/${d.id}/sicherung`)).sicherung;
+assert.strictEqual(sb.herkunft, 'ausgelesen'); assert.strictEqual(sb.configName, 'Test'); assert.strictEqual(sb.plaetze[0].name, 'FREE');
+assert.strictEqual((await api('GET', '/api/devices/' + d.id)).device.aktuell.herkunft, 'geschrieben');
+await api('GET', '/api/devices/d-gibtsnicht/sicherung', null, null, 404);
 
 // Konfigurationen: alle sehen, Besitzer ändert, andere kopieren; Versionen
 const cfg = S.sampleConfig();

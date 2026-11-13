@@ -40,6 +40,7 @@
     renameDevice: (id, b) => call('PATCH', '/api/devices/' + id, { bezeichnung: b }).then(j => j.device),
     deleteDevice: id => call('DELETE', '/api/devices/' + id),
     setAktuell: (id, a) => call('PUT', '/api/devices/' + id + '/aktuell', a).then(j => j.device),
+    sicherung: id => call('GET', '/api/devices/' + id + '/sicherung').then(j => j.sicherung),
     configs: () => call('GET', '/api/configs').then(j => j.configs),
     config: id => call('GET', '/api/configs/' + id).then(j => j.config),
     createConfig: (name, data) => call('POST', '/api/configs', { name, data }).then(j => j.config),

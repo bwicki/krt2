@@ -164,6 +164,14 @@ Simulation), `src/readout.js` (Auslesen von Hand, reine Logik, Test mit der echt
   Fehlschlag und Wiederholung, Stichprobe) und angemeldet gegen den lokalen Worker (Sicherung aus Datei → Server,
   Programmieren → Server, Startseite zeigt «programmiert»). Am echten Gerät noch nicht geschrieben.
 
+**0.4.1 – Sicherung zurückschreiben:** Worker `GET /api/devices/:id/sicherung` liefert den jüngsten Stand mit Herkunft
+«ausgelesen» aus `device_history` (öffentlich lesbar wie das Gerät). Die App hält zusätzlich eine Kopie im Browser
+(`krt2.sicherung.<Gerät>`) und nimmt die jüngere. Im Block «Sichern und zurückschreiben» schreibt «Sicherung ins Gerät
+zurückschreiben» alle 100 Plätze der Sicherung mit derselben Schreibroutine wie das Programmieren (Quittung je Platz,
+Wiederholen der Fehlgeschlagenen) und hält danach den Stand fest (Herkunft `geschrieben`, «Sicherung vom …»).
+Geprüft: Worker-Test (59 Prüfungen), Playwright angemeldet: Sicherung aus Datei → programmieren → neuer Browser ohne
+lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und Wiederholung) → simuliertes Gerät = Sicherung.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

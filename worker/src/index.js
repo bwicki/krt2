@@ -4,7 +4,7 @@
 // Kennwörter: PBKDF2-SHA-256 (100 000 Runden, Höchstwert der Workers-Laufzeit). Sitzungen: zufälliges Token, in D1 nur
 // als SHA-256 gespeichert – deshalb braucht der Worker kein eigenes Secret.
 
-const VERSION = '0.3.1';
+const VERSION = '0.4.1';
 const SUPER_LOGIN = 'bwicki';
 const PBKDF2_ITER = 100000;
 const SESSION_DAYS = 180;
@@ -132,6 +132,7 @@ async function route(req, env, url) {
     if (M === 'DELETE') return deleteDevice(env, m[1], await auth(req, env));
   }
   if ((m = /^\/api\/devices\/([\w-]+)\/aktuell$/.exec(p)) && M === 'PUT') return putAktuell(req, env, m[1], await auth(req, env));
+  if ((m = /^\/api\/devices\/([\w-]+)\/sicherung$/.exec(p)) && M === 'GET') return getSicherung(env, m[1]);
 
   if (p === '/api/configs' && M === 'GET') { await auth(req, env); return listConfigs(env); }
   if (p === '/api/configs' && M === 'POST') return createConfig(req, env, await auth(req, env));
@@ -274,6 +275,14 @@ async function putAktuell(req, env, id, me) {
     env.DB.prepare('INSERT INTO device_history (device_id, zeit, aktuell) VALUES (?, ?, ?)').bind(id, a.zeit, s)
   ]);
   return getDevice(env, id);
+}
+
+/** Letzte Sicherung eines Geräts (jüngster Stand mit Herkunft «ausgelesen» im Verlauf) – zum Zurückschreiben (ab 0.4.1). */
+async function getSicherung(env, id) {
+  const d = await env.DB.prepare('SELECT id FROM devices WHERE id = ?').bind(id).first();
+  if (!d) throw new HttpError(404, 'notfound', 'Gerät nicht gefunden');
+  const r = await env.DB.prepare("SELECT aktuell FROM device_history WHERE device_id = ? AND json_extract(aktuell, '$.herkunft') = 'ausgelesen' ORDER BY zeit DESC LIMIT 1").bind(id).first();
+  return json({ sicherung: r ? JSON.parse(r.aktuell) : null });
 }
 
 // ---------- Konfigurationen ----------
