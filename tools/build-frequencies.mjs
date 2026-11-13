@@ -21,6 +21,17 @@ const COUNTRIES = (process.env.COUNTRIES || DEFAULT_CC).split(',').map(s => s.tr
 // openAIP-Frequenztypen (API v2) → ICAO-Dienstkürzel (Doc 8400) für den Kurznamen
 const OAIP_FTYPE = { 0: 'APP', 1: 'APN', 2: 'ARR', 3: 'ACC', 4: 'CTAF', 5: 'DEL', 6: 'DEP', 7: 'FIS', 8: 'GLD', 9: 'GND', 10: 'INFO', 11: 'MCOM', 12: 'UCOM', 13: 'RDR', 14: 'TWR', 15: 'ATIS', 16: 'RDO', 17: 'OTH', 18: 'AIRMET', 19: 'AWOS', 20: 'LGT', 21: 'VOLMET', 22: 'AFIS' };
 // OurAirports-Typen (freier Text) → Dienstkürzel
+// openAIP-Luftraumtypen (api.core.openaip.net, Stand 2026) [likely] – im Datensatz CH bestätigt: 1 R, 2 D, 4 CTR, 5 TMZ, 6 RMZ, 7 TMA, 21 GLD-Sektor, 26 CTA, 33 FIS-Sektor
+export const OAIP_ASPTYPE = { 0: 'OTHER', 1: 'R', 2: 'D', 3: 'P', 4: 'CTR', 5: 'TMZ', 6: 'RMZ', 7: 'TMA', 8: 'TRA', 9: 'TSA', 10: 'FIR', 11: 'UIR', 12: 'ADIZ', 13: 'ATZ', 14: 'MATZ', 15: 'AWY', 16: 'MTR', 17: 'ALERT', 18: 'WARNING', 19: 'PROTECTED', 20: 'HTZ', 21: 'GLDSEC', 22: 'TRP', 23: 'TIZ', 24: 'TIA', 25: 'MTA', 26: 'CTA', 27: 'ACC', 28: 'SPORT', 29: 'LOWFLY', 30: 'MRT', 31: 'TFR', 32: 'VFRSEC', 33: 'FISSEC', 34: 'LTA', 35: 'UTA' };
+// Dienst eines Luftraum-Frequenzeintrags: zuerst aus dem Rufnamen, sonst aus dem Luftraumtyp
+const NAME_SVC = [[/\bATIS\b/, 'ATIS'], [/\bAFIS\b/, 'AFIS'], [/\bVOLMET\b/, 'VOLMET'], [/\b(RADAR|RDR)\b/, 'RDR'], [/\b(TERMINAL|APPROACH|APP)\b/, 'APP'], [/\b(ARRIVAL|ARR)\b/, 'ARR'], [/\b(DEPARTURE|DEP)\b/, 'DEP'], [/\b(TOWER|TWR)\b/, 'TWR'], [/\b(GROUND|GND)\b/, 'GND'], [/\b(DELIVERY|DEL)\b/, 'DEL'], [/\b(INFORMATION|INFO|FIS)\b/, 'INFO'], [/\b(CONTROL|CENTER|CENTRE|ACC)\b/, 'ACC'], [/\b(RADIO|RDO)\b/, 'RDO'], [/\b(GLIDER|GLIDING|GLD|SEGELFLUG)\b/, 'GLD']];
+const TYPE_SVC = { 4: 'TWR', 13: 'TWR', 14: 'TWR', 20: 'TWR', 7: 'APP', 26: 'APP', 27: 'ACC', 10: 'INFO', 11: 'INFO', 33: 'INFO', 23: 'INFO', 24: 'INFO', 5: 'INFO', 6: 'INFO', 1: 'INFO', 2: 'INFO', 3: 'INFO', 8: 'INFO', 9: 'INFO', 25: 'INFO', 21: 'GLD' };
+export function aspService(freqName, aspType) {
+  const n = String(freqName || '').toUpperCase();
+  for (const [re, s] of NAME_SVC) if (re.test(n)) return { s, by: 'name' };
+  return { s: TYPE_SVC[aspType] || 'OTH', by: 'type' };
+}
+
 const OA_FTYPE = { TWR: 'TWR', TOWER: 'TWR', APP: 'APP', APPROACH: 'APP', ARR: 'ARR', DEP: 'DEP', GND: 'GND', GROUND: 'GND', ATIS: 'ATIS', AFIS: 'AFIS', INFO: 'INFO', 'A/G': 'RDO', RDO: 'RDO', RADIO: 'RDO', DEL: 'DEL', CLD: 'DEL', CLNC: 'DEL', APRON: 'APN', APN: 'APN', CTAF: 'CTAF', UNIC: 'UCOM', UNICOM: 'UCOM', FIS: 'FIS', RDR: 'RDR', RADAR: 'RDR', CNTR: 'ACC', CTR: 'ACC', ACC: 'ACC', VOLMET: 'VOLMET', MIL: 'MIL', OPS: 'OTH' };
 
 async function getJson(url) {
@@ -67,7 +78,7 @@ export function channel(raw) {
   if (Math.abs(khz - k25) < 0.02) { const e = C.encodeFreq(mhz + '.' + String(k25).padStart(3, '0')); if (e.ok) return { ch: e.display, note: '' }; }
   const slot = Math.round(khz / (25 / 3));               // 8.33-Raster ab 0
   const real = slot * 25 / 3;
-  if (Math.abs(khz - real) < 0.2) {
+  if (Math.abs(khz - real) < 0.7) {   // 0.7 kHz deckt auf 3 Stellen abgeschnittene Werte (132.833) ab
     const block = Math.floor(slot / 3), sub = slot % 3;   // je 25 kHz drei Kanäle: +5, +10, +15
     const chk = block * 25 + (sub + 1) * 5;
     const e = C.encodeFreq(mhz + '.' + String(chk).padStart(3, '0'));
@@ -102,6 +113,8 @@ async function ourAirports() {
   const airports = new Map();
   for (const a of csv(apt)) airports.set(a.ident, a);
   const byIdent = new Map();
+  byIdent.iata = new Map();
+  for (const [id, a] of airports) if (a.iata_code) byIdent.iata.set(id, a.iata_code);
   for (const f of csv(frq)) {
     const a = airports.get(f.airport_ident); if (!a) continue;
     const t = (f.type || '').toUpperCase().trim();
@@ -141,17 +154,17 @@ async function country(cc, oa, samples) {
       }
     }
     if (!freqs.length) continue;
-    out.airports.push({ id: p._id || p.id || icao || p.name, icao, name: p.name || '', t: p.type, lon: coord ? r3(coord[0]) : null, lat: coord ? r3(coord[1]) : null, f: freqs });
+    out.airports.push({ id: p._id || p.id || icao || p.name, icao, iata: (oa.iata && oa.iata.get(icao)) || p.iataCode || '', name: p.name || '', t: p.type, lon: coord ? r3(coord[0]) : null, lat: coord ? r3(coord[1]) : null, f: freqs });
   }
   // OurAirports-Flugplätze, die openAIP nicht kennt (nur dieses Land)
   for (const [ident, o] of oa) {
     if (seen.has(ident) || (o.a.iso_country || '').toLowerCase() !== cc) continue;
     if (out.airports.some(a => a.icao === ident)) continue;
-    out.airports.push({ id: 'oa-' + ident, icao: /^[A-Z]{4}$/.test(ident) ? ident : '', name: o.a.name, t: 'oa:' + o.a.type, lon: r3(Number(o.a.longitude_deg)), lat: r3(Number(o.a.latitude_deg)), f: o.f.map(q => ({ ch: q.ch, note: q.note, raw: q.raw, s: q.s, n: q.n, pri: false, src: ['oa'] })) });
+    out.airports.push({ id: 'oa-' + ident, icao: /^[A-Z]{4}$/.test(ident) ? ident : '', iata: o.a.iata_code || '', name: o.a.name, t: 'oa:' + o.a.type, lon: r3(Number(o.a.longitude_deg)), lat: r3(Number(o.a.latitude_deg)), f: o.f.map(q => ({ ch: q.ch, note: q.note, raw: q.raw, s: q.s, n: q.n, pri: false, src: ['oa'] })) });
   }
   for (const f of asp) {
     const p = props(f);
-    const fr = (p.frequencies || []).map(q => { const c = channel(q.value); return { ch: c.ch, note: c.note, raw: String(q.value), n: q.name || '', pri: !!q.primary, src: ['oaip'] }; });
+    const fr = (p.frequencies || []).map(q => { const c = channel(q.value); const sv = aspService(q.name, p.type); return { ch: c.ch, note: c.note, raw: String(q.value), s: sv.s, sby: sv.by, n: q.name || '', pri: !!q.primary, src: ['oaip'] }; });
     if (!fr.length) continue;
     const g = geomOut(f.geometry || p.geometry);
     if (!g) continue;
@@ -168,7 +181,7 @@ async function main() {
   try { oa = await ourAirports(); console.log('OurAirports: ' + oa.size + ' Flugplätze mit Frequenzen'); }
   catch (e) { console.log('WARNUNG OurAirports: ' + e.message); }
   const samples = {};
-  const index = { generated, license: { openaip: 'CC BY-NC 4.0, openaip.net', ourairports: 'Public Domain, ourairports.com' }, countries: [] };
+  const index = { generated, schema: 2, license: { openaip: 'CC BY-NC 4.0, openaip.net', ourairports: 'Public Domain, ourairports.com' }, countries: [] };
   for (const cc of COUNTRIES) {
     const c = await country(cc, oa, samples);
     const nA = c.airports.length, nS = c.airspaces.length;
