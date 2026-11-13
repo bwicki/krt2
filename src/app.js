@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.2.2';
+  const VERSION = '0.3.0';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null };
@@ -64,7 +64,7 @@
   const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten'];
   const isSuper = () => !!(API.user && API.user.role === 'super');
   function nav() {
-    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet', '0.3.0'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
+    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet', '0.4.0'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
     if (isSuper()) n.push(['konten', 'nav_konten']);
     return n;
   }
@@ -95,8 +95,9 @@
 
   function render() {
     const r = route();
+    if (window.KRT2GEBIET) window.KRT2GEBIET.leave();
     shell(r);
-    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => pageLater('0.3.0', 'later_gebiet'), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten })[r]();
+    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => pageLater('0.4.0', 'later_geraet'), konfigurationen: pageKonfig, konten: pageKonten })[r]();
   }
 
   function footerNote() {
@@ -802,6 +803,9 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     pageKonten();
   }
 
+  // Kontext für die Seite «Gebiet» (src/gebiet.js)
+  const gctx = { get cfg() { return cfg; }, t, esc, msg, saveDraft: () => saveDraft(), footerNote, fmtDate, ask, get lang() { return I.lang; } };
+
   // ---------- Platzhalterseiten ----------
   function pageLater(v, key) {
     $('#page').innerHTML = `<section class="card stack"><h1>${t('later_title', { v })}</h1><p style="margin:0">${t(key)}</p>
@@ -810,6 +814,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
 
   // ---------- Ereignisse ----------
   document.addEventListener('click', ev => {
+    if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
     if (b.dataset.act === 'mclose') { const id = b.closest('[data-mid]').dataset.mid; const i = msgs.findIndex(m => m.id === id); if (i >= 0) msgs.splice(i, 1); renderMsgs(); return; }
@@ -829,6 +834,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   });
   document.addEventListener('submit', ev => {
     const r = route();
+    if (r === 'gebiet') { window.KRT2GEBIET.onSubmit(ev); return; }
     if (r === 'einstellungen') { const f = ev.target.closest('form[data-form=svcadd]'); if (!f) return; ev.preventDefault();
       const code = f.svcnew.value.trim().toUpperCase(); const st = cfg.settings; st.services = M.servicesOf(cfg).slice();
       if (!M.SVC_RE.test(code)) { msg(t('sv_bad', { s: code }), 'warn'); return; }
@@ -840,6 +846,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
   document.addEventListener('change', ev => {
     if (ev.target.id === 'file') { onFile(ev.target); return; }
     const r = route();
+    if (r === 'gebiet') { window.KRT2GEBIET.onChange(ev); return; }
     if (r === 'editor') onEditorChange(ev);
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);

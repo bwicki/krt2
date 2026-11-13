@@ -194,7 +194,7 @@ async function main() {
   try { oa = await ourAirports(); console.log('OurAirports: ' + oa.size + ' Flugplätze mit Frequenzen'); }
   catch (e) { console.log('WARNUNG OurAirports: ' + e.message); }
   const samples = {};
-  const index = { generated, schema: 2, license: { openaip: 'CC BY-NC 4.0, openaip.net', ourairports: 'Public Domain, ourairports.com' }, countries: [] };
+  const index = { generated, schema: 3, license: { openaip: 'CC BY-NC 4.0, openaip.net', ourairports: 'Public Domain, ourairports.com' }, countries: [] };
   for (const cc of COUNTRIES) {
     const c = await country(cc, oa, samples);
     const nA = c.airports.length, nS = c.airspaces.length;
@@ -203,9 +203,13 @@ async function main() {
     const bb = [180, 90, -180, -90];
     for (const a of c.airports) if (a.lon != null) { bb[0] = Math.min(bb[0], a.lon); bb[1] = Math.min(bb[1], a.lat); bb[2] = Math.max(bb[2], a.lon); bb[3] = Math.max(bb[3], a.lat); }
     for (const s of c.airspaces) { bb[0] = Math.min(bb[0], s.bb[0]); bb[1] = Math.min(bb[1], s.bb[1]); bb[2] = Math.max(bb[2], s.bb[2]); bb[3] = Math.max(bb[3], s.bb[3]); }
+    // Gitterzellen 1° × 1° mit Daten («lat,lon» der Südwestecke): genauere Länderwahl als das Rechteck (Überseegebiete, Grenzen)
+    const cells = new Set();
+    for (const a of c.airports) if (a.lon != null) cells.add(Math.floor(a.lat) + ',' + Math.floor(a.lon));
+    for (const s of c.airspaces) for (let la = Math.floor(s.bb[1]); la <= Math.floor(s.bb[3]); la++) for (let lo = Math.floor(s.bb[0]); lo <= Math.floor(s.bb[2]); lo++) if (cells.size < 5000) cells.add(la + ',' + lo);
     const body = JSON.stringify({ cc, generated, airports: c.airports, airspaces: c.airspaces, warnings: c.warnings });
     await writeFile(`${OUT}/freq-${cc}.json`, body);
-    index.countries.push({ cc, airports: nA, airspaces: nS, frequencies: fAll.length, invalid: bad, bbox: nA + nS ? bb : null, bytes: body.length, warnings: c.warnings });
+    index.countries.push({ cc, airports: nA, airspaces: nS, frequencies: fAll.length, invalid: bad, bbox: nA + nS ? bb : null, cells: [...cells].sort(), bytes: body.length, warnings: c.warnings });
     console.log(`${cc}: ${nA} Flugplätze, ${nS} Lufträume mit Frequenzen, ${fAll.length} Frequenzen (${bad} ungültig), ${(body.length / 1024).toFixed(0)} kB ${c.warnings.join(' | ')}`);
   }
   await writeFile(`${OUT}/index.json`, JSON.stringify(index, null, 1));

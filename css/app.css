@@ -137,6 +137,20 @@ td select.svc{min-width:84px}
 .cur-table th{padding:10px 14px}
 .search{flex:1 1 320px;min-width:0;font-size:15px;padding:9px 12px}
 
+/* Gebiet */
+.ge-layout{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}
+.ge-aside{gap:8px;max-height:calc(100vh - 150px);overflow:auto;position:sticky;top:12px}
+.ge-mapwrap{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ge-map{height:calc(100vh - 210px);min-height:520px;border:1px solid var(--border);border-radius:12px;background:#e9edf2}
+.ge-legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted)}
+.ge-legend .lg{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.lg.ad{background:#1f5fbf}.lg.out{background:#9aa7b6}.lg.asp{border-radius:0;border:2px dashed #c0392b;width:14px;height:8px}.lg.area{border-radius:2px;background:rgba(31,95,191,.15);border:2px solid #1f5fbf}
+.ge-leg{border-top:1px solid var(--hair);padding-top:6px;display:flex;flex-direction:column;gap:4px}
+.ge-pin span{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid #1f5fbf;color:#1f5fbf;font:600 11px var(--mono);box-sizing:border-box}
+.ge-pin.start span{background:#14202e;border-color:#14202e;color:#fff}
+.ge-mid{border-radius:50%;background:#fff;border:2px dashed #1f5fbf;box-sizing:border-box;cursor:copy}
+@media (max-width:1000px){.ge-layout{grid-template-columns:1fr}.ge-aside{position:static;max-height:none}.ge-map{height:60vh}}
+
 /* Dialog */
 dialog{border:1px solid var(--border);border-radius:12px;padding:20px 22px;max-width:520px;color:var(--text);font-family:var(--sans)}
 dialog::backdrop{background:rgba(20,32,46,.35)}

@@ -48,7 +48,7 @@
   // ---------- Kurznamen ----------
   function plain(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
   /** Ortskürzel aus einem Namen: die ersten drei Buchstaben (Dübendorf → DUB). */
-  function locCode(name) { return plain(name).replace(/[^A-Z]/g, '').slice(0, 3); }
+  function locCode(name) { return plain(name).replace(/([^Q])UE/g, '$1U').replace(/AE/g, 'A').replace(/OE/g, 'O').replace(/[^A-Z]/g, '').slice(0, 3); }
 
   /**
    * Kurzname = Ortsteil + Leerzeichen + Dienstkürzel, höchstens 8 Zeichen.
