@@ -61,6 +61,8 @@ if (existsSync(file)) {
   // Höhenband tief: TMA-Teile oberhalb fallen weg
   const low = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 1000, marginKm: 5, services: M.SERVICES });
   ok(low.stats.outsideBand > 0, 'Höhenband filtert');
+  const noRdo = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 19500, marginKm: 5, services: M.SERVICES, svcOff: ['RDO'] });
+  ok(!noRdo.entries.some(e => e.dienst === 'RDO') && noRdo.stats.svcOff > 0, 'Dienst abgewählt');
 }
 console.log(n + ' Gebietsprüfungen bestanden');
 // Länderwahl über Gitterzellen

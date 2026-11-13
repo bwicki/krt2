@@ -19,6 +19,8 @@
     c.hoehe = Object.assign({ von: a.von || 'GND', bis: a.bis || 'FL195', radarOhneGrenze: !!a.radar }, c.hoehe || {});
     if (c.hoehe.marginKm == null) c.hoehe.marginKm = a.marginKm != null ? a.marginKm : 10;
     if (!c.gebiet) c.gebiet = { typ: 'kreis', r: 25, defL: 15, defR: 15, pts: [], poly: [] };
+    if (!Array.isArray(c.gebiet.svcOff)) c.gebiet.svcOff = ['RDO'];   // Vorgabe: alle Dienste der Blöcke ausser RDO
+    if (!c.gebiet) c.gebiet = { typ: 'kreis', r: 25, defL: 15, defR: 15, pts: [], poly: [] };
     const g = c.gebiet;
     if (g.defL == null) g.defL = 15; if (g.defR == null) g.defR = 15; if (!g.pts) g.pts = []; if (!g.poly) g.poly = [];
     return c;
@@ -76,7 +78,9 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
 <label><input type="checkbox" data-gh="radarOhneGrenze" ${h.radarOhneGrenze ? 'checked' : ''}> ${t('ge_radar')}</label>
 <label class="row nowrap">${t('ge_margin')} <input type="number" min="0" max="100" data-gh="marginKm" value="${esc(h.marginKm)}" style="width:70px"> km</label>
 <span class="small">${t('ge_countries')}: <b>${ccs.length ? ccs.map(cc2).join(', ') : '–'}</b> <span class="muted">${t('ge_countries_note')}</span></span>
-<span class="small">${t('ge_blocks')}: ${c.bloecke.filter(b => b.on).map(b => esc(b.name)).join(' · ')} · <a href="#einstellungen">${t('ge_change')}</a></span>
+<div class="label" style="margin-top:8px">4 · ${t('ge_svc')}</div>
+${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small"><b>${esc(b.name)}</b></span><div class="row" style="gap:4px">${b.svc.length ? b.svc.map(s => `<label class="chip ge-chip"><input type="checkbox" data-gs="${esc(s)}" ${g.svcOff.includes(s) ? '' : 'checked'}> ${esc(s)}</label>`).join('') : `<span class="small muted">–</span>`}</div></div>`).join('')}
+<span class="small muted">${t('ge_svc_note')} <a href="#einstellungen">${t('ge_change')}</a></span>
 <button type="button" data-ge="propose" ${areaOf() ? '' : 'disabled'}>${t('ge_propose')}</button>
 <div id="gestats">${statsHtml()}</div>
 <p class="note" style="margin:0">${t('ge_data', { d: st.index ? X.fmtDate(st.index.generated) : '…' })} · <a href="#editor">${t('ge_to_editor')}</a></p>`;
@@ -91,7 +95,7 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
     if (!st.last) return '';
     const s = st.last;
     return `<div class="row" style="gap:6px;margin-top:4px"><span class="badge">${t('ge_cand', { n: s.cand })}</span><span class="badge g">${t('ge_taken', { n: s.taken })}</span><span class="badge y">${t('ge_left_n', { n: s.left })}</span></div>
-<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, b: s.stats.outsideBand })}</p>`;
+<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, b: s.stats.outsideBand, o: s.stats.svcOff })}</p>`;
   }
   function hint() {
     const g = cfg().gebiet, el = document.getElementById('gehint'); if (!el) return;
@@ -194,7 +198,7 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
       const miss = ccs.filter((_, i) => got[i].status !== 'fulfilled');
       if (miss.length) X.msg(t('ge_missing', { c: miss.map(cc2).join(', ') }), 'warn');
       if (!data.length) throw new Error(got[0].reason && got[0].reason.message || 'keine Daten');
-      const res = A().propose(data, { area: a, standort: hasStart() ? c.standort : null, bandLo: lo, bandHi: hi, radarNoLimit: c.hoehe.radarOhneGrenze, marginKm: c.hoehe.marginKm, services: M().servicesOf(c), adLoc: c.settings.adLoc });
+      const res = A().propose(data, { area: a, standort: hasStart() ? c.standort : null, bandLo: lo, bandHi: hi, radarNoLimit: c.hoehe.radarOhneGrenze, marginKm: c.hoehe.marginKm, services: M().servicesOf(c), adLoc: c.settings.adLoc, svcOff: c.gebiet.svcOff });
       const replaced = c.eintraege.filter(e => !(e.quellen || []).includes('eigen')).length;
       if (replaced && !(await X.ask(t('ge_replace_q'), t('ge_replace_b', { n: replaced, m: res.entries.length }), t('ge_replace_yes'), null, 'go'))) { aside(); return; }
       A().applyProposal(c, res.entries);
@@ -284,6 +288,7 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
     }
     if (el.dataset.gg) { const v = Math.max(0, Number(el.value) || 0); g[el.dataset.gg] = el.dataset.gg === 'r' ? Math.max(1, v) : v; changed(el.dataset.gg === 'r'); return true; }
     if (el.dataset.gf) { const i = +el.closest('[data-i]').dataset.i; g.pts[i][el.dataset.gf] = Math.max(0, Number(el.value) || 0); changed(); return true; }
+    if (el.dataset.gs) { const s = el.dataset.gs; g.svcOff = g.svcOff.filter(x => x !== s); if (!el.checked) g.svcOff.push(s); st.last = null; X.saveDraft(); document.getElementById('gestats').innerHTML = ''; return true; }
     if (el.dataset.gh) { const k = el.dataset.gh; c.hoehe[k] = el.type === 'checkbox' ? el.checked : k === 'marginKm' ? Math.max(0, Number(el.value) || 0) : el.value.trim().toUpperCase(); if ((k === 'von' || k === 'bis') && isNaN(A().parseAlt(c.hoehe[k]))) X.msg(t('ge_band_bad'), 'warn'); changed(); return true; }
     return false;
   }

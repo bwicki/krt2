@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API;
   const t = I.t;
-  const VERSION = '0.3.4';
+  const VERSION = '0.3.5';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -658,6 +658,7 @@ ${footerNote()}`;
   // ---------- A6-Karte ----------
   /** Ausdruck auf 2 × A6 quer (Vorder- und Rückseite zum Laminieren): Seite 1 Plätze 00–49, Seite 2 Plätze 50–99,
       je zwei Spalten à 25 Zeilen mit Platz, Kurzname, Frequenz, Klartext und Land. */
+  const CROP = ['tl', 'tr', 'bl', 'br'].map(c => `<i class="cm h ${c}"></i><i class="cm v ${c}"></i>`).join('');
   function pageKarte() {
     const dev = ui.device && ui.device.id === ui.deviceSel && ui.device.aktuell && ui.device.aktuell.plaetze ? ui.device : null;
     let D, starts = new Set(), freeSet = new Set(), title, sub;
@@ -688,7 +689,7 @@ ${footerNote()}`;
     $('#page').innerHTML = `
 <div class="spread"><h1>${t('a6_title')}</h1><div class="row"><a class="btn sec" href="#aktuell">← ${t('nav_aktuell')}</a><button type="button" data-act="print">${t('a6_print')}</button></div></div>
 <p class="note">${t('a6_note')}</p>
-<div class="a6wrap">${page(0)}${page(1)}</div>`;
+<div class="a6wrap">${[0, 1].map(p => `<div class="a6cut">${CROP}${page(p)}</div>`).join('')}</div>`;
     $('#page').addEventListener('click', ev => { if (ev.target.closest('[data-act=print]')) window.print(); });
   }
 

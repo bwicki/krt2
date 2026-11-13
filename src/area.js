@@ -169,7 +169,8 @@
     const byPlace = new Map();
     for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name, cc: String(d.cc || '').toUpperCase() }); }
     const out = [], byCh = new Map();
-    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, outsideBand: 0 };
+    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, outsideBand: 0, svcOff: 0 };
+    const off = new Set(opt.svcOff || []);
     const layers = { airports: [], airspaces: [] };
     const srcName = s => (s === 'oa' ? 'OurAirports' : 'openAIP');
     const seenAd = new Set();
@@ -190,6 +191,7 @@
       for (const f of valid) {
         let dienst = mapSvc(f.s, services);
         if (dienst === 'OTH') { const s2 = svcFromName(f.n); if (s2) dienst = mapSvc(s2, services); }
+        if (off.has(dienst)) { stats.svcOff++; continue; }
         const call = splitCall(f.n);
         const pk = normPlace(call.place.split(' ')[0]);
         const foreign = REGIONAL.has(dienst) && pk && pk !== adKey;            // z. B. «Zurich Information» bei Birrfeld
@@ -218,6 +220,7 @@
       for (const f of s.f) {
         if (!f.ch) { stats.invalid++; continue; }
         const dienst = mapSvc(f.s, services);
+        if (off.has(dienst)) { stats.svcOff++; continue; }
         const radar = RADAR_SVC.has(dienst) && opt.radarNoLimit;
         if (!((lo == null || lo <= bandHi || radar) && (hi == null || hi >= bandLo))) { stats.outsideBand++; continue; }
         used = true;
