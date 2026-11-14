@@ -261,6 +261,9 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   Verlust, Wiederaufnahme und Fortsetzen beim selben Platz.
 - Die Abfrage «S» läuft auch im Speichermodus weiter (13.11.2026) – der Funkstille-Wächter stört das Auslesen von Hand nicht.
 
+**0.5.1:** Editor – beim Ziehen eines Eintrags rollt die Liste am oberen und unteren Fensterrand mit (90 px Randzone,
+je näher am Rand, desto schneller), damit Einträge über die sichtbare Strecke hinaus verschoben werden können.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

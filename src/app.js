@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.5.0';
+  const VERSION = '0.5.1';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -580,7 +580,22 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const tr = h.closest('tr[data-id]'); dragId = tr.dataset.id; tr.classList.add('dragging');
     ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', dragId);
     try { ev.dataTransfer.setDragImage(tr, 20, 20); } catch (e) { /* Vorschau egal */ }
+    dragY = null; dragT = 0; requestAnimationFrame(dragScroll);
   });
+  // Am oberen oder unteren Rand des Fensters rollt die Liste mit, damit ein Eintrag über die sichtbare Strecke hinaus
+  // verschoben werden kann (Rückmeldung 14.11.2026). Je näher am Rand, desto schneller.
+  let dragY = null, dragT = 0;
+  const EDGE = 90, SPEED = 26;
+  function dragScroll() {
+    if (!dragId) return;
+    if (dragY !== null && performance.now() - dragT < 250) {
+      const h = window.innerHeight, top = dragY < EDGE ? -(1 - dragY / EDGE) : 0, bot = dragY > h - EDGE ? (1 - (h - dragY) / EDGE) : 0;
+      const v = Math.round(SPEED * Math.max(-1, Math.min(1, top + bot)));
+      if (v) window.scrollBy(0, v);
+    }
+    requestAnimationFrame(dragScroll);
+  }
+  document.addEventListener('dragover', ev => { if (dragId) { dragY = ev.clientY; dragT = performance.now(); } }, true);
   document.addEventListener('dragover', ev => {
     if (!dragId || !inEd(ev)) return; const tr = ev.target.closest('tr[data-id], tr[data-block]'); if (!tr) return;
     ev.preventDefault(); document.querySelectorAll('.drop-before').forEach(x => x.classList.remove('drop-before')); tr.classList.add('drop-before');
