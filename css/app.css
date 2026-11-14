@@ -297,6 +297,6 @@ dialog.wide{max-width:min(880px,94vw)}
 .fl-row>.label{flex:0 0 130px}
 @media (max-width:600px){
   .fl-row>.label{flex-basis:96px}
-  .fl-big{flex:1 1 100%;justify-content:center;min-height:52px;font-size:17px;width:100%}
+  .fl-big{flex:1 1 100%;justify-content:center;min-height:52px;font-size:17px}
   table.fl-plan th:nth-child(2),table.fl-plan td:nth-child(2){display:none}
 }

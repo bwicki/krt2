@@ -6,7 +6,7 @@
   const DATA = 'https://raw.githubusercontent.com/bwicki/krt2/data/';
   const LS_LOG = 'krt2.fluglog', LS_OFF = 'krt2.offline', LOG_MAX = 1000, HIST_MS = 20 * 60000;
   const F = root.KRT2FLUG, A = root.KRT2AREA, M = root.KRT2MODEL, L = root.KRT2LINK.link;
-  const S = { gps: { on: false, id: null, hist: [], err: '', acc: null, at: null }, manual: '', index: null, files: {}, plans: {}, write: {}, busy: {} };
+  const S = { gps: { on: false, id: null, hist: [], err: '', acc: null, at: null }, manual: '', index: null, files: {}, plans: {}, write: {}, busy: {}, prep: false };
   let ctx = null;
   const t = (k, o) => ctx.t(k, o), esc = s => ctx.esc(s), $ = s => document.querySelector(s);
   const here = () => ctx && ctx.route() === 'flug';
@@ -209,7 +209,7 @@ ${ch.map(c => { const r = res(c.nr), info = [c.neu.klar, c.neu.dist == null ? ''
     el.innerHTML = `<div class="spread"><div class="stack" style="gap:2px"><span class="label">${t('fl_block', { b: esc(blk.name) })}</span><span class="small muted">${t('fl_block_slots', { a: slotsTxt(nrs) })}</span></div>
   <button type="button" class="sec" data-fl="plan" data-b="${esc(bid)}" ${S.busy[bid] || (W && W.running) ? 'disabled' : ''}>${S.busy[bid] ? t('fl_loading') : t(P ? 'fl_plan_again' : 'fl_plan')}</button></div>
 ${body}
-${P && ch.length && !done ? `<button type="button" class="fl-big" data-fl="write" data-b="${esc(bid)}" ${W && W.running ? 'disabled' : ''}>${t('fl_write', { n: ch.length })}</button>` : ''}`;
+${P && ch.length && !done ? `<div class="row"><button type="button" class="fl-big" data-fl="write" data-b="${esc(bid)}" ${W && W.running ? 'disabled' : ''}>${t('fl_write', { n: ch.length })}</button></div>` : ''}`;
   }
   function paintLog() {
     const el = $('#fl-log'); if (!el) return;
