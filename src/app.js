@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.4.4';
+  const VERSION = '0.4.5';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -124,6 +124,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
 
   function render() {
     const r = route();
+    M.setSvcKurz(cfg.settings.svcKurz);
     if (window.KRT2GEBIET) window.KRT2GEBIET.leave();
     shell(r);
     ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => GR.render(), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
@@ -663,9 +664,9 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <div style="overflow-x:auto"><table class="grid"><thead><tr><th><span class="sr">${t('col_move')}</span></th><th>${t('col_on')}</th><th>${t('st_block')}</th><th>${t('st_svc')}</th><th>${t('st_max')}</th><th>${t('st_order')}</th><th></th></tr></thead>
   <tbody>${cfg.bloecke.map(blockRow).join('')}</tbody></table></div></section>
 <section class="card stack"><div class="spread"><span class="label">${t('sv_title')}</span>
-  <div class="row"><button type="button" class="sec" data-act="svc-sort">${t('sv_sort')}</button><button type="button" class="sec" data-act="svc-reset">${t('sv_reset')}</button>
+  <div class="row"><button type="button" class="sec" data-act="svc-sort">${t('sv_sort')}</button><button type="button" class="sec" data-act="svc-reset">${t('sv_reset')}</button><button type="button" class="sec" data-act="svk-reset" ${Object.keys(cfg.settings.svcKurz || {}).length ? '' : 'disabled'}>${t('svk_reset')}</button>
   <form class="row" data-form="svcadd"><label class="sr" for="svcnew">${t('sv_new')}</label><input id="svcnew" type="text" maxlength="6" placeholder="${esc(t('sv_new_ph'))}" style="width:110px;text-transform:uppercase" class="mono" required><button type="submit" class="sec">${t('sv_add')}</button></form></div></div>
-  <div class="row" style="gap:6px">${M.servicesOf(cfg).map((s, i, a) => `<span class="tag" data-svc="${esc(s)}"><button type="button" data-act="svc-up" aria-label="${esc(s)} ${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>‹</button><b class="mono">${esc(s)}</b><button type="button" data-act="svc-down" aria-label="${esc(s)} ${esc(t('ed_down'))}" ${i === a.length - 1 ? 'disabled' : ''}>›</button><button type="button" data-act="svc-del" aria-label="${esc(s)} ×">×</button></span>`).join('')}</div>
+  <div class="row" style="gap:6px">${M.servicesOf(cfg).map((s, i, a) => `<span class="tag" data-svc="${esc(s)}"><button type="button" data-act="svc-up" aria-label="${esc(s)} ${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>‹</button><b class="mono">${esc(s)}</b><label class="sr" for="svk-${esc(s)}">${esc(t('sv_kurz_lbl', { s }))}</label><input id="svk-${esc(s)}" type="text" class="mono svk${Object.prototype.hasOwnProperty.call(cfg.settings.svcKurz || {}, s) ? ' own' : ''}" data-svk="${esc(s)}" value="${esc(M.svcKurz(s))}" placeholder="${esc(M.svcKurzDefault(s) || '–')}" maxlength="4" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname title="${esc(t('sv_kurz_tip', { s, d: M.svcKurzDefault(s) || '–' }))}"><button type="button" data-act="svc-down" aria-label="${esc(s)} ${esc(t('ed_down'))}" ${i === a.length - 1 ? 'disabled' : ''}>›</button><button type="button" data-act="svc-del" aria-label="${esc(s)} ×">×</button></span>`).join('')}</div>
   <p class="note">${t('sv_note')}</p></section>
 <div class="settings-3">
   <section class="card stack"><span class="label">${t('st_freeslots')}</span>
@@ -718,6 +719,7 @@ ${footerNote()}`;
         st.services.splice(i, 1); cfg.bloecke.forEach(bl => { bl.svc = bl.svc.filter(x => x !== code); });
       } else { const j = i + (act === 'svc-up' ? -1 : 1); if (j < 0 || j >= st.services.length) return; [st.services[i], st.services[j]] = [st.services[j], st.services[i]]; }
     }
+    else if (act === 'svk-reset') { cfg.settings.svcKurz = {}; M.setSvcKurz({}); msg(t('m_svk_reset'), 'ok'); }
     else if (act === 'applyall') { let n = 0; for (const x of cfg.eintraege) if (M.hasIcao(x)) { x.kurzModus = cfg.settings.adLoc; x.kurz = M.entryShort(x); n++; } msg(t('st_applied', { n, m: cfg.settings.adLoc === 'icao' ? t('st_adloc_icao') : t('st_adloc_short') }), 'ok'); }
     else return;
     afterChange(pageEinst);
@@ -743,6 +745,13 @@ ${footerNote()}`;
         if (k === 'kurz') v = v.toUpperCase();
         x[k] = v;
       }
+    } else if (el.dataset.svk) {
+      const svc = el.dataset.svk, v = C.cleanNameInput(el.value, cfg.settings.allowDigits).trim(), def = M.svcKurzDefault(svc);
+      const map = Object.assign({}, cfg.settings.svcKurz || {});
+      if (!v || v === def) delete map[svc]; else map[svc] = v;
+      cfg.settings.svcKurz = map; M.setSvcKurz(map);
+      const k = M.svcKurz(svc), other = M.servicesOf(cfg).filter(x => x !== svc && k && M.svcKurz(x) === k);
+      msg(t('m_svk', { s: svc, k: k || '–' }) + (other.length ? ' ' + t('m_svk_dup', { k, o: other.join(', ') }) : ''), other.length ? 'warn' : 'ok');
     } else if (el.dataset.st) {
       let v = el.type === 'checkbox' ? el.checked : el.value;
       if (el.dataset.st === 'free.ch') { const r = C.encodeFreq(v); v = r.ok ? r.display : String(v).trim(); }

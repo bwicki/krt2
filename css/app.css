@@ -262,4 +262,5 @@ tr.sub td{padding-top:6px;padding-bottom:2px;border-bottom:0}
 dialog.wide{max-width:min(880px,94vw)}
 .dupbox{max-height:min(58vh,520px);overflow:auto;border:1px solid var(--border);border-radius:8px}
 .dupbox table.grid tr.head td{padding:8px 10px 4px}
-
+.tag input.svk{width:46px;min-height:22px;padding:1px 4px;font-size:12px;text-align:center}
+.tag input.svk.own{border-color:var(--ochre-bd);background:var(--ochre-bg)}

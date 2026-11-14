@@ -17,7 +17,11 @@
   // 0.4.4: auch die übrigen Dienste kurz (VOL wie im Werksspeicher des Geräts: «GENF VOL»)
   const SVC_KURZ = { INFO: 'I', FIS: 'F', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D',
     APP: 'A', GND: 'G', DEL: 'DL', APN: 'AP', ACC: 'AC', VOLMET: 'VOL', GLD: 'GL', CTAF: 'CT', MIL: 'M', UCOM: 'U', OTH: '' };
-  const svcKurz = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
+  const svcKurzDefault = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
+  // eigene Kürzel aus den Einstellungen (settings.svcKurz, nur Abweichungen); layout() setzt sie für die Konfiguration
+  let kurzMap = {};
+  function setSvcKurz(m) { kurzMap = m && typeof m === 'object' ? m : {}; }
+  const svcKurz = s => (Object.prototype.hasOwnProperty.call(kurzMap, s) ? kurzMap[s] : svcKurzDefault(s));
 
   const ORDERS = ['dist', 'ad', 'corridor', 'freq', 'manual'];
 
@@ -37,7 +41,7 @@
       schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
-      settings: { adLoc: 'icao', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
+      settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
@@ -208,6 +212,7 @@
     return at;
   }
   function layout(cfg) {
+    setSvcKurz(cfg.settings && cfg.settings.svcKurz);
     const slots = new Array(100).fill(null);
     const free = cfg.settings.free;
     const fx = cfg.fixed, fxAt = fixedExtra(cfg);
@@ -344,6 +349,7 @@
     const d = defaultConfig();
     const cfg = Object.assign(d, o);
     cfg.settings = Object.assign(defaultConfig().settings, o.settings || {});
+    if (!cfg.settings.svcKurz || typeof cfg.settings.svcKurz !== 'object' || Array.isArray(cfg.settings.svcKurz)) cfg.settings.svcKurz = {};
     if (!Array.isArray(cfg.settings.services) || !cfg.settings.services.length) cfg.settings.services = SERVICES.slice();
     cfg.settings.free = Object.assign({ ch: '118.000', kurz: 'FREE' }, (o.settings || {}).free || {});
     const ofx = o.fixed || {};
@@ -380,7 +386,7 @@
   }
 
   return {
-    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, defaultBlocks, defaultConfig, uid,
+    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
     layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm

@@ -155,3 +155,16 @@ console.log(n + ' Prüfungen bestanden');
   okd(M.check(c).byEntry[a2.id].some(i => i.code === 'doppelt'), 'Prüfung kennt 8.33-Gleichheit');
   console.log('0.4.3: doppelte Frequenzen – ' + k + ' Prüfungen bestanden');
 }
+{ // 0.4.5: Dienstkürzel in den Einstellungen
+  let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.4.5: ' + m); k++; };
+  const c = S.sampleConfig(); const e = c.eintraege.find(x => x.dienst === 'APP' && x.ort.icao === 'LSZH'); e.kurzModus = 'icao';
+  c.eintraege.filter(x => x.dienst === 'TWR' && x.ort.icao === 'LSZH').forEach(x => { x.kurzModus = 'icao'; });
+  okk(M.layout(c).slots.some(s2 => s2.kurz === M.shortName(M.entryParts(e), 'icao')) && M.entryShort(e).endsWith(' A'), 'Vorgabe A für APP');
+  c.settings.svcKurz = { APP: 'APP', TWR: 'TW' }; const L = M.layout(c);
+  okk(M.entryShort(e).endsWith(' APP') && L.slots.some(s2 => s2.kurz === 'LSZH TW'), 'eigene Kürzel gelten nach layout()');
+  const back = M.fromJSON(M.toJSON(c)); okk(back.settings.svcKurz.TWR === 'TW', 'gespeichert');
+  okk(M.svcKurzDefault('TWR') === 'T', 'Vorgabe abrufbar');
+  const old = JSON.parse(M.toJSON(c)); delete old.settings.svcKurz; okk(JSON.stringify(M.fromJSON(old).settings.svcKurz) === '{}', 'ältere Entwürfe ohne eigene Kürzel');
+  M.setSvcKurz({});
+  console.log('0.4.5: Dienstkürzel in den Einstellungen – ' + k + ' Prüfungen bestanden');
+}

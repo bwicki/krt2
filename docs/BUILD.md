@@ -213,6 +213,14 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   Quittung, Antwortzeit und Funkzustand aus den Meldungen J (Empfang), K (Senden), Y/V (Ende). Die Sendetaste drückt der Benutzer
   selbst, nur mit Antenne oder Kunstlast. Schritt 7 stellt 97 und 98 wie bisher zurück.
 
+**0.4.5 – Antworten 14.11.2026:**
+- *Dienstkürzel in den Einstellungen:* Einstellungen → Dienste, Feld neben jedem Dienst (höchstens 4 Zeichen, leer = Vorgabe);
+  gespeichert nur die Abweichungen in `settings.svcKurz`, eigene Kürzel ocker umrandet, Hinweis bei doppelt vergebenem Kürzel,
+  «Kürzel auf Vorgabe». `layout()` setzt die Kürzel der Konfiguration (`setSvcKurz`), die Kurznamen ändern sich sofort.
+- *test.html:* Skripte und Stile mit `?v=` (Schritt 5b fehlte nach dem Hochladen im Zwischenspeicher des Browsers).
+- *Bluetooth:* Chrome auf Android spricht seit Version 137 serielle Bluetooth-Classic-Geräte (SPP/RFCOMM) über Web Serial an –
+  dieselbe Schnittstelle wie am Laptop; Web Bluetooth kann nur BLE. Kandidat: diymore RS232-Bluetooth-Adapter (HC-05, MAX3232, DB9).
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
