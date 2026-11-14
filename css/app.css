@@ -264,3 +264,31 @@ dialog.wide{max-width:min(880px,94vw)}
 .dupbox table.grid tr.head td{padding:8px 10px 4px}
 .tag input.svk{width:46px;min-height:22px;padding:1px 4px;font-size:12px;text-align:center}
 .tag input.svk.own{border-color:var(--ochre-bd);background:var(--ochre-bg)}
+/* 0.5.0: Handy (Seite «Gerät» am Android-Handy mit Bluetooth-Modul) */
+@media (max-width:600px){
+  html,body{font-size:16px}
+  header.top{padding:8px 10px;gap:8px}
+  .brand{min-width:0;width:100%}
+  .brand strong{font-size:16px}
+  nav.main{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -10px;padding:0 10px}
+  nav.main::-webkit-scrollbar{display:none}
+  nav.main a{white-space:nowrap;padding:9px 11px}
+  .top-right{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:8px}
+  .logo{margin-left:auto}
+  .logo img{display:none}
+  main{padding:12px 10px 28px;gap:12px}
+  .card{padding:12px}
+  button,.btn{font-size:16px;min-height:44px;padding:10px 14px}
+  button.ghost{min-height:40px}
+  .seg button{min-height:40px}
+  .spread{gap:10px}
+  .spread>.row{width:100%}
+  #page>.spread>.row .btn,#page>.spread>.row button{flex:1 1 auto;justify-content:center}
+  #gr-connbtn button{flex:1 1 100%;justify-content:center;min-height:52px;font-size:17px}
+  #gr-progbox .spread>.row button[data-gr=prog],#gr-progbox .spread>.row button[data-gr=progstop]{flex:1 1 100%;justify-content:center;min-height:52px;font-size:17px}
+  #gr-status{gap:6px 12px}
+  table.gr-prog th:nth-child(2),table.gr-prog td:nth-child(2){display:none}
+  table.grid{font-size:14px}
+  .gr-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+

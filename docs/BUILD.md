@@ -247,6 +247,20 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   ohne Schreiben: K/Y, Abfragen «S», grösste Lücke, Verlust); Serien starten nicht bei Funkstille und die Empfangsserie nicht,
   solange das Gerät «Sender ein» ohne Ende meldet; Simulation `?sim=1&tx=verlust`.
 
+**0.5.0 – Phase 2 des Konzepts (Handy, Bluetooth, Robustheit):**
+- *Nie während Senden schreiben:* `Link.command` wartet bei «Sender ein» (K) bis «Ende» (Y) plus 300 ms (höchstens 60 s);
+  beginnt eine Aussendung während des Wartens auf die Quittung, zählt der Versuch nicht. Die Seite zeigt «wartet – Gerät sendet».
+- *Wiederaufnahme:* Lese-/Schreibfehler «device has been lost», das Ereignis `disconnect` oder 25 s ohne «S» (einmalig, falls
+  das Gerät nur aus ist) schliessen den Anschluss und öffnen ihn während 120 s alle 3 s neu (`navigator.serial.getPorts`,
+  gleiches Gerät nach USB-Kennung oder Bluetooth-Dienst). `program()` pausiert beim betroffenen Platz und schreibt nach der
+  Wiederaufnahme dort weiter («pausiert – wartet auf die Verbindung»). «Trennen» von Hand beendet die Wiederaufnahme.
+- *Bildschirm wach halten* (Wake Lock), solange verbunden; nach der Rückkehr in den Vordergrund neu angefordert.
+- *Handy-Ansicht* (bis 600 px): Navigation waagrecht scrollbar, Knöpfe mindestens 44 px, Verbinden und Programmieren über die
+  ganze Breite, Spalte «heute im Gerät» der Vergleichstabelle ausgeblendet; Android-Hinweis zum Koppeln des Bluetooth-Moduls.
+- *Simulation:* «Senden 5 s» und «Verbindung 10 s weg» auf der Seite Gerät (`?sim=1`); `tests/link.test.js` prüft Sende-Pause,
+  Verlust, Wiederaufnahme und Fortsetzen beim selben Platz.
+- Die Abfrage «S» läuft auch im Speichermodus weiter (13.11.2026) – der Funkstille-Wächter stört das Auslesen von Hand nicht.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

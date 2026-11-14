@@ -10,6 +10,7 @@
   const nm = s => String(s || '').trimEnd();
   const sameSlot = (a, b) => !!a && !!b && a.ch === b.ch && nm(a.name) === nm(b.name);
   const SIM = /[?&]sim\b/.test(root.location ? root.location.search : '');
+  const ANDROID = !!(root.navigator && /Android/i.test(root.navigator.userAgent || ''));
 
   const S = {
     devId: null, dev: null, devErr: '', ro: new RO.Readout(), roOn: false, roSaved: false, imp: null, impName: '',
@@ -112,6 +113,7 @@
       return;
     }
     if (type === 'sim') { if (here()) paintSim(); return; }
+    if (type === 'wait') { S.txWait = !!d.why; if (here()) { paintStatus(); paintProg(); paintRestore(); } return; }
     if (type !== 'R' || d.burst) { if (here()) paintStatus(); return; }
     const r = { t: d.t, freq: d.freq, name: d.name };
     if (S.roOn) onReadoutR(r);
@@ -239,7 +241,11 @@
     S.prog = { running: true, stop: false, res: Object.assign({}, keep), total: list.length, done: 0, meta, slots };
     ctx.msg(t('gr_m_prog_start', { n: list.length, d: devLabel() }), 'info');
     render();
-    await L.program(list, { onSlot: (nr, r) => { S.prog.res[nr] = r; S.prog.done++; if (here()) { paintProg(); paintRestore(); } }, stop: () => S.prog.stop });
+    await L.program(list, {
+      onSlot: (nr, r) => { S.prog.res[nr] = r; S.prog.done++; if (here()) { paintProg(); paintRestore(); } },
+      onPause: why => { S.prog.pause = why; if (here()) { paintProg(); paintRestore(); } },
+      stop: () => S.prog.stop
+    });
     S.prog.running = false;
     const failed = slots.map(s => s.nr).filter(nr => !S.prog.res[nr] || S.prog.res[nr].kind !== 'ACK');
     S.prog.failed = failed;
@@ -280,10 +286,9 @@
 
 <section class="card stack" aria-labelledby="gr-l1"><span class="label" id="gr-l1">${t('gr_conn')}</span>
   <div class="row" id="gr-status"></div>
-  <div class="row">${L.connected ? `<button type="button" class="sec" data-gr="disconnect">${t('gr_disconnect')}</button>`
-    : `<button type="button" data-gr="connect" ${L.supported ? '' : 'disabled'}>${t('gr_connect')}</button>${SIM ? `<button type="button" class="sec" data-gr="sim">${t('gr_sim')}</button>` : ''}`}</div>
+  <div class="row" id="gr-connbtn"></div>
   ${L.supported || L.sim ? '' : `<p class="note gr-warn">${t('gr_unsupported')}</p>`}
-  <p class="note">${t('gr_conn_note')}</p>
+  <p class="note">${t(ANDROID ? 'gr_conn_note_bt' : 'gr_conn_note')}</p>
   <div class="row" id="gr-sim"></div>
 </section>
 
@@ -316,16 +321,28 @@
 ${ctx.footerNote()}`;
     paintStatus(); paintSim(); paintRo(); paintRestore(); paintProg(); paintCheck();
   }
+  function paintConnBtn() {
+    const el = $('#gr-connbtn'); if (!el) return;
+    const key = L.state + (L.sim ? 's' : '');
+    if (el.dataset.k === key) return;
+    el.dataset.k = key; paintSim();
+    el.innerHTML = L.connected || L.state === 'recovering' ? `<button type="button" class="sec" data-gr="disconnect">${t(L.connected ? 'gr_disconnect' : 'gr_recover_stop')}</button>`
+      : `<button type="button" data-gr="connect" ${L.supported ? '' : 'disabled'}>${t('gr_connect')}</button>${SIM ? `<button type="button" class="sec" data-gr="sim">${t('gr_sim')}</button>` : ''}`;
+  }
   function paintStatus() {
+    paintConnBtn();
     const el = $('#gr-status'); if (!el) return;
     const sb = L.st.standby;
-    el.innerHTML = `<span>${t('gr_adapter')}: <span class="badge ${L.connected ? 'g' : ''}">${t(L.sim ? 'gr_st_sim' : L.connected ? 'gr_st_conn' : 'gr_st_off')}</span></span>
+    const kind = L.connected && !L.sim && L.lastInfo ? (L.lastInfo.bluetoothServiceClassId ? ' · Bluetooth' : L.lastInfo.usbVendorId ? ' · USB' : '') : '';
+    el.innerHTML = `<span>${t('gr_adapter')}: <span class="badge ${L.connected ? 'g' : L.state === 'recovering' ? 'y' : ''}">${L.state === 'recovering' ? t('gr_st_recover') : t(L.sim ? 'gr_st_sim' : L.connected ? 'gr_st_conn' : 'gr_st_off') + kind}</span></span>
+${L.st.tx && L.connected ? `<span class="badge r">${t('gr_st_tx')}</span>` : ''}${L.st.silent && L.connected ? `<span class="badge y">${t('gr_st_silent')}</span>` : ''}
 <span>${t('gr_link')}: <span class="badge ${L.linked ? 'g' : L.connected ? 'y' : ''}">${t(L.linked ? 'gr_st_linked' : L.connected ? 'gr_st_wait' : 'gr_st_dash')}</span></span>
 <span>${t('gr_standby')}: <span class="mono">${sb ? esc(sb.freq + ' «' + sb.name + '»') : '–'}</span></span>`;
   }
   function paintSim() {
     const el = $('#gr-sim'); if (!el) return;
-    el.innerHTML = L.sim ? `<span class="small muted">${t('gr_sim_lbl')}</span><button type="button" class="sec" data-gr="simmem">MEM</button><button type="button" class="sec" data-gr="simturn">${t('gr_sim_turn')}</button><span class="mono small" id="gr-simdisp">${esc(L.writer.display)}</span>` : '';
+    const sr = L.simRadio;
+    el.innerHTML = sr ? `<span class="small muted">${t('gr_sim_lbl')}</span><button type="button" class="sec" data-gr="simmem">MEM</button><button type="button" class="sec" data-gr="simturn">${t('gr_sim_turn')}</button><button type="button" class="sec" data-gr="simtx">${t('gr_sim_tx')}</button><button type="button" class="sec" data-gr="simdrop">${t('gr_sim_drop')}</button><span class="mono small" id="gr-simdisp">${esc(sr.display)}</span>` : '';
   }
   function cell(i) {
     const e = S.ro.slots[i];
@@ -385,14 +402,21 @@ ${ro.complete || S.roSaved ? '' : `<p class="note">${t('gr_ro_partial')}</p>`}` 
   : `<button type="button" data-gr="prog" ${block ? 'disabled' : ''}>${t('gr_prog_btn')}</button>${P && P.failed && P.failed.length ? `<button type="button" class="sec" data-gr="progfail" ${block ? 'disabled' : ''}>${t('gr_prog_retry', { n: P.failed.length })}</button>` : ''}`}
 <a class="btn sec" href="#editor">${t('nav_editor')}</a></div></div>
 ${block && !(P && P.running) ? `<p class="note">${esc(block)}</p>` : ''}
-${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('gr_prog_state', { d: P.done, n: P.total })}</span>` : ''}
+${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('gr_prog_state', { d: P.done, n: P.total })}</span>${progWait(P)}` : ''}
 <div class="row"><label class="small"><input type="checkbox" data-gr="showall" ${S.showAll ? 'checked' : ''}> ${t('gr_show_all')}</label></div>
-<div class="card flush"><table class="grid"><thead><tr><th style="width:110px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th><th style="width:150px">${t('gr_col_state')}</th></tr></thead><tbody>
+<div class="card flush"><table class="grid gr-prog"><thead><tr><th style="width:110px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th><th style="width:150px">${t('gr_col_state')}</th></tr></thead><tbody>
 ${rows.length ? rows.map(r => { const w = res(r.nr);
     return `<tr><td class="nr">${r.n > 1 ? pad2(r.nr) + '–' + pad2(r.to) + ` <span class="small muted">${r.n}×</span>` : pad2(r.nr)}</td><td class="mono small">${r.old ? esc(r.old.ch + ' ' + nm(r.old.name)) : '–'}</td><td><span class="mono">${esc(r.neu.ch + ' ' + nm(r.neu.name))}</span>${r.neu.klar ? ` <span class="small muted">${esc(r.neu.klar)}</span>` : ''}</td>
 <td>${w ? `<span class="badge ${w.kind === 'ACK' ? 'g' : 'r'}">${w.kind === 'ACK' ? t('gr_w_ok', { ms: w.ms }) : esc(w.kind)}</span>` : `<span class="badge ${r.st === 'same' ? '' : r.st === 'changed' ? 'y' : ''}">${t('gr_st_' + r.st)}</span>`}</td></tr>`; }).join('')
   : `<tr><td colspan="4" class="muted">${t('gr_nodiff')}</td></tr>`}
 </tbody></table></div>`;
+  }
+  /** Laufendes Schreiben wartet: Verbindung weg (pausiert bis zur Wiederaufnahme) oder Gerät sendet. */
+  function progWait(P) {
+    if (!P || !P.running) return '';
+    if (P.pause) return ` <span class="badge y">${t('gr_wait_link')}</span>`;
+    if (S.txWait) return ` <span class="badge y">${t('gr_wait_tx')}</span>`;
+    return '';
   }
   function paintRestore() {
     const el = $('#gr-restore'); if (!el) return;
@@ -404,7 +428,7 @@ ${rows.length ? rows.map(r => { const w = res(r.nr);
 <span class="small muted">${a && a.plaetze ? t('gr_rs_diff', { c: 100 - same }) : t('gr_diff_unknown')}</span></div>
 <div class="row">${P && P.running ? `<button type="button" class="danger" data-gr="progstop">${t('gr_prog_stop')}</button>`
   : `<button type="button" class="sec" data-gr="restore" ${why ? 'disabled' : ''} title="${esc(why)}">${t('gr_rs_btn')}</button>${P && P.failed && P.failed.length ? `<button type="button" class="sec" data-gr="progfail" ${why ? 'disabled' : ''}>${t('gr_prog_retry', { n: P.failed.length })}</button>` : ''}`}</div></div>
-${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('gr_prog_state', { d: P.done, n: P.total })}</span>` : ''}`;
+${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('gr_prog_state', { d: P.done, n: P.total })}</span>${progWait(P)}` : ''}`;
   }
   function paintCheck() {
     const el = $('#gr-checklist'); if (!el) return;
@@ -421,8 +445,10 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     if (a === 'connect') return connect(false);
     if (a === 'sim') return connect(true);
     if (a === 'disconnect') { if (S.prog && S.prog.running) { ctx.msg(t('gr_busy'), 'warn'); return; } await L.disconnect(); ctx.msg(t('gr_m_disc'), 'info'); render(); return; }
-    if (a === 'simmem') { L.writer.memKey(); return; }
-    if (a === 'simturn') { if (!L.writer.turn()) ctx.msg(t('gr_sim_vol'), 'info'); return; }
+    if (a === 'simmem') { L.simRadio.memKey(); return; }
+    if (a === 'simturn') { if (!L.simRadio.turn()) ctx.msg(t('gr_sim_vol'), 'info'); return; }
+    if (a === 'simtx') { L.simRadio.tx(5000); return; }
+    if (a === 'simdrop') { L.simRadio.drop(10000); ctx.msg(t('gr_sim_drop_m'), 'info'); return; }
     if (a === 'logsave') { ctx.download('krt2_verbindung_' + ctx.stamp() + '.txt', L.logText(), 'text/plain;charset=utf-8'); return; }
     if (a === 'rostart') { if (!L.connected) { ctx.msg(t('gr_need_conn'), 'warn'); return; } startReadout(S.ro.count > 0 && !S.ro.closed); return; }
     if (a === 'rostop') { const n = S.ro.stop(); S.roOn = false; if (n) ctx.msg(t('gr_m_ro_dropped', { n }), 'warn'); ctx.msg(t('gr_m_ro_stop', { s: roSummaryText() }), 'info'); render(); return; }
