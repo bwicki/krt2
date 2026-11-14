@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.4.5';
+  const VERSION = '0.4.6';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -541,7 +541,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const f = el.dataset.f; if (!f) return;
     const e = entryOf(el); if (!e) return;
     if (f === 'aktiv') e.aktiv = el.checked;
-    else if (f === 'kurz') { e.kurzModus = 'frei'; e.kurz = el.value.toUpperCase().replace(/\s+$/, ''); }
+    else if (f === 'kurz') { e.kurzModus = 'frei'; e.kurz = kname(el.value); }
     else if (f === 'ch') { const r = C.encodeFreq(el.value); e.ch = r.ok ? r.display : el.value.trim(); }
     else if (f === 'klar') e.klar = el.value;
     else if (f === 'cc') e.ort = Object.assign({}, e.ort, { cc: el.value.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) });
@@ -679,7 +679,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     <label><input type="radio" name="adloc" data-st="adLoc" value="icao" ${st.adLoc === 'icao' ? 'checked' : ''}> ${t('st_adloc_icao')} <span class="mono small muted">LSZH T · LSZF AF</span></label>
     <div><button type="button" class="sec" data-act="applyall">${t('st_apply_all')}</button></div>
     <p class="note">${t('st_names_note')}</p>
-    <label><input type="checkbox" data-st="allowDigits" ${st.allowDigits ? 'checked' : ''}> ${t('st_digits')} <span class="small muted">${t('st_digits_note')}</span></label></section>
+    <label><input type="checkbox" data-st="allowDigits" ${st.allowDigits ? 'checked' : ''}> ${t('st_digits')} <span class="small muted">${t('st_digits_note')}</span></label>
+    <label><input type="checkbox" data-st="allowLower" ${st.allowLower !== false ? 'checked' : ''}> ${t('st_lower')} <span class="small muted">${t('st_lower_note')}</span></label></section>
   <section class="card stack"><span class="label">${t('st_area')}</span>
     <div class="row"><span>${t('st_band')}</span><input type="text" class="mono" data-st="area.von" value="${esc(st.area.von)}" style="width:80px" aria-label="${esc(t('st_band'))} von"><span>–</span><input type="text" class="mono" data-st="area.bis" value="${esc(st.area.bis)}" style="width:90px" aria-label="${esc(t('st_band'))} bis"></div>
     <label><input type="checkbox" data-st="area.radar" ${st.area.radar ? 'checked' : ''}> ${t('st_radar')}</label>
@@ -731,7 +732,7 @@ ${footerNote()}`;
     if (el.dataset.fx) {
       let v = el.value;
       if (el.dataset.fx.endsWith('.ch')) { const r = C.encodeFreq(v); v = r.ok ? r.display : v.trim(); }
-      if (el.dataset.fx.endsWith('.kurz')) v = v.toUpperCase();
+      if (el.dataset.fx.endsWith('.kurz')) v = kname(v);
       set(cfg.fixed, el.dataset.fx, v);
     } else if (el.dataset.fxe) {
       const [id, k] = el.dataset.fxe.split('.'), x = cfg.fixed.extra.find(y => y.id === id); if (!x) return;
@@ -742,11 +743,11 @@ ${footerNote()}`;
         x.nr = n; cfg.fixed.extra.sort((a, c) => a.nr - c.nr);
       } else {
         if (k === 'ch') { const r = C.encodeFreq(v); v = r.ok ? r.display : v.trim(); }
-        if (k === 'kurz') v = v.toUpperCase();
+        if (k === 'kurz') v = kname(v);
         x[k] = v;
       }
     } else if (el.dataset.svk) {
-      const svc = el.dataset.svk, v = C.cleanNameInput(el.value, cfg.settings.allowDigits).trim(), def = M.svcKurzDefault(svc);
+      const svc = el.dataset.svk, v = C.cleanNameInput(el.value, cfg.settings.allowDigits, cfg.settings.allowLower !== false).trim(), def = M.svcKurzDefault(svc);
       const map = Object.assign({}, cfg.settings.svcKurz || {});
       if (!v || v === def) delete map[svc]; else map[svc] = v;
       cfg.settings.svcKurz = map; M.setSvcKurz(map);
@@ -755,7 +756,7 @@ ${footerNote()}`;
     } else if (el.dataset.st) {
       let v = el.type === 'checkbox' ? el.checked : el.value;
       if (el.dataset.st === 'free.ch') { const r = C.encodeFreq(v); v = r.ok ? r.display : String(v).trim(); }
-      if (el.dataset.st === 'free.kurz') v = String(v).toUpperCase();
+      if (el.dataset.st === 'free.kurz') v = kname(v);
       if (el.dataset.st === 'area.marginKm') v = Math.max(0, Number(v) || 0);
       set(cfg.settings, el.dataset.st, v);
     } else if (el.dataset.b) {
@@ -1062,13 +1063,15 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);
   });
+  /** Kurzname wie gespeichert: nur Zeichen, die das Gerät nimmt (Kleinbuchstaben je Einstellung), ohne Leerzeichen am Ende. */
+  function kname(v) { return C.cleanNameInput(v, cfg.settings.allowDigits, cfg.settings.allowLower !== false).replace(/\s+$/, ''); }
   // Kurznamen: nur Zeichen, die das Gerät speichert (Versalien A–Z, Leerzeichen; mit Einstellung 0–9 und Bindestrich), höchstens 8
   document.addEventListener('input', ev => {
     const el = ev.target;
     if (!el.hasAttribute || !el.hasAttribute('data-kname')) return;
-    const dig = cfg.settings.allowDigits, v = C.cleanNameInput(el.value, dig);
+    const dig = cfg.settings.allowDigits, low = cfg.settings.allowLower !== false, v = C.cleanNameInput(el.value, dig, low);
     if (v === el.value) return;
-    const pos = C.cleanNameInput(el.value.slice(0, el.selectionStart || 0), dig).length;
+    const pos = C.cleanNameInput(el.value.slice(0, el.selectionStart || 0), dig, low).length;
     el.value = v; try { el.setSelectionRange(pos, pos); } catch (e) { /* nicht jedes Feld kennt eine Auswahl */ }
   }, true);
   document.addEventListener('input', ev => {

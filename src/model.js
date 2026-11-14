@@ -41,7 +41,7 @@
       schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
-      settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
+      settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
@@ -259,7 +259,7 @@
   function deviceSlots(cfg, lay) {
     const L = lay || layout(cfg);
     return L.slots.map(s => {
-      const n = C.normalizeName(s.kurz, cfg.settings.allowDigits);
+      const n = C.normalizeName(s.kurz, cfg.settings.allowDigits, cfg.settings.allowLower !== false);
       const blk = s.block ? blockById(cfg, s.block) : null;
       return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, block: blk ? blk.name : '', ok: n.ok && C.encodeFreq(s.ch).ok };
     });
@@ -313,7 +313,7 @@
       const f = C.encodeFreq(e.ch);
       if (!f.ok) add(e.id, 'r', 'freq', e.ch);
       const k = entryShort(e);
-      const n = C.normalizeName(k, cfg.settings.allowDigits);
+      const n = C.normalizeName(k, cfg.settings.allowDigits, cfg.settings.allowLower !== false);
       if (!k.trim()) add(e.id, 'r', 'nameLeer');
       else if (!n.ok) add(e.id, 'r', n.tooLong ? 'nameLang' : 'nameZeichen', n.bad || k);
       if (e.vertrauen === 'r') add(e.id, e.bestaetigt ? 'y' : 'r', 'widerspruch', e.note);
@@ -326,7 +326,7 @@
     for (const [key, p] of fxAll) {
       if (!p.on) continue;
       if (!C.encodeFreq(p.ch).ok) fixedIssues.push({ key, lvl: 'r', code: 'freq', arg: p.ch });
-      const n = C.normalizeName(p.kurz, cfg.settings.allowDigits);
+      const n = C.normalizeName(p.kurz, cfg.settings.allowDigits, cfg.settings.allowLower !== false);
       if (!n.ok) fixedIssues.push({ key, lvl: 'r', code: n.tooLong ? 'nameLang' : 'nameZeichen', arg: n.bad || p.kurz });
     }
     if (!C.encodeFreq(cfg.settings.free.ch).ok) fixedIssues.push({ key: 'free', lvl: 'r', code: 'freq', arg: cfg.settings.free.ch });

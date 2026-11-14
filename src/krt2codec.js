@@ -23,28 +23,33 @@
     return { ok: true, mhz, ch, display, spacing: ch % 5 === 0 ? '25 kHz' : '8.33 kHz' };
   }
 
-  const UML = { 'Ä': 'AE', 'Ö': 'OE', 'Ü': 'UE', 'ä': 'AE', 'ö': 'OE', 'ü': 'UE', 'ß': 'SS', 'É': 'E', 'È': 'E', 'Ê': 'E', 'é': 'E', 'è': 'E', 'ê': 'E', 'À': 'A', 'à': 'A', 'Â': 'A', 'â': 'A', 'Ç': 'C', 'ç': 'C', 'Ô': 'O', 'ô': 'O', 'Î': 'I', 'î': 'I', 'Û': 'U', 'û': 'U' };
+  const UML = { 'Ä': 'AE', 'Ö': 'OE', 'Ü': 'UE', 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'É': 'E', 'È': 'E', 'Ê': 'E', 'é': 'e', 'è': 'e', 'ê': 'e', 'À': 'A', 'à': 'a', 'Â': 'A', 'â': 'a', 'Ç': 'C', 'ç': 'c', 'Ô': 'O', 'ô': 'o', 'Î': 'I', 'î': 'i', 'Û': 'U', 'û': 'u' };
+  const UML_RE = /[ÄÖÜäöüßÉÈÊéèêÀàÂâÇçÔôÎîÛû]/g;
 
-  // Kurzname → genau 8 Zeichen (A–Z, 0–9, Bindestrich, Leerzeichen), rechts mit Leerzeichen aufgefüllt.
+  // Kurzname → genau 8 Zeichen (A–Z, a–z, 0–9, Bindestrich, Leerzeichen), rechts mit Leerzeichen aufgefüllt.
   // Ziffern und Bindestrich: im Speicher des Geräts beobachtet («MIN-8», Protokoll 13.11.2026), am Gerät selbst nicht eingebbar.
-  // allowDigits=false lässt nur A–Z und Leerzeichen zu (am Gerät eingebbarer Zeichensatz, Handbuch 2.2.2.3).
-  function normalizeName(input, allowDigits = true) {
-    let s = String(input == null ? '' : input).replace(/[ÄÖÜäöüßÉÈÊéèêÀàÂâÇçÔôÎîÛû]/g, c => UML[c]).toUpperCase();
+  // Kleinbuchstaben: Test 14.11.2026, Schritt 5b – das Gerät nimmt «Test ab» an und zeigt es so an.
+  // allowDigits=false lässt nur Buchstaben und Leerzeichen zu (am Gerät eingebbarer Zeichensatz, Handbuch 2.2.2.3);
+  // allowLower=false wandelt Kleinbuchstaben in Versalien.
+  function normalizeName(input, allowDigits = true, allowLower = true) {
+    let s = String(input == null ? '' : input).replace(UML_RE, c => UML[c]);
+    if (!allowLower) s = s.toUpperCase();
     const bad = [];
     let out = '';
     for (const c of s) {
-      const okc = (c >= 'A' && c <= 'Z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'));
+      const okc = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'));
       if (okc) out += c; else bad.push(c);
     }
     const tooLong = out.length > NAME_LEN;
     out = out.slice(0, NAME_LEN);
     return { ok: bad.length === 0 && !tooLong, name: out.padEnd(NAME_LEN, ' '), trimmed: out.trimEnd(), bad, tooLong };
   }
-  /** Während der Eingabe: nur, was das Gerät speichert – Versalien, Umlaute als AE/OE/UE, höchstens 8 Zeichen; Leerzeichen am Ende bleiben (man tippt weiter). */
-  function cleanNameInput(input, allowDigits = true) {
-    const s = String(input == null ? '' : input).replace(/[ÄÖÜäöüßÉÈÊéèêÀàÂâÇçÔôÎîÛû]/g, c => UML[c]).toUpperCase();
+  /** Während der Eingabe: nur, was das Gerät speichert – Buchstaben (Kleinbuchstaben nur mit allowLower), Umlaute als ae/oe/ue, höchstens 8 Zeichen; Leerzeichen am Ende bleiben (man tippt weiter). */
+  function cleanNameInput(input, allowDigits = true, allowLower = true) {
+    let s = String(input == null ? '' : input).replace(UML_RE, c => UML[c]);
+    if (!allowLower) s = s.toUpperCase();
     let out = '';
-    for (const c of s) if ((c >= 'A' && c <= 'Z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'))) out += c;
+    for (const c of s) if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'))) out += c;
     return out.slice(0, NAME_LEN);
   }
 

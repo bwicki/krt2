@@ -35,7 +35,12 @@ t('ungültige Werte werden abgelehnt', () => {
   assert.throws(() => C.buildZ('121.020', 'X', 1));
 });
 t('Kurznamen', () => {
-  assert.strictEqual(C.normalizeName('Zürich').name, 'ZUERICH ');
+  assert.strictEqual(C.normalizeName('Zürich').name, 'Zuerich ');
+  assert.strictEqual(C.normalizeName('Zürich', true, false).name, 'ZUERICH ');
+  assert.strictEqual(C.normalizeName('Test ab').ok, true);
+  assert.strictEqual(C.cleanNameInput('zürich t', true, false), 'ZUERICH ');
+  assert.strictEqual(C.cleanNameInput('Bern t'), 'Bern t');
+  assert.deepStrictEqual(C.buildZ('121.500', 'Test ab', 97), [0x02, 0x5A, 0x79, 0x64, 0x54, 0x65, 0x73, 0x74, 0x20, 0x61, 0x62, 0x20, 0x61, 0x1D]);
   assert.strictEqual(C.normalizeName('EMERGENCY').ok, false);
   assert.strictEqual(C.normalizeName('EMERGENCY').trimmed, 'EMERGENC');
   assert.strictEqual(C.normalizeName('LSZH/TWR').ok, false);

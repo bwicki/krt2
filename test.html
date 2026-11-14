@@ -6,7 +6,7 @@
 <title>KRT2 – Machbarkeitstest</title>
 <meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./css/test.css?v=0.3.2">
+<link rel="stylesheet" href="./css/test.css?v=0.3.3">
 <script src="https://portal.wicki.aero/hit.js" data-app="krt2" defer></script>
 </head>
 <body>
@@ -175,11 +175,14 @@
   <h2><span class="num">5c</span> Schreiben während Empfang und Senden (Platz 98) <span class="badge" id="b5c"></span></h2>
   <p>Prüft, ob das Gerät Speicherbefehle annimmt, während es empfängt oder sendet, und ob Empfang oder Aussendung dabei gestört werden – Voraussetzung für das Umprogrammieren in der Luft. Eine Serie schreibt 10-mal im Abstand von 1.5 s abwechselnd <span class="mono">«RXTX A»</span> und <span class="mono">«RXTX B»</span> auf Platz 98 (ohne Wiederholung) und hält zu jedem Befehl Quittung, Antwortzeit und Funkzustand fest (Meldungen J = Empfang, K = Senden, Y/V = Ende).</p>
   <ol class="small">
-    <li><b>Empfang:</b> aktive Frequenz auf eine Station mit Dauerempfang stellen (ATIS oder VOLMET in Reichweite), Lautstärke hörbar. «Serie bei Empfang» starten und zuhören: Knacken, Aussetzer?</li>
-    <li><b>Senden:</b> nur mit angeschlossener Antenne oder Kunstlast, auf einer Frequenz ohne Verkehr, nie auf einer Flugsicherungsfrequenz. «Serie beim Senden» starten und während der Serie 2- bis 3-mal je 2–3 s die Sendetaste drücken. Ein Handfunkgerät in der Nähe zeigt, ob die Aussendung aussetzt.</li>
+    <li><b>Empfang:</b> aktive Frequenz auf eine Station mit Dauerempfang stellen (ATIS oder VOLMET in Reichweite), Lautstärke hörbar. <b>Ohne zu senden</b> «Serie bei Empfang» starten und zuhören: Knacken, Aussetzer?</li>
+    <li><b>Senden beobachten:</b> «Senden beobachten» starten (30 s, die App schreibt nichts) und 1- bis 2-mal je 2–3 s die Sendetaste drücken. Die Seite prüft, ob das Funkgerät danach weiter abfragt. Beim Test vom 14.11. ging der Adapter bei der ersten Aussendung verloren.</li>
+    <li><b>Senden mit Schreiben:</b> erst wenn die Verbindung das Senden aushält. «Serie beim Senden» starten und während der Serie 2- bis 3-mal je 2–3 s die Sendetaste drücken. Ein Handfunkgerät in der Nähe zeigt, ob die Aussendung aussetzt.</li>
   </ol>
+  <p class="small">Senden nur mit angeschlossener Antenne oder Kunstlast, auf einer Frequenz ohne Verkehr, nie auf einer Flugsicherungsfrequenz. Gegen Störungen durch die eigene Aussendung: Antenne mindestens 2 m von Laptop und Kabeln, Laptop ohne Netzteil (Akku), Klappferrit auf das USB- und das RS232-Kabel nahe am Adapter.</p>
   <div class="row">
     <button id="btnRxSer">Serie bei Empfang</button>
+    <button id="btnTxObs">Senden beobachten (30 s)</button>
     <button id="btnTxSer">Serie beim Senden</button>
     <button id="btnSerStop" class="sec" disabled>Serie abbrechen</button>
     <span id="ser" class="status"></span>
@@ -247,8 +250,8 @@
 </section>
 </main>
 
-<script src="./src/krt2decoder.js?v=0.3.2"></script>
-<script src="./src/krt2codec.js?v=0.3.2"></script>
-<script src="./src/test.js?v=0.3.2"></script>
+<script src="./src/krt2decoder.js?v=0.3.3"></script>
+<script src="./src/krt2codec.js?v=0.3.3"></script>
+<script src="./src/test.js?v=0.3.3"></script>
 </body>
 </html>

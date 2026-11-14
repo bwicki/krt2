@@ -73,7 +73,7 @@
       while (this.port && this.port.readable && this.reading) {
         this.reader = this.port.readable.getReader();
         try { for (;;) { const { value, done } = await this.reader.read(); if (done) break; if (value && value.length) this._bytes(value); } }
-        catch (e) { this._log({ text: 'Lesefehler: ' + e.message }, '·'); }
+        catch (e) { this._log({ text: 'Lesefehler: ' + e.message }, '·'); if (e.name === 'NetworkError' || /lost/i.test(e.message)) { this.reading = false; setTimeout(() => this.disconnect('Verbindung zum Adapter verloren (' + e.message + ') – neu verbinden'), 0); } }
         finally { try { this.reader.releaseLock(); } catch (e) { /* egal */ } this.reader = null; }
       }
     }
@@ -102,7 +102,12 @@
       if (!this.writer) return false;
       const ev = { t: now(), bytes: Array.from(bytes), text: why };
       try { await this.writer.write(new Uint8Array(bytes)); this._log(ev, '→'); return true; }
-      catch (e) { this._log(Object.assign(ev, { text: 'Fehler beim Senden: ' + e.message + ' (' + why + ')' }), '→'); return false; }
+      catch (e) {
+        this._log(Object.assign(ev, { text: 'Fehler beim Senden: ' + e.message + ' (' + why + ')' }), '→');
+        // Adapter weg (Test 14.11.: «The device has been lost» nach einer Aussendung): Anschluss schliessen, damit die Seite es zeigt
+        if (e.name === 'NetworkError' || /lost/i.test(e.message)) setTimeout(() => this.disconnect('Verbindung zum Adapter verloren (' + e.message + ') – neu verbinden'), 0);
+        return false;
+      }
     }
     /** Einen Befehl senden und auf ACK/NAK warten; Befehle laufen nacheinander. Ergebnis { kind, ms, tries }. */
     command(bytes, why, retries) {

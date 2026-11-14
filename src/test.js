@@ -1,11 +1,12 @@
 // krt2.wicki.aero – geführter Machbarkeitstest (Schritte 0–8). Schritt 3: Speicher von Hand auslesen.
 // 5b: Kleinbuchstaben im Namen, 5c: Schreiben während Empfang und Senden (test 0.3.2).
+// test 0.3.3: Verbindungsverlust erkennen, Funkstille-Wächter, «Senden beobachten» ohne Schreiben (Test 14.11.: Adapter beim Senden verloren).
 // Baut auf der Seite «KRT2 mitlesen» aus Projekt 024 auf. Befehle (W, Z, R) gehen nur hinaus, wenn
 // «Senden freigeben» und «Befehle freigeben» gesetzt sind. Nie gesendet: U (aktive Frequenz),
 // Lautstärke, Squelch, Kanalraster, Sendetasten.
 (function () {
   'use strict';
-  const VERSION = 'test 0.3.2';
+  const VERSION = 'test 0.3.3';
   const $ = id => document.getElementById(id);
   const K = window.KRT2, C = window.KRT2CODEC;
   const SIM = new URLSearchParams(location.search).has('sim');
@@ -27,8 +28,10 @@
     pings: 0, answered: 0, lastAnswerT: null, lastAnswerMs: null, statusSeen: false,
     active: null, standby: null, saved: null,
     s2: null, s3: null, s4: null, s5: null, s5b: null, s5c: { rx: null, tx: null }, s6: { r833: null, r25: null }, s7: null,
-    rf: ''                                  // Funkzustand laut Gerät: 'RX' (J), 'TX' (K), '' (Y/V)
+    rf: '',                                 // Funkzustand laut Gerät: 'RX' (J), 'TX' (K), '' (Y/V)
+    lastRxT: null, lastST: null, lastKT: null, silent: false   // letzte Meldung, letzte Abfrage «S», letztes «Sender ein»
   };
+  let obs = null;                           // Schritt 5c: «Senden beobachten» läuft
   let series = null;                        // Schritt 5c: laufende Serie
   let pending = null, stbyWait = null, busy = false, abortRead = false;
   let hm = new Array(100).fill(null);   // Schritt 3: Platz → { freq, name, dt, state, seen, prev }
@@ -85,7 +88,7 @@
       4: badge(4, st.s4 === 'ACK', st.s4 && st.s4 !== 'ACK'),
       5: badge(5, st.s5 === 'ACK', st.s5 && st.s5 !== 'ACK'),
       '5b': badge5b(),
-      '5c': badge('5c', serOk('rx') && serOk('tx'), serBad('rx') || serBad('tx')),
+      '5c': badge('5c', serOk('rx') && obsOk() && serOk('tx'), serBad('rx') || serBad('tx') || obsBad()),
       6: badge(6, st.s6.r833 === 'ACK' && st.s6.r25 === 'ACK', (st.s6.r833 && st.s6.r833 !== 'ACK') || (st.s6.r25 && st.s6.r25 !== 'ACK')),
       7: badge(7, st.s7 === 'ACK', st.s7 && st.s7 !== 'ACK')
     };
@@ -103,7 +106,9 @@
     return cls;
   }
   const serOk = k => { const x = st.s5c[k]; return !!x && x.done && x.ack === x.n && (k === 'rx' ? x.rx : x.tx) > 0; };
-  const serBad = k => { const x = st.s5c[k]; return !!x && x.done && x.ack < x.n; };
+  const serBad = k => { const x = st.s5c[k]; return !!x && x.ack < x.n && (x.done || x.lost); };
+  const obsOk = () => { const o = st.s5c.obs; return !!o && o.done && !o.lost && o.k > 0 && o.maxGap < 15000; };
+  const obsBad = () => { const o = st.s5c.obs; return !!o && (o.lost || (o.done && o.k > 0 && o.maxGap >= 15000)); };
   const WORD = { ok: 'bestanden', bad: 'NICHT bestanden', open: 'offen' };
   function summaryText(r) {
     const lines = [];
@@ -132,8 +137,33 @@
     if (!isCommand && bytes.includes(K.STX)) { ev.text = 'VERWEIGERT (STX nur bei Befehlen): ' + why; record(ev, 'bad'); return false; }
     if (!writer) { ev.text = 'NICHT gesendet (kein Anschluss): ' + why; record(ev, 'bad'); return false; }
     try { await writer.write(new Uint8Array(bytes)); record(ev, 'out'); return true; }
-    catch (e) { ev.text = 'Fehler beim Senden: ' + e.message; record(ev, 'bad'); return false; }
+    catch (e) {
+      ev.text = 'Fehler beim Senden: ' + e.message; record(ev, 'bad');
+      if (e.name === 'NetworkError' || /lost/i.test(e.message)) setTimeout(() => portLost(e.message), 0);
+      return false;
+    }
   }
+  /** Adapter weg (Test 14.11.: «The device has been lost» kurz nach «Sender ein»): sagen, wann das Funkgerät zuletzt gemeldet hat, und den Anschluss schliessen. */
+  function lostWhy(msg) {
+    const afterK = st.lastKT != null && st.lastRxT != null && st.lastRxT - st.lastKT < 1500;
+    return 'Verbindung zum Adapter verloren (' + msg + '). Letzte Meldung des Funkgeräts um ' + (st.lastRxT != null ? clock(st.lastRxT) : '–') +
+      (afterK ? ' – direkt nach «Sender ein» (K): die Aussendung hat vermutlich den Adapter oder das Kabel gestört' : '') + '. Adapter neu verbinden (Schritt 0).';
+  }
+  function portLost(msg) {
+    if (!port || (port.sim && !port.dead)) return;
+    if (series) { series.stop = true; series.lost = true; }
+    if (obs) obs.lost = true;
+    closePort(lostWhy(msg), 'bad');
+  }
+  // Funkstille-Wächter: das Funkgerät fragt alle 10 s mit «S»; bleibt das 25 s aus, stimmt etwas mit der Verbindung nicht.
+  setInterval(() => {
+    if (!port || hand.on || st.silent || st.lastST == null || now() - st.lastST < 25000) return;
+    st.silent = true;
+    const afterK = st.lastKT != null && st.lastKT >= st.lastST - 100;
+    note('Seit ' + Math.round((now() - st.lastST) / 1000) + ' s keine Abfrage «S» vom Funkgerät – letzte Meldung um ' + clock(st.lastRxT) +
+      (afterK ? ', nach «Sender ein» (K) um ' + clock(st.lastKT) + '. Die Aussendung hat die Verbindung vermutlich unterbrochen.' : '. Verbindung prüfen.'), 'bad');
+    refresh();
+  }, 2000);
   function waitReply(ms) {
     return new Promise(resolve => {
       const tStart = now();
@@ -183,8 +213,12 @@
 
   // ---------- Empfang ----------
   function handleEvent(e) {
+    st.lastRxT = e.t;
     if (e.kind === 'ping') {
       st.pings++; record(e, 'ping');
+      if (obs) { obs.maxGap = Math.max(obs.maxGap, e.t - obs.lastS); obs.lastS = e.t; obs.s++; }
+      st.lastST = e.t;
+      if (st.silent) { st.silent = false; note('Funkgerät fragt wieder ab («S»).'); }
       if ($('optSend').checked) {
         const tq = now();
         sendRaw([0x78], 'Antwort «x» auf die Abfrage', false).then(ok => { if (ok) { st.answered++; st.lastAnswerT = now(); st.lastAnswerMs = Math.round(now() - tq + (tq - e.t)); refresh(); } });
@@ -197,9 +231,9 @@
       if (e.ok && e.freq && e.name === 'U') { st.active = { freq: e.freq.display, name: e.station.trim() }; st.statusSeen = true; hand.lastUT = e.t; }
       if (e.ok && e.freq && e.name === 'R') { st.standby = { freq: e.freq.display, name: e.station.trim() }; if (stbyWait) stbyWait.resolve(e); handR(e); }
       if (e.name === 'C') { const a = st.active; st.active = st.standby; st.standby = a; }
-      if (e.name === 'K') { st.rf = 'TX'; if (series) series.cur.add('TX'); $('sbTx').textContent = 'SENDET'; if (busy && !series) note('ACHTUNG: Funkgerät sendet während eines Tests', 'bad'); }
+      if (e.name === 'K') { st.rf = 'TX'; st.lastKT = e.t; if (obs) obs.k++; if (series) series.cur.add('TX'); $('sbTx').textContent = 'SENDET'; if (busy && !series) note('ACHTUNG: Funkgerät sendet während eines Tests', 'bad'); }
       if (e.name === 'J') { if (st.rf !== 'TX') st.rf = 'RX'; if (series) series.cur.add('RX'); $('sbTx').textContent = st.rf === 'TX' ? 'SENDET' : 'Empfang'; }
-      if (e.name === 'Y') { st.rf = ''; $('sbTx').textContent = ''; }
+      if (e.name === 'Y') { st.rf = ''; if (obs) obs.y++; $('sbTx').textContent = ''; }
       if (e.name === 'V' && st.rf === 'RX') { st.rf = ''; $('sbTx').textContent = ''; }
       if ('URZCA1234'.includes(e.name) && e.ok && $('optSend').checked) sendRaw([K.ACK], 'ACK auf Meldung ' + e.name, false);
       refresh(); return;
@@ -213,7 +247,7 @@
     while (port && port.readable && reading) {
       reader = port.readable.getReader();
       try { for (;;) { const { value, done } = await reader.read(); if (done) break; if (value && value.length) handleBytes(value); } }
-      catch (e) { note('Lesefehler: ' + e.message, 'bad'); }
+      catch (e) { note('Lesefehler: ' + e.message, 'bad'); if (e.name === 'NetworkError' || /lost/i.test(e.message)) { reading = false; setTimeout(() => portLost(e.message), 0); } }
       finally { reader.releaseLock(); reader = null; }
     }
   }
@@ -228,7 +262,9 @@
     const freqs = ['121.500', '124.700', '126.350', '123.550', '120.350', '134.975', '125.325', '118.100', '118.300', '127.325', '125.800', '125.725', '135.900', '136.025', '127.000', '118.005'];
     const mem = Array.from({ length: 100 }, (_, i) => i < 16 ? [freqs[i], names[i]] : (i === 99 ? ['121.500', 'EMERGENC'] : ['118.000', 'FREE']));
     let idx = 98, sel = 98, inMem = false, memTimer = null, sb = ['136.975', ''], buf = [], linked = false;
-    const reply = (bytes, delay = 15) => setTimeout(() => handleBytes(Uint8Array.from(bytes)), delay);
+    const lossOnTx = new URLSearchParams(location.search).get('tx') === 'verlust';   // ?sim=1&tx=verlust: Adapter geht beim Senden verloren
+    let dead = false;
+    const reply = (bytes, delay = 15) => setTimeout(() => { if (dead) return; handleBytes(Uint8Array.from(bytes)); if (lossOnTx && bytes[1] === 0x4B) { dead = true; port.dead = true; } }, delay);
     const sendR = (v, delay = 30) => reply(C.buildR(v[0], v[1]), delay);
     const timer = setInterval(() => { if (!inMem) reply([0x53], 0); }, 3000);
     const disp = () => { const d = $('simDisp'); if (d) d.textContent = inMem ? 'Anzeige: SEL[' + two(sel) + '] ' + mem[sel][0] + ' ' + (mem[sel][1] || '') : 'Anzeige: Normalbetrieb · Standby ' + sb[0] + ' ' + sb[1]; };
@@ -239,6 +275,7 @@
       close() { clearInterval(timer); clearTimeout(memTimer); },
       // Schritt 5c: Empfang (J … Y) bzw. zweimal Senden (K … Y) während einer Serie nachbilden
       rfDemo(kind) {
+        if (kind === 'obs') { reply([K.STX, 0x4B], 3000); reply([K.STX, 0x59], 6000); reply([K.STX, 0x4B], 14000); reply([K.STX, 0x59], 17000); return; }
         if (kind === 'rx') { reply([K.STX, 0x4A], 500); reply([K.STX, 0x59], 9000); }
         else { reply([K.STX, 0x4B], 2500); reply([K.STX, 0x59], 5200); reply([K.STX, 0x4B], 9000); reply([K.STX, 0x59], 11800); }
       },
@@ -248,6 +285,7 @@
         sel = (sel + 1) % 100; if (per) sendR(mem[sel]); arm(); disp();
       },
       write(u8) {
+        if (dead) return Promise.reject(new DOMException('The device has been lost.', 'NetworkError'));
         for (const b of u8) {
           if (!buf.length) {
             if (b === 0x78) { if (!linked) { linked = true; reply(C.buildU('122.255', 'BALLOON'), 20); sendR(sb, 40); } continue; }
@@ -284,7 +322,7 @@
       readPromise = readLoop(); refresh();
     } catch (e) { port = null; note('Anschluss nicht geöffnet: ' + e.message, 'bad'); }
   };
-  async function closePort(why) {
+  async function closePort(why, cls) {
     if (port && port.sim) { writer.close(); writer = null; port = null; }
     else {
       reading = false;
@@ -296,10 +334,11 @@
       port = null; readPromise = null;
     }
     $('btnConnect').disabled = false; $('btnDisconnect').disabled = true;
-    note(why); refresh();
+    st.lastST = null; st.silent = false; st.rf = ''; $('sbTx').textContent = '';
+    note(why, cls); refresh();
   }
   $('btnDisconnect').onclick = () => closePort('Anschluss geschlossen');
-  if (navigator.serial) navigator.serial.addEventListener('disconnect', () => { if (port && !port.sim) closePort('Adapter abgezogen'); });
+  if (navigator.serial) navigator.serial.addEventListener('disconnect', () => { if (port && !port.sim) portLost('Adapter vom Rechner getrennt'); });
   $('optSend').onchange = () => { note('Senden ' + ($('optSend').checked ? 'freigegeben' : 'gesperrt')); refresh(); };
   $('optCmd').onchange = () => { note('Befehle an das Funkgerät ' + ($('optCmd').checked ? 'freigegeben' : 'gesperrt')); refresh(); };
   $('btnQuery').onclick = () => sendRaw([0x53], 'eigene Verbindungsabfrage «S» (Diagnose; stellt keine Verbindung her)', false);
@@ -630,24 +669,35 @@
     const ms = x.ms.length ? ' (' + Math.round(Math.min(...x.ms)) + '–' + Math.round(Math.max(...x.ms)) + ' ms)' : '';
     const during = k === 'rx' ? x.rx + ' während Empfang' : x.tx + ' während Senden';
     return (k === 'rx' ? 'Empfang' : 'Senden') + ': ' + x.n + ' Befehle, ' + x.ack + ' ACK' + ms + (x.nak ? ', ' + x.nak + ' NAK' : '') + (x.none ? ', ' + x.none + ' ohne Antwort' : '') +
-      ', ' + during + ' (laut Meldungen des Geräts)' + (x.done ? '' : ' – abgebrochen');
+      ', ' + during + ' (laut Meldungen des Geräts)' + (x.lost ? ' – Verbindung verloren' : x.done ? '' : ' – abgebrochen');
   }
-  const serText = () => ['rx', 'tx'].map(serLine).filter(Boolean).join(' · ') || '–';
+  function obsLine() {
+    const o = st.s5c.obs; if (!o) return null;
+    const gap = (o.maxGap / 1000).toFixed(1);
+    const head = 'Senden beobachtet: ' + o.k + '× Sender ein, ' + o.y + '× Ende; ' + o.s + ' Abfragen «S», grösste Lücke ' + gap + ' s';
+    if (o.lost) return head + ' – Verbindung zum Adapter verloren' + (o.lostAfterK ? ' beim Senden' : '');
+    if (!o.done) return head + ' – abgebrochen';
+    if (!o.k) return head + ' – keine Aussendung gemeldet (Sendetaste gedrückt?)';
+    return head + (o.maxGap < 15000 ? ' – Verbindung hielt' : ' – Abfragen setzten aus');
+  }
+  const serText = () => [serLine('rx'), obsLine(), serLine('tx')].filter(Boolean).join(' · ') || '–';
   function showSeries() {
-    const lines = ['rx', 'tx'].map(serLine).filter(Boolean);
+    const lines = [serLine('rx'), obsLine(), serLine('tx')].filter(Boolean);
     const warn = [];
     for (const k of ['rx', 'tx']) {
       const x = st.s5c[k];
       if (x && x.done && !(k === 'rx' ? x.rx : x.tx)) warn.push(k === 'rx' ? 'Kein Befehl fiel in einen Empfang – Station mit Dauerempfang wählen und wiederholen.' : 'Kein Befehl fiel in eine Aussendung – während der Serie die Sendetaste drücken und wiederholen.');
     }
-    const any = st.s5c.rx || st.s5c.tx;
-    setAuto('a5c', any ? lines.concat(warn).join('\n') : 'Noch keine Serie.', serBad('rx') || serBad('tx') ? 'bad' : (serOk('rx') && serOk('tx') ? 'ok' : (warn.length ? 'warn' : '')));
+    const any = st.s5c.rx || st.s5c.tx || st.s5c.obs;
+    setAuto('a5c', any ? lines.concat(warn).join('\n') : 'Noch keine Serie.', serBad('rx') || serBad('tx') || obsBad() ? 'bad' : (serOk('rx') && obsOk() && serOk('tx') ? 'ok' : (warn.length ? 'warn' : '')));
   }
   async function runSeries(k) {
     if (!guard('ser')) return;
+    if (st.lastST != null && now() - st.lastST > 15000) { setStatus('ser', 'Nicht gestartet: das Funkgerät fragt seit ' + Math.round((now() - st.lastST) / 1000) + ' s nicht mehr ab – Verbindung prüfen (Schritt 0).', 'warn'); return; }
+    if (k === 'rx' && st.rf === 'TX') { setStatus('ser', 'Nicht gestartet: das Gerät meldet noch «Sender ein» ohne Ende. Sendetaste losgelassen? Sonst Verbindung prüfen.', 'warn'); return; }
     busy = true; series = { k, stop: false, cur: new Set() };
     const x = st.s5c[k] = { n: 0, ack: 0, nak: 0, none: 0, rx: 0, tx: 0, ms: [], done: false };
-    $('btnRxSer').disabled = $('btnTxSer').disabled = true; $('btnSerStop').disabled = false;
+    $('btnRxSer').disabled = $('btnTxSer').disabled = $('btnTxObs').disabled = true; $('btnSerStop').disabled = false;
     note('Schritt 5c: Serie ' + (k === 'rx' ? 'bei Empfang' : 'beim Senden') + ' gestartet');
     if (port.sim && writer.rfDemo) writer.rfDemo(k);
     for (let i = 0; i < SER_N && !series.stop; i++) {
@@ -663,12 +713,28 @@
       if (r.kind === 'nicht gesendet') break;
       if (i < SER_N - 1) await sleep(SER_GAP);
     }
-    x.done = !series.stop && x.n === SER_N;
+    x.done = !series.stop && x.n === SER_N; x.lost = !!series.lost;
     series = null; busy = false;
-    $('btnRxSer').disabled = $('btnTxSer').disabled = false; $('btnSerStop').disabled = true;
+    $('btnRxSer').disabled = $('btnTxSer').disabled = $('btnTxObs').disabled = false; $('btnSerStop').disabled = true;
     setStatus('ser', 'Serie ' + (k === 'rx' ? 'bei Empfang' : 'beim Senden') + (x.done ? ' fertig' : ' abgebrochen'), x.ack === x.n && x.done ? 'ok' : 'warn');
     note('Schritt 5c: ' + serLine(k), x.ack === x.n ? 'note' : 'bad'); showSeries(); refresh();
   }
+  // «Senden beobachten»: 30 s ohne Schreiben – hält die Verbindung eine Aussendung aus?
+  async function observeTx() {
+    if (busy) { setStatus('ser', 'Bitte warten, ein Vorgang läuft noch.', 'warn'); return; }
+    if (!port) { setStatus('ser', 'Zuerst den Adapter verbinden (Schritt 0).', 'warn'); return; }
+    busy = true; const t0 = now();
+    obs = st.s5c.obs = { k: 0, y: 0, s: 0, lastS: st.lastST != null ? st.lastST : t0, maxGap: 0, lost: false, done: false };
+    $('btnRxSer').disabled = $('btnTxSer').disabled = $('btnTxObs').disabled = true;
+    note('Schritt 5c: Senden beobachten (30 s) – jetzt 1- bis 2-mal je 2–3 s die Sendetaste drücken');
+    if (port.sim && writer.rfDemo) writer.rfDemo('obs');
+    for (let i = 30; i > 0 && !obs.lost; i--) { setStatus('ser', 'Senden beobachten: noch ' + i + ' s – Sendetaste 1- bis 2-mal je 2–3 s drücken'); await sleep(1000); }
+    const o = obs; obs = null;
+    o.maxGap = Math.max(o.maxGap, now() - o.lastS); o.done = !o.lost; o.lostAfterK = o.lost && st.lastKT != null && st.lastKT >= t0;
+    busy = false; $('btnRxSer').disabled = $('btnTxSer').disabled = $('btnTxObs').disabled = false;
+    setStatus('ser', obsLine(), obsOk() ? 'ok' : 'warn'); note('Schritt 5c: ' + obsLine(), obsBad() ? 'bad' : 'note'); showSeries(); refresh();
+  }
+  $('btnTxObs').onclick = observeTx;
   $('btnRxSer').onclick = () => runSeries('rx');
   $('btnTxSer').onclick = () => runSeries('tx');
   $('btnSerStop').onclick = () => { if (series) series.stop = true; };

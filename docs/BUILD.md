@@ -221,6 +221,23 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
 - *Bluetooth:* Chrome auf Android spricht seit Version 137 serielle Bluetooth-Classic-Geräte (SPP/RFCOMM) über Web Serial an –
   dieselbe Schnittstelle wie am Laptop; Web Bluetooth kann nur BLE. Kandidat: diymore RS232-Bluetooth-Adapter (HC-05, MAX3232, DB9).
 
+**Gerätetest 14.11.2026, 20:11–20:17 (test 0.3.2), Ergebnisse:**
+- Schritt 4/5: Z auf Platz 98 und 97 je ACK nach 32 ms, Ziffern werden angezeigt.
+- Schritt 5b: «Test ab» mit Kleinbuchstaben → ACK nach 33 ms, das Gerät zeigt die Kleinbuchstaben an.
+- Schritt 5c nicht auswertbar: 20:16:02.8 meldet das Gerät V, F, K (Sender ein); danach kommt keine einzige Meldung mehr
+  (die Abfrage «S» um 20:16:10 fehlt, kein Y). Der erste Schreibbefehl der Serie um 20:16:13 bleibt ohne Antwort, der zweite
+  scheitert mit «The device has been lost». Der USB-RS232-Adapter ist beim Senden ausgefallen; vermutlich HF-Einstrahlung in
+  Adapter oder Kabel. Die folgenden Serien liefen auf den verlorenen Anschluss.
+
+**0.4.6 und test 0.3.3:**
+- *Kleinbuchstaben im Kurznamen:* Codec behält a–z (Umlaute ä → ae), Einstellung «Kleinbuchstaben erlauben»
+  (`settings.allowLower`, Vorgabe an); aus = Eingabe und Gerät in Versalien (`deviceSlots`). Automatische Namen bleiben in Versalien.
+- *Verbindungsverlust:* Lese- oder Schreibfehler «device has been lost» und das Ereignis `disconnect` schliessen den Anschluss
+  mit Ursache und Zeit der letzten Meldung (App und Testseite).
+- *test 0.3.3:* Funkstille-Wächter (25 s ohne «S» → Meldung, mit Hinweis auf ein vorausgehendes K); «Senden beobachten» (30 s
+  ohne Schreiben: K/Y, Abfragen «S», grösste Lücke, Verlust); Serien starten nicht bei Funkstille und die Empfangsserie nicht,
+  solange das Gerät «Sender ein» ohne Ende meldet; Simulation `?sim=1&tx=verlust`.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
