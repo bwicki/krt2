@@ -51,7 +51,11 @@ if (existsSync(file)) {
   const klar = r.entries.map(e => e.klar);
   ok(klar.includes('Zuerich ATIS DEP') && klar.includes('Zuerich ATIS ARR'), 'ATIS ARR/DEP unterscheidbar');
   eq(r.entries.filter(e => e.ch === '124.700').length, 1, 'FIS 124.700 nur einmal'); eq(M.entryShort(Object.assign({}, by('124.700'), { kurzModus: 'kurz' })), 'ZURICH F');
-  ok(!r.entries.some(e => e.ort.icao === 'LSHZ'), 'Heliport ausgelassen'); ok(r.entries.every(e => /^[A-Z]{2}$/.test(e.ort.cc)), 'Land je Station'); eq(twr.ort.cc, 'CH'); ok(by('133.900').ort.qual === 'E');
+  ok(!r.entries.some(e => e.ort.icao === 'LSHZ'), 'Heliport ausgelassen'); ok(r.entries.every(e => /^[A-Z]{2}$/.test(e.ort.cc)), 'Land je Station'); eq(twr.ort.cc, 'CH');
+  // nur eindeutige 8.33-Kanalnamen (14.11.2026): 133.900 «Radar East» steht nur bei OurAirports und auf dem 25-kHz-Raster → weg
+  ok(!by('133.900'), 'mehrdeutiger OurAirports-Wert nicht vorgeschlagen'); ok(r.stats.unconfirmed > 0, 'weggelassene gezählt');
+  ok(r.entries.every(e => e.quellen.includes('openAIP') || !M.ambiguous833(e.ch, e.note)), 'jede Frequenz openAIP oder eindeutiger 8.33-Kanal');
+  ok(M.ambiguous833('125.250') && !M.ambiguous833('125.255') && M.ambiguous833('133.690', 'nur zwei Nachkommastellen – evtl. gerundet'), 'Regel mehrdeutig');
   M.SERVICES.forEach(() => 0);
   A.applyProposal(cfg, r.entries);
   const L = M.layout(cfg);

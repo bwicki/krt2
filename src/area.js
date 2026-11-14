@@ -169,7 +169,12 @@
     const byPlace = new Map();
     for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name, cc: String(d.cc || '').toUpperCase() }); }
     const out = [], byCh = new Map();
-    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, outsideBand: 0, svcOff: 0 };
+    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, unconfirmed: 0, outsideBand: 0, svcOff: 0 };
+    // Nur eindeutige 8.33-Kanalnamen vorschlagen (Rückmeldung 14.11.2026). openAIP führt Kanalnamen (125.255).
+    // OurAirports allein nur, wenn der Wert eindeutig ein 8.33-Kanalname ist: dort steht oft die Trägerfrequenz
+    // (125.250 statt 125.255) oder ein Wert mit nur zwei Nachkommastellen – beides bleibt weg.
+    const chOk = f => !!f.ch && M.freqKey(f.ch) !== null;
+    const ok833 = f => chOk(f) && Array.isArray(f.src) && (f.src.includes('oaip') || !M.ambiguous833(f.ch, f.note));
     const off = new Set(opt.svcOff || []);
     const layers = { airports: [], airspaces: [] };
     const srcName = s => (s === 'oa' ? 'OurAirports' : 'openAIP');
@@ -180,13 +185,14 @@
       if (a.lon < bb[0] || a.lon > bb[2] || a.lat < bb[1] || a.lat > bb[3]) continue;
       const [x, y] = P.to(a.lat, a.lon);
       const dd = S.dist(x, y);
-      const valid = a.f.filter(f => f.ch);
+      const valid = a.f.filter(ok833);
       if (!a.f.length) continue;
       const inArea = dd <= margin;
       layers.airports.push({ lat: a.lat, lon: a.lon, name: title(a.name), icao: a.icao, in: inArea && valid.length > 0 });
       if (!inArea) continue;
       seenAd.add(a.icao || a.id);
-      stats.airports++; stats.invalid += a.f.length - valid.length;
+      stats.airports++;
+      for (const f of a.f) if (!chOk(f)) stats.invalid++; else if (!ok833(f)) stats.unconfirmed++;
       const adName = title(cleanName(a.name)), adKey = normPlace(cleanName(a.name).split(/[\s\-/]/)[0]);
       for (const f of valid) {
         let dienst = mapSvc(f.s, services);
@@ -201,8 +207,7 @@
           : { icao: a.icao || '', iata: a.iata || '', code: a.iata || M.locCode(cleanName(a.name)), qual: call.qual, name: adName, cc: CC };
         const key = REGIONAL.has(dienst) ? 'R|' + f.ch + '|' + dienst : 'L|' + f.ch + '|' + (a.icao || a.id);
         const notes = [];
-        if (f.alt && f.alt.ch && f.alt.ch !== f.ch) notes.push('OurAirports: ' + f.alt.ch + ' (25-kHz-Angabe derselben Frequenz)');
-        if (f.note) notes.push(f.note);
+        if (f.note && !/Nachkommastellen/.test(f.note)) notes.push(f.note);
         if (byCh.has(key)) { const e0 = byCh.get(key); for (const q of f.src.map(srcName)) if (!e0.quellen.includes(q)) e0.quellen.push(q); if (e0.quellen.length > 1) e0.vertrauen = 'g'; continue; }
         const rest = extraText(call, dienst);
         const e = { ch: f.ch, dienst, klar: ort.name + ' ' + svcLabel(dienst, !foreign) + rest, ort, quellen: f.src.map(srcName), vertrauen: f.src.length > 1 ? 'g' : 'y', note: notes.join(' · '),
@@ -218,7 +223,8 @@
       if (!rings.length || !intersects(S, rings)) continue;
       let used = false;
       for (const f of s.f) {
-        if (!f.ch) { stats.invalid++; continue; }
+        if (!chOk(f)) { stats.invalid++; continue; }
+        if (!ok833(f)) { stats.unconfirmed++; continue; }
         const dienst = mapSvc(f.s, services);
         if (off.has(dienst)) { stats.svcOff++; continue; }
         const radar = RADAR_SVC.has(dienst) && opt.radarNoLimit;

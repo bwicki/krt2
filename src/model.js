@@ -296,6 +296,14 @@
       .sort((a, b) => ord(a[0]) - ord(b[0]))
       .map(list => ({ chs: [...new Set(list.map(x => C.encodeFreq(x.ch).display))], list }));
   }
+  /**
+   * Kanalname aus einer Quelle ohne 8.33-Kanalnamen (OurAirports) mehrdeutig? Auf dem 25-kHz-Raster (…00/25/50/75) kann der
+   * Wert die Trägerfrequenz des 8.33-Kanals +5 sein (125.250 ↔ 125.255); zwei Nachkommastellen können gerundet sein.
+   */
+  function ambiguous833(ch, note) {
+    const f = C.encodeFreq(ch); if (!f.ok) return true;
+    return f.ch % 5 === 0 || /Nachkommastellen/.test(note || '');
+  }
   /** Vorschlag zum Bereinigen: je Gruppe den ersten behalten (fester Platz zuerst, sonst der kleinste Platz); Ids der übrigen. */
   function dupSuggest(groups) {
     const ids = [];
@@ -317,7 +325,9 @@
       if (!k.trim()) add(e.id, 'r', 'nameLeer');
       else if (!n.ok) add(e.id, 'r', n.tooLong ? 'nameLang' : 'nameZeichen', n.bad || k);
       if (e.vertrauen === 'r') add(e.id, e.bestaetigt ? 'y' : 'r', 'widerspruch', e.note);
-      if (e.vertrauen === 'y') add(e.id, 'y', 'eineQuelle');
+      const only = Array.isArray(e.quellen) && e.quellen.length && !e.quellen.includes('openAIP') && ambiguous833(e.ch, e.note);   // vor 0.5.2 vorgeschlagen
+      if (only) add(e.id, 'y', 'nicht833');
+      else if (e.vertrauen === 'y') add(e.id, 'y', 'eineQuelle');
       const fk = f.ok && freqKey(e.ch);
       if (fk && lay.slotOf[e.id] != null && (placedCh[fk] || []).length > 1) add(e.id, 'y', 'doppelt', placedCh[fk].map(x => String(x).padStart(2, '0')).join(', '));
     }
@@ -389,6 +399,6 @@
     SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm
+    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm
   };
 });

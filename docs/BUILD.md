@@ -264,6 +264,17 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
 **0.5.1:** Editor – beim Ziehen eines Eintrags rollt die Liste am oberen und unteren Fensterrand mit (90 px Randzone,
 je näher am Rand, desto schneller), damit Einträge über die sichtbare Strecke hinaus verschoben werden können.
 
+**0.5.2 – nur eindeutige 8.33-Kanalnamen vorschlagen (Rückmeldung 14.11.2026):**
+- Vorschläge nehmen eine Frequenz nur, wenn sie ein gültiger Kanalname im 8.33-Raster ist und eindeutig: von openAIP (führt
+  Kanalnamen, z. B. 125.255) oder von OurAirports nur dann, wenn der Wert nicht auf dem 25-kHz-Raster liegt und drei
+  Nachkommastellen hat (bzw. aus einer echten Frequenz umgerechnet ist). OurAirports-Werte auf dem 25-kHz-Raster können die
+  Trägerfrequenz des 8.33-Kanals +5 sein (125.250 ↔ 125.255), Werte mit zwei Nachkommastellen gerundet – beide bleiben weg
+  (`M.ambiguous833`, Zähler `stats.unconfirmed` in der Gebietsstatistik). Europaweit betrifft das rund 2400 von 12 300 Angaben;
+  im Kreis 25 km um Zürich 12, u. a. 133.900 «Radar East», 125.325, 135.225, 125.950, 134.600 (nur OurAirports).
+- Ältere Einträge aus solchen Werten zeigt die Prüfung gelb: «8.33-Kanal nicht gesichert (nur OurAirports …)».
+- Der Hinweis «OurAirports: … (25-kHz-Angabe derselben Frequenz)» entfällt.
+- 25-kHz-Kanalnamen von openAIP (z. B. 124.700 Zurich Information) bleiben: sie sind im 8.33-Raster gültige Kanäle.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

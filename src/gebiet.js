@@ -95,7 +95,7 @@ ${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small">
     if (!st.last) return '';
     const s = st.last;
     return `<div class="row" style="gap:6px;margin-top:4px"><span class="badge">${t('ge_cand', { n: s.cand })}</span><span class="badge g">${t('ge_taken', { n: s.taken })}</span><span class="badge y">${t('ge_left_n', { n: s.left })}</span></div>
-<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, b: s.stats.outsideBand, o: s.stats.svcOff })}</p>`;
+<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, u: s.stats.unconfirmed || 0, b: s.stats.outsideBand, o: s.stats.svcOff })}</p>`;
   }
   function hint() {
     const g = cfg().gebiet, el = document.getElementById('gehint'); if (!el) return;
