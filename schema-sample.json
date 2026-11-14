@@ -1,0 +1,276 @@
+{
+ "apt": {
+  "type": "Feature",
+  "id": 1,
+  "properties": {
+   "_id": "626142701e911989f7b2c008",
+   "name": "KUCOVA",
+   "icaoCode": "LAKV",
+   "type": 5,
+   "trafficType": [
+    0,
+    1
+   ],
+   "magneticDeclination": 4.856,
+   "country": "AL",
+   "elevation": {
+    "value": 41,
+    "unit": 0,
+    "referenceDatum": 1
+   },
+   "ppr": false,
+   "private": false,
+   "skydiveActivity": false,
+   "winchOnly": false,
+   "frequencies": [
+    {
+     "value": "124.500",
+     "unit": 2,
+     "type": 14,
+     "name": "KUCOVA TOWER",
+     "primary": true,
+     "publicUse": true,
+     "_id": "626142701e911989f7b2c009"
+    }
+   ],
+   "runways": [
+    {
+     "designator": "14",
+     "trueHeading": 140,
+     "alignedTrueNorth": false,
+     "operations": 0,
+     "mainRunway": true,
+     "turnDirection": 2,
+     "takeOffOnly": false,
+     "landingOnly": false,
+     "surface": {
+      "composition": [
+       1
+      ],
+      "mainComposite": 1,
+      "condition": 0
+     },
+     "dimension": {
+      "length": {
+       "value": 2840,
+       "unit": 0
+      },
+      "width": {
+       "value": 67,
+       "unit": 0
+      }
+     },
+     "declaredDistance": {
+      "tora": {
+       "value": 2840,
+       "unit": 0
+      },
+      "lda": {
+       "value": 2840,
+       "unit": 0
+      }
+     },
+     "pilotCtrlLighting": false,
+     "_id": "626142701e911989f7b2c00a"
+    },
+    {
+     "designator": "32",
+     "trueHeading": 320,
+     "alignedTrueNorth": false,
+     "operations": 0,
+     "mainRunway": true,
+     "turnDirection": 2,
+     "takeOffOnly": false,
+     "landingOnly": false,
+     "surface": {
+      "composition": [
+       1
+      ],
+      "mainComposite": 1,
+      "condition": 0
+     },
+     "dimension": {
+      "length": {
+       "value": 2840,
+       "unit": 0
+      },
+      "width": {
+       "value": 67,
+       "unit": 0
+      }
+     },
+     "declaredDistance": {
+      "tora": {
+       "value": 2840,
+       "unit": 0
+      },
+      "lda": {
+       "value": 2840,
+       "unit": 0
+      }
+     },
+     "pilotCtrlLighting": false,
+     "_id": "626142701e911989f7b2c00b"
+    }
+   ],
+   "createdAt": "2022-04-21T11:39:28.694Z",
+   "updatedAt": "2023-01-07T13:28:17.736Z",
+   "createdBy": "AUTO-IMPORTER",
+   "updatedBy": "openaip-system",
+   "elevationGeoid": {
+    "geoidHeight": 35.77780006560002,
+    "hae": 76.77780006560002
+   }
+  },
+  "geometry": {
+   "type": "Point",
+   "coordinates": [
+    19.9019,
+    40.7719
+   ]
+  }
+ },
+ "asp": {
+  "type": "Feature",
+  "id": 10,
+  "properties": {
+   "_id": "626142721e911989f7b2c0eb",
+   "name": "TIRANA CTR",
+   "type": 4,
+   "icaoClass": 3,
+   "onDemand": false,
+   "onRequest": false,
+   "byNotam": false,
+   "specialAgreement": false,
+   "country": "AL",
+   "upperLimit": {
+    "value": 2500,
+    "unit": 1,
+    "referenceDatum": 1
+   },
+   "lowerLimit": {
+    "value": 0,
+    "unit": 1,
+    "referenceDatum": 0
+   },
+   "createdAt": "2022-04-21T11:39:30.034Z",
+   "updatedAt": "2023-03-10T10:15:23.843Z",
+   "createdBy": "AUTO-IMPORTER",
+   "updatedBy": "openaip-system",
+   "activity": 0,
+   "hoursOfOperation": {
+    "operatingHours": [
+     {
+      "dayOfWeek": 0,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 1,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 2,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 3,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 4,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 5,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     },
+     {
+      "dayOfWeek": 6,
+      "startTime": "00:00",
+      "endTime": "00:00",
+      "byNotam": false,
+      "sunrise": false,
+      "sunset": false,
+      "publicHolidaysExcluded": false
+     }
+    ]
+   },
+   "requestCompliance": false,
+   "dataIngestion": true,
+   "frequencies": [
+    {
+     "_id": "6af7b2b8c33b4a10edaedf69",
+     "value": "122.500",
+     "unit": 2,
+     "primary": true
+    }
+   ],
+   "deletable": true
+  },
+  "geometry": {
+   "type": "Polygon",
+   "coordinates": [
+    [
+     [
+      19.84111,
+      41.26167
+     ],
+     [
+      19.77278,
+      41.26167
+     ],
+     [
+      19.77278,
+      41.24667
+     ],
+     [
+      19.59528,
+      41.24639
+     ],
+     [
+      19.53778,
+      41.6
+     ],
+     [
+      19.78944,
+      41.6
+     ],
+     [
+      19.84111,
+      41.26167
+     ]
+    ]
+   ]
+  }
+ }
+}
