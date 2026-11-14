@@ -229,6 +229,15 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   scheitert mit «The device has been lost». Der USB-RS232-Adapter ist beim Senden ausgefallen; vermutlich HF-Einstrahlung in
   Adapter oder Kabel. Die folgenden Serien liefen auf den verlorenen Anschluss.
 
+**Gerätetest 14.11.2026, 20:41–20:44 (test 0.3.3, Laptop am Akku, Wendelantenne am Gerät):**
+- Schreiben während Empfang: 4 Serien, 40 von 40 Befehlen quittiert (24–44 ms), 35 davon während einer Empfangsmeldung (J … V).
+  Kein Unterbruch im Ton.
+- «Senden beobachten»: 2 Aussendungen (rund 5 und 6 s), K und Y gemeldet, Abfragen «S» liefen weiter (grösste Lücke 10.1 s).
+- Serie beim Senden: Befehle 1–2 vor der Aussendung quittiert; K um 20:44:19.813; Befehl 3 während der Aussendung nach 34 ms
+  quittiert; Befehl 4 um 20:44:21.998 ohne Antwort, danach «The device has been lost», kein Y. Letzte Meldung 20:44:20.485.
+- Bilanz: Schreiben während Empfang geht, Schreiben während Senden ging einmal; der USB-Adapter fiel in 2 von 4 Aussendungen
+  aus, einmal ganz ohne Schreibbefehl (20:16:02.8) – die Aussendung stört die USB-Verbindung, nicht das Schreiben.
+
 **0.4.6 und test 0.3.3:**
 - *Kleinbuchstaben im Kurznamen:* Codec behält a–z (Umlaute ä → ae), Einstellung «Kleinbuchstaben erlauben»
   (`settings.allowLower`, Vorgabe an); aus = Eingabe und Gerät in Versalien (`deviceSlots`). Automatische Namen bleiben in Versalien.
