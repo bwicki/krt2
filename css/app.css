@@ -257,3 +257,9 @@ input[type=checkbox].prio{accent-color:var(--ochre);outline:2px solid var(--ochr
 .badge.o{background:var(--ochre-bg);color:var(--ochre);border-color:var(--ochre-bd)}
 tr.head.prio td{background:var(--ochre-bg);border-top:2px solid var(--ochre-bd)}
 tr.sub td{padding-top:6px;padding-bottom:2px;border-bottom:0}
+/* 0.4.3 */
+.tscroll{overflow:auto;position:relative}
+dialog.wide{max-width:min(880px,94vw)}
+.dupbox{max-height:min(58vh,520px);overflow:auto;border:1px solid var(--border);border-radius:8px}
+.dupbox table.grid tr.head td{padding:8px 10px 4px}
+

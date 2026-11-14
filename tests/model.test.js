@@ -4,17 +4,40 @@ const M = require('../src/model.js');
 const S = require('../src/sample.js');
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; }; const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
 
-// Kurznamen nach Regel (Ortskürzel + ICAO-Dienstkürzel, max. 8)
-eq(M.shortName({ loc: 'BIR', svc: 'AFIS' }, 'kurz'), 'BIR AFIS');
-eq(M.shortName({ loc: 'ZRH', svc: 'TWR' }, 'kurz'), 'ZRH TWR');
-eq(M.shortName({ loc: 'ZRH', svc: 'FIS' }, 'kurz'), 'ZRH INFO', 'FIS heisst im Kurznamen INFO');
-eq(M.shortName({ loc: 'ZRH', qual: 'E', svc: 'RDR' }, 'kurz'), 'ZRHE RDR');
-eq(M.shortName({ loc: 'ZRH', icao: 'LSZH', svc: 'TWR' }, 'icao'), 'LSZH TWR');
-eq(M.shortName({ loc: 'ZRH', icao: 'LSZH', svc: 'ATIS' }, 'icao'), 'LSZHATIS', 'vierstelliger Dienst ohne Leerzeichen');
-eq(M.shortName({ loc: 'BIR', icao: 'LSZF', svc: 'AFIS' }, 'icao'), 'LSZFAFIS');
+// Kurznamen (0.4.3): Ort + Leerzeichen + kurzes Dienstkürzel, höchstens 8 Zeichen
+eq(M.shortName({ name: 'Birrfeld', svc: 'AFIS' }, 'kurz'), 'BRFLD AF', 'erster Buchstabe und Konsonanten, so viele, wie Platz ist');
+eq(M.shortName({ name: 'Zürich', svc: 'TWR' }, 'kurz'), 'ZURICH T', 'ganzer Name, wenn er passt');
+eq(M.shortName({ name: 'Zürich', svc: 'FIS' }, 'kurz'), 'ZURICH F');
+eq(M.shortName({ name: 'Zürich', svc: 'INFO' }, 'kurz'), 'ZURICH I');
+eq(M.shortName({ name: 'Zürich', qual: 'E', svc: 'RDR' }, 'kurz'), 'ZRCH E R', 'Zusatz mit Leerzeichen');
+eq(M.shortName({ name: 'Bern-Belp', svc: 'APP' }, 'kurz'), 'BERN APP', 'Teil vor dem Bindestrich');
+eq(M.shortName({ name: 'Grenchen', svc: 'RDO' }, 'kurz'), 'GRNCH RD');
+eq(M.shortName({ name: 'Lugano', svc: 'ATIS' }, 'kurz'), 'LUGAN AT', 'Vokale von hinten weg');
+eq(M.shortName({ name: 'Genève', svc: 'DEP' }, 'kurz'), 'GENEVE D');
+eq(M.shortName({ name: 'Neuchâtel', svc: 'ARR' }, 'kurz'), 'NCHTL AR');
+eq(M.shortName({ name: 'Bern', svc: 'RDR' }, 'kurz'), 'BERN R');
+eq(M.shortName({ name: 'St. Gallen-Altenrhein', svc: 'AFIS' }, 'kurz'), 'STGLN AF', 'jeder Wortanfang zählt');
+eq(M.shortName({ name: 'Zürich', icao: 'LSZH', svc: 'TWR' }, 'icao'), 'LSZH T');
+eq(M.shortName({ name: 'Zürich', icao: 'LSZH', svc: 'ATIS' }, 'icao'), 'LSZH AT', 'immer Leerzeichen vor dem Dienst');
+eq(M.shortName({ name: 'Birrfeld', icao: 'LSZF', svc: 'AFIS' }, 'icao'), 'LSZF AF');
+eq(M.shortName({ name: 'Grenchen', icao: 'LSZG', svc: 'RDO' }, 'icao'), 'LSZG RD');
+eq(M.shortName({ name: 'Payerne', icao: 'LSMP', svc: 'UCOM' }, 'icao'), 'PRN UNIC', 'ICAO passt nicht neben vierstelligen Dienst → Kürzel');
 eq(M.shortName({ loc: 'ZRH', svc: 'VOLMET' }, 'kurz'), 'Z VOLMET', 'Ortsteil kürzen, nie den Dienst');
-eq(M.shortName({ loc: 'ZRH', icao: '', svc: 'TWR' }, 'icao'), 'ZRH TWR', 'ohne ICAO-Code bleibt das Kürzel');
-eq(M.locCode('Dübendorf'), 'DUB'); eq(M.locCode('Speck-Fehraltorf'), 'SPE');
+eq(M.shortName({ name: 'Zürich', icao: '', svc: 'TWR' }, 'icao'), 'ZURICH T', 'ohne ICAO-Code bleibt das Kürzel');
+eq(M.shortName({ loc: 'BIR', svc: 'AFIS' }, 'kurz'), 'BIR AF', 'ohne Namen das gespeicherte Kürzel');
+eq(M.locCode('Dübendorf', 4), 'DBND'); eq(M.locCode('Saanen', 5), 'SANEN', 'Doppelte weg'); eq(M.locCode('Hausen am Albis', 6), 'HAUSNA', 'Füllwort weg, Wortanfang bleibt');
+eq(M.svcShort('FIS'), 'INFO', 'Klartext behält die lange Form');
+eq(M.kurzLoc({ dienst: 'AFIS', ort: { name: 'Birrfeld', icao: 'LSZF' }, kurzModus: 'icao' }), 'BRFLD');
+{ // einmalig: ICAO wird Normalfall, wo es einen gibt
+  const old = JSON.parse(M.toJSON(S.sampleConfig())); delete old.icaoDefault; old.settings.adLoc = 'kurz';
+  old.eintraege.forEach(e => { if (e.kurzModus === 'icao') e.kurzModus = 'kurz'; });
+  const icaoE = old.eintraege.find(e => e.ort && e.ort.icao === 'LSZF'); icaoE.kurzModus = 'kurz';
+  let c = M.fromJSON(old);
+  eq([c.settings.adLoc, c.icaoDefault, c.eintraege.find(e => e.id === icaoE.id).kurzModus], ['icao', true, 'icao']);
+  eq(M.entryShort(c.eintraege.find(e => e.id === icaoE.id)), 'LSZF RD');
+  c.settings.adLoc = 'kurz'; c.eintraege.find(e => e.id === icaoE.id).kurzModus = 'kurz'; c = M.fromJSON(M.toJSON(c));
+  eq([c.settings.adLoc, c.eintraege.find(e => e.id === icaoE.id).kurzModus], ['kurz', 'kurz'], 'danach bleibt die eigene Wahl');
+}
 
 // Belegung: 00 fest, Blöcke lückenlos ab 01, frei bis 98, 99 Notfrequenz
 const cfg = S.sampleConfig();
@@ -30,7 +53,7 @@ ok(L.notPlaced.some(x => x.why === 'blockAus' && x.e.dienst === 'GND'), 'GROUND 
 ok(!Object.values(L.slotOf).includes(undefined));
 const win = cfg.eintraege.find(e => e.klar === 'Winterthur AD');
 ok(L.slotOf[win.id] == null, 'abgewählter Eintrag belegt keinen Platz');
-eq(L.slots[1].kurz, 'ZRH INFO', 'INFO-Block nach Distanz: Zürich INFO (0 km) zuerst');
+eq(L.slots[1].kurz, 'ZURICH F', 'INFO-Block nach Distanz: Zürich FIS (0 km) zuerst');
 
 // 00 freigeben → Einträge ab 00
 cfg.fixed.p00.on = false; L = M.layout(cfg); eq(L.slots[0].kind, 'entry'); cfg.fixed.p00.on = true;
@@ -110,4 +133,23 @@ console.log(n + ' Prüfungen bestanden');
   const back = M2.fromJSON(M2.toJSON(c)); okf(back.fixed.extra.length === 2 && back.fixed.extra[1].nr === 50, 'feste Plätze gespeichert');
   c.fixed.extra.push({ id: 'fxc', nr: 60, ch: '999.000', kurz: 'X' }); okf(M2.check(c).fixed.some(i => i.key === 'fxc' && i.code === 'freq'), 'Prüfung fester Platz');
   console.log('0.4.2: feste Plätze und Prio-Liste – 11 Prüfungen bestanden');
+}
+{ // 0.4.3: doppelte Frequenzen
+  let k = 0; const okd = (cond, m) => { if (!cond) throw new Error('0.4.3: ' + m); k++; };
+  okd(M.freqKey('123.550') === M.freqKey('123.555'), '25-kHz- und 8.33-Name desselben Trägers');
+  okd(M.freqKey('123.550') !== M.freqKey('123.560') && M.freqKey('123.560') !== M.freqKey('123.565'), '8.33-Kanäle bleiben verschieden');
+  okd(M.freqKey('123.575') === M.freqKey('123.580') && M.freqKey('999.000') === null, '…75 = …80; ungültig null');
+  const c = M.defaultConfig(); const b = c.bloecke[0];
+  const a1 = M.addEntry(c, { ch: '124.700', dienst: 'INFO', block: b.id, kurz: 'A', kurzModus: 'frei' });
+  const a2 = M.addEntry(c, { ch: '124.705', dienst: 'INFO', block: b.id, kurz: 'B', kurzModus: 'frei' });
+  const a3 = M.addEntry(c, { ch: '121.500', dienst: 'INFO', block: b.id, kurz: 'C', kurzModus: 'frei' });
+  const a4 = M.addEntry(c, { ch: '124.700', dienst: 'INFO', block: b.id, kurz: 'D', kurzModus: 'frei' }); a4.aktiv = false;
+  M.addEntry(c, { ch: '118.000', dienst: 'INFO', block: b.id, kurz: 'E', kurzModus: 'frei' });
+  const G = M.dupGroups(c);
+  okd(G.length === 2, 'zwei Gruppen (124.700 = 124.705, 121.500 mit Platz 99), abgewählte und freie Plätze zählen nicht');
+  const g1 = G.find(g => g.chs.includes('124.700')); okd(g1.list.length === 2 && g1.chs.join() === '124.700,124.705', 'Gruppe zeigt beide Kanalnamen');
+  const g2 = G.find(g => g.chs.includes('121.500')); okd(g2.list[g2.list.length - 1].fixed === 'p99' && g2.list.some(x => x.e === a3), 'fester Platz 99 in der Gruppe');
+  const sug = M.dupSuggest(G); okd(sug.includes(a2.id) && sug.includes(a3.id) && !sug.includes(a1.id), 'Vorschlag: ersten behalten, neben festem Platz alle Einträge weg');
+  okd(M.check(c).byEntry[a2.id].some(i => i.code === 'doppelt'), 'Prüfung kennt 8.33-Gleichheit');
+  console.log('0.4.3: doppelte Frequenzen – ' + k + ' Prüfungen bestanden');
 }

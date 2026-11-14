@@ -11,8 +11,11 @@
 
   // ICAO-Dienste (Doc 8400) und ihr Kürzel im 8-stelligen Kurznamen
   const SERVICES = ['FIS', 'INFO', 'AFIS', 'RDO', 'APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET', 'RDR', 'ACC', 'MIL', 'GND', 'APN', 'DEL', 'GLD', 'CTAF', 'UCOM', 'OTH'];
-  const SVC_SHORT = { FIS: 'INFO', INFO: 'INFO', UCOM: 'UNIC', OTH: '' };
+  const SVC_SHORT = { FIS: 'INFO', INFO: 'INFO', UCOM: 'UNIC', OTH: '' };      // für Klartext und Bezeichnungen
   const svcShort = s => (s in SVC_SHORT ? SVC_SHORT[s] : (s || ''));
+  // Im Kurznamen werden häufige Dienste abgekürzt, damit der Ort mehr Platz hat (0.4.3)
+  const SVC_KURZ = { INFO: 'I', FIS: 'F', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D', UCOM: 'UNIC', OTH: '' };
+  const svcKurz = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
 
   const ORDERS = ['dist', 'ad', 'corridor', 'freq', 'manual'];
 
@@ -32,13 +35,13 @@
       schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
-      settings: { adLoc: 'kurz', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
+      settings: { adLoc: 'icao', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
         extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
-      prioListe: true,
+      prioListe: true, icaoDefault: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -49,31 +52,65 @@
 
   // ---------- Kurznamen ----------
   function plain(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
-  /** Ortskürzel aus einem Namen: die ersten drei Buchstaben (Dübendorf → DUB). */
-  function locCode(name) { return plain(name).replace(/([^Q])UE/g, '$1U').replace(/AE/g, 'A').replace(/OE/g, 'O').replace(/[^A-Z]/g, '').slice(0, 3); }
+  const letters = s => plain(s).replace(/([^Q])UE/g, '$1U').replace(/AE/g, 'A').replace(/OE/g, 'O');
+  // Füllwörter in mehrteiligen Namen (Hausen am Albis, Glacier du Trient)
+  const FILL = new Set(['A', 'AM', 'AN', 'AUF', 'AUX', 'BEI', 'D', 'DA', 'DAL', 'DAS', 'DE', 'DEI', 'DEL', 'DER', 'DES', 'DI', 'DIE', 'DU', 'EN', 'ET', 'IM', 'L', 'LA', 'LE', 'LES', 'OB', 'SUL', 'SUR', 'UND']);
+  /** Ein Wort auf r Zeichen bringen: ganz, wenn es passt; sonst ohne Doppelte, dann Vokale von hinten weg (der erste Buchstabe bleibt), zuletzt abschneiden. */
+  function shrink(w, r) {
+    if (r < 1) return '';
+    if (w.length <= r) return w;
+    let s = w.replace(/(.)\1+/g, '$1');
+    if (s.length <= r) return s;
+    const a = s.split('');
+    for (let i = a.length - 1; i > 0 && a.length > r; i--) if (/[AEIOUY]/.test(a[i])) a.splice(i, 1);
+    return a.join('').replace(/(.)\1+/g, '$1').slice(0, r);
+  }
+  /**
+   * Merkbares Ortskürzel mit höchstens `room` Zeichen: der ganze Name, wenn er passt (ZURICH, BERN);
+   * sonst der erste Buchstabe und die Konsonanten (Birrfeld → BRFLD), bei mehreren Wörtern zählt jeder Wortanfang.
+   */
+  function locCode(name, room = 3) {
+    const main = String(name || '').split(/\s*-\s*/)[0];                  // Bern-Belp → Bern: der Teil vor dem Bindestrich ist der Ort
+    let w = letters(letters(main).replace(/[^A-Z0-9]/g, '').length >= 3 ? main : name).split(/[^A-Z0-9]+/).filter(Boolean);
+    if (w.length > 1) { const s2 = w.filter(x => !FILL.has(x)); if (s2.length) w = s2; }
+    if (!w.length || room < 1) return '';
+    const whole = w.join('');
+    if (whole.length <= room) return whole;
+    const n = Math.min(w.length, room);
+    let left = room, out = '';
+    for (let i = 0; i < n; i++) { const part = shrink(w[i], left - (n - 1 - i)); out += part; left -= part.length; }
+    return out;
+  }
 
   /**
-   * Kurzname = Ortsteil + Leerzeichen + Dienstkürzel, höchstens 8 Zeichen.
-   * ICAO-Code mit vierstelligem Dienst ohne Leerzeichen (LSZHATIS). Zu lang → Ortsteil kürzen, nie den Dienst.
+   * Kurzname = Ort + Leerzeichen + Dienstkürzel, höchstens 8 Zeichen; immer ein Leerzeichen vor dem Dienst.
+   * Ort: ICAO-Code (Modus 'icao', wenn vorhanden und Platz) oder ein merkbares Kürzel aus dem Namen, so lang, wie Platz ist.
+   * Zu lang → Ort kürzen, nie den Dienst.
    */
   function shortName(parts, mode) {
     const p = parts || {};
-    const svc = svcShort(p.svc);
-    const useIcao = mode === 'icao' && /^[A-Z]{4}$/.test(p.icao || '');
-    let loc = useIcao ? p.icao : ((p.loc || '') + (p.qual || ''));
-    loc = plain(loc).replace(/[^A-Z0-9-]/g, '');
+    const svc = svcKurz(p.svc);
+    const room = svc ? 8 - 1 - svc.length : 8;
+    const useIcao = mode === 'icao' && /^[A-Z]{4}$/.test(p.icao || '') && room >= 4;
+    let loc;
+    if (useIcao) loc = p.icao;
+    else {
+      const qual = plain(p.qual || '').replace(/[^A-Z0-9]/g, '');           // Zusatz mit Leerzeichen: ZRCH E R (Zurich Radar East)
+      const r = Math.max(0, room - (qual ? qual.length + 1 : 0));
+      const base = p.name ? locCode(p.name, r) : plain(p.loc || '').replace(/[^A-Z0-9-]/g, '').slice(0, r);
+      loc = base ? (qual ? base + ' ' + qual : base) : qual;
+    }
     if (!svc) return loc.slice(0, 8);
     if (!loc) return svc.slice(0, 8);
-    if (loc.length + 1 + svc.length <= 8) return loc + ' ' + svc;
-    if (useIcao && loc.length + svc.length <= 8) return loc + svc;
-    const room = 8 - 1 - svc.length;
     return room >= 1 ? loc.slice(0, room) + ' ' + svc : svc.slice(0, 8);
   }
 
   function entryParts(e) {
     const o = e.ort || {};
-    return { loc: o.code || o.iata || locCode(o.name), icao: o.icao || '', qual: o.qual || '', svc: e.dienst };
+    return { name: o.name || '', loc: o.code || o.iata || '', icao: o.icao || '', qual: o.qual || '', svc: e.dienst };
   }
+  /** Ortsteil des Kurznamens im Modus 'kurz' (Beschriftung der Umschaltung im Editor). */
+  function kurzLoc(e) { const k = shortName(entryParts(e), 'kurz'); const svc = svcKurz(e.dienst); return svc && k.endsWith(' ' + svc) ? k.slice(0, -svc.length - 1) : k; }
   /** Kurzname eines Eintrags nach seinem Modus: 'kurz' | 'icao' | 'frei' (von Hand). */
   function entryShort(e) {
     if (e.kurzModus === 'frei') return e.kurz || '';
@@ -223,12 +260,48 @@
 
   // ---------- Prüfung ----------
   /** Befunde je Eintrag: { lvl:'r'|'y', code, arg } – r verhindert das Programmieren, ausser bewusst bestätigt. */
+  /**
+   * Schlüssel für «gleiche Frequenz»: derselbe Träger, auch wenn einmal der 25-kHz- und einmal der 8.33-Kanalname steht
+   * (123.550 und 123.555 sind beide 123.550 MHz). Ungültig → null.
+   */
+  function freqKey(ch) {
+    const f = C.encodeFreq(ch); if (!f.ok) return null;
+    return String(f.mhz * 1000 + Math.floor(f.ch / 5) * 3 + Math.max(0, f.ch % 5 - 1));
+  }
+  /**
+   * Gruppen gleicher Frequenz unter dem, was ins Gerät geht oder nachrückt: feste Plätze, platzierte Einträge, Prio-Liste.
+   * [{ chs:['123.550','123.555'], list:[{ fixed, nr, prio, ch, kurz, klar, e }] }], nach Platz geordnet.
+   */
+  function dupGroups(cfg, lay) {
+    lay = lay || layout(cfg);
+    const rank = {}; lay.prio.forEach((id, i) => { rank[id] = i + 1; });
+    const g = new Map();
+    const push = (ch, item) => { const k = freqKey(ch); if (k) (g.get(k) || g.set(k, []).get(k)).push(item); };
+    for (const s of lay.slots) if (s.kind === 'fixed') push(s.ch, { fixed: s.fixed, nr: s.nr, prio: null, ch: s.ch, kurz: s.kurz, klar: s.klar, e: null });
+    for (const e of cfg.eintraege) {
+      if (!e.aktiv) continue;
+      const nr = lay.slotOf[e.id] == null ? null : lay.slotOf[e.id];
+      if (nr == null && !rank[e.id]) continue;
+      push(e.ch, { fixed: null, nr, prio: rank[e.id] || null, ch: e.ch, kurz: entryShort(e), klar: e.klar, e });
+    }
+    const ord = x => (x.nr != null ? x.nr : 1000 + x.prio);
+    return [...g.values()].filter(l => l.length > 1).map(l => l.sort((a, b) => ord(a) - ord(b)))
+      .sort((a, b) => ord(a[0]) - ord(b[0]))
+      .map(list => ({ chs: [...new Set(list.map(x => C.encodeFreq(x.ch).display))], list }));
+  }
+  /** Vorschlag zum Bereinigen: je Gruppe den ersten behalten (fester Platz zuerst, sonst der kleinste Platz); Ids der übrigen. */
+  function dupSuggest(groups) {
+    const ids = [];
+    for (const g of groups) g.list.forEach((x, i) => { if (x.e && (i > 0 || g.list.some(y => y.fixed))) ids.push(x.e.id); });
+    return ids;
+  }
+
   function check(cfg) {
     const lay = layout(cfg);
     const by = {};
     const add = (id, lvl, code, arg) => { (by[id] = by[id] || []).push({ lvl, code, arg }); };
     const placedCh = {};
-    lay.slots.forEach(s => { if (s.kind !== 'free' && s.ch) (placedCh[s.ch] = placedCh[s.ch] || []).push(s.nr); });
+    lay.slots.forEach(s => { const k = s.kind !== 'free' && freqKey(s.ch); if (k) (placedCh[k] = placedCh[k] || []).push(s.nr); });
     for (const e of cfg.eintraege) {
       const f = C.encodeFreq(e.ch);
       if (!f.ok) add(e.id, 'r', 'freq', e.ch);
@@ -238,7 +311,8 @@
       else if (!n.ok) add(e.id, 'r', n.tooLong ? 'nameLang' : 'nameZeichen', n.bad || k);
       if (e.vertrauen === 'r') add(e.id, e.bestaetigt ? 'y' : 'r', 'widerspruch', e.note);
       if (e.vertrauen === 'y') add(e.id, 'y', 'eineQuelle');
-      if (f.ok && lay.slotOf[e.id] != null && (placedCh[f.display] || []).length > 1) add(e.id, 'y', 'doppelt', placedCh[f.display].map(x => String(x).padStart(2, '0')).join(', '));
+      const fk = f.ok && freqKey(e.ch);
+      if (fk && lay.slotOf[e.id] != null && (placedCh[fk] || []).length > 1) add(e.id, 'y', 'doppelt', placedCh[fk].map(x => String(x).padStart(2, '0')).join(', '));
     }
     const fixedIssues = [];
     const fxAll = [['p00', cfg.fixed.p00], ['p99', cfg.fixed.p99]].concat((cfg.fixed.extra || []).map(x => [x.id, Object.assign({ on: true }, x)]));
@@ -277,6 +351,11 @@
     cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
+    if (!o.icaoDefault) {                                                 // einmalig (0.4.3): ICAO-Code ist der Normalfall, wo es einen gibt
+      cfg.settings.adLoc = 'icao';
+      for (const e of cfg.eintraege) if (e.kurzModus === 'kurz' && hasIcao(e)) { e.kurzModus = 'icao'; e.kurz = entryShort(e); }
+      cfg.icaoDefault = true;
+    }
     return cfg;
   }
 
@@ -299,9 +378,9 @@
   }
 
   return {
-    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, defaultBlocks, defaultConfig, uid,
-    locCode, shortName, entryParts, entryShort, hasIcao, ccOf,
+    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, defaultBlocks, defaultConfig, uid,
+    locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, fixedExtra, deselectOverflow, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
+    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm
   };
 });

@@ -43,14 +43,14 @@ if (existsSync(file)) {
   const r = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 19500, radarNoLimit: false, marginKm: 5, services: M.servicesOf(cfg) });
   const by = (ch, s) => r.entries.find(e => e.ch === ch && (!s || e.dienst === s));
   const twr = by('118.100', 'TWR');
-  ok(twr, 'Zürich TWR'); eq(M.entryShort(Object.assign({ kurzModus: 'kurz' }, twr)), 'ZRH TWR'); ok(twr.vertrauen === 'g' && twr.dist === 0);
+  ok(twr, 'Zürich TWR'); eq(M.entryShort(Object.assign({}, twr, { kurzModus: 'kurz' })), 'ZURICH T'); eq(M.entryShort(Object.assign({}, twr, { kurzModus: 'icao' })), 'LSZH T'); ok(twr.vertrauen === 'g' && twr.dist === 0);
   ok(by('123.555'), 'Birrfeld (8.33-Kanalname)'); ok(!r.entries.some(e => e.ort.icao === 'LSZB'), 'Bern liegt ausserhalb von 25 km + 5 km');
   ok(r.entries.every(e => /^1[1-3]\d\.\d{3}$/.test(e.ch)), 'nur gültige Kanäle');
   const keys = r.entries.map(e => e.ch + '|' + e.ort.code + '|' + e.dienst); eq(keys.length, new Set(keys).size, 'keine Doppel');
   ok(r.stats.airspaces > 0 && r.layers.airspaces.length === r.stats.airspaces);
   const klar = r.entries.map(e => e.klar);
   ok(klar.includes('Zuerich ATIS DEP') && klar.includes('Zuerich ATIS ARR'), 'ATIS ARR/DEP unterscheidbar');
-  eq(r.entries.filter(e => e.ch === '124.700').length, 1, 'FIS 124.700 nur einmal'); eq(M.entryShort(Object.assign({ kurzModus: 'kurz' }, by('124.700'))), 'ZRH INFO');
+  eq(r.entries.filter(e => e.ch === '124.700').length, 1, 'FIS 124.700 nur einmal'); eq(M.entryShort(Object.assign({}, by('124.700'), { kurzModus: 'kurz' })), 'ZURICH F');
   ok(!r.entries.some(e => e.ort.icao === 'LSHZ'), 'Heliport ausgelassen'); ok(r.entries.every(e => /^[A-Z]{2}$/.test(e.ort.cc)), 'Land je Station'); eq(twr.ort.cc, 'CH'); ok(by('133.900').ort.qual === 'E');
   M.SERVICES.forEach(() => 0);
   A.applyProposal(cfg, r.entries);

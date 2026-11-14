@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.4.2';
+  const VERSION = '0.4.3';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -265,7 +265,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   ${chip('all', t('ed_all'))}${on.map(b => chip(b.id, b.name)).join('')}${chip('active', t('ed_active'))}${chip('check', t('ed_check'))}
   <label class="sr" for="qe">${t('cur_search')}</label><input id="qe" type="search" placeholder="${esc(t('cur_search'))}" value="${esc(ui.q)}" style="width:180px">
   <button type="button" class="sec" data-act="own">${t('ed_own')}</button>
-  <span class="small muted">${t('ed_ad')}</span><div class="seg"><button type="button" data-act="allmode" data-v="icao" aria-pressed="false">${t('ed_all_icao')}</button><button type="button" data-act="allmode" data-v="kurz" aria-pressed="false">${t('ed_all_short')}</button></div>
+  <button type="button" class="sec" data-act="dups" id="dupbtn">${t('ed_dup_btn')}</button>
+  <span class="row nowrap" style="gap:6px"><span class="small muted">${t('ed_ad')}</span><div class="seg"><button type="button" data-act="allmode" data-v="icao" aria-pressed="false">${t('ed_all_icao')}</button><button type="button" data-act="allmode" data-v="kurz" aria-pressed="false">${t('ed_all_short')}</button></div></span>
 </div>
 <div class="ed-layout">
   <div class="ed-main"><div class="ed-actions"><span class="status" id="edstatus"></span>
@@ -389,6 +390,43 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const sb = $('#savestate'); if (sb) { sb.textContent = saveState(); sb.className = 'badge' + (cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''); }
     $('#edstatus').textContent = t('ed_status', { used: L.used + (cfg.fixed.p99.on ? 1 : 0), r: R.count.r, y: R.count.y });
     const pb = $('#priobadge'); if (pb) { pb.hidden = !L.prio.length; pb.textContent = t('ed_prio_badge', { n: L.prio.length }); }
+    const db = $('#dupbtn'); if (db) { const n = M.dupGroups(cfg, L).length; db.textContent = n ? t('ed_dup_btn_n', { n }) : t('ed_dup_btn'); }
+  }
+
+  /** Doppelte Frequenzen in einer eigenen Übersicht: je Platz abwählen oder stehen lassen. */
+  function dupDialog() {
+    const G = M.dupGroups(cfg);
+    if (!G.length) { msg(t('ed_dup_none'), 'ok'); return; }
+    const d = $('#dlg');
+    const nr = x => (x.nr != null ? pad2(x.nr) : `<span class="ptag">P${x.prio}</span>`);
+    const blk = x => (x.fixed ? t('ed_dup_fixed') : ((M.blockById(cfg, x.e.block) || {}).name || ''));
+    const body = G.map(g => `<tr class="head"><td colspan="6"><b class="mono">${esc(g.chs.join(' = '))}</b> <span class="small muted">· ${esc(t('ed_dup_n', { n: g.list.length }))}</span></td></tr>` +
+      g.list.map(x => `<tr${x.fixed ? ' class="fixed"' : ''}><td>${x.fixed ? '' : `<input type="checkbox" data-dup="${esc(x.e.id)}" checked aria-label="${esc(t('ed_dup_keep', { k: x.kurz || x.ch }))}">`}</td>` +
+        `<td class="nr">${nr(x)}</td><td class="k">${esc(x.kurz)}</td><td class="f">${esc(x.ch)}</td><td>${esc(x.klar || '')}</td><td class="small muted">${esc(blk(x))}</td></tr>`).join('')).join('');
+    d.classList.add('wide');
+    d.innerHTML = `<div class="stack" style="gap:10px"><h2>${esc(t('ed_dup_title'))}</h2><p class="note" style="margin:0">${t('ed_dup_note')}</p>
+<div class="dupbox"><table class="grid"><thead><tr><th>${t('ed_dup_col_keep')}</th><th>${t('col_nr')}</th><th>${t('col_k')}</th><th>${t('col_f')}</th><th>${t('col_t')}</th><th>${t('ed_dup_col_blk')}</th></tr></thead><tbody>${body}</tbody></table></div>
+<div class="row" style="justify-content:flex-start;margin-top:0"><button type="button" class="ghost" data-dupact="first">${t('ed_dup_first')}</button><button type="button" class="ghost" data-dupact="all">${t('ed_dup_all')}</button></div>
+<div class="row"><button type="button" class="sec" data-dupact="cancel">${t('cancel')}</button><button type="button" data-dupact="ok" id="dupok"></button></div></div>`;
+    const boxes = () => [...d.querySelectorAll('[data-dup]')];
+    const upd = () => { const n = boxes().filter(x => !x.checked).length; const ok = $('#dupok'); ok.disabled = !n; ok.textContent = n ? t('ed_dup_apply', { n }) : t('ed_dup_apply0'); };
+    const sug = new Set(M.dupSuggest(G));
+    const ac = new AbortController();                                   // der Dialog wird von ask/choose wiederverwendet
+    d.addEventListener('change', upd, { signal: ac.signal });
+    d.addEventListener('click', ev => {
+      const a = ev.target.closest('[data-dupact]'); if (!a) return;
+      const v = a.dataset.dupact;
+      if (v === 'first') { boxes().forEach(x => { x.checked = !sug.has(x.dataset.dup); }); upd(); return; }
+      if (v === 'all') { boxes().forEach(x => { x.checked = true; }); upd(); return; }
+      if (v === 'ok') {
+        const off = new Set(boxes().filter(x => !x.checked).map(x => x.dataset.dup));
+        for (const e of cfg.eintraege) if (off.has(e.id)) e.aktiv = false;
+        d.close(); msg(t('m_dup_done', { n: off.size }), 'ok'); afterChange(edRefresh); return;
+      }
+      d.close();
+    }, { signal: ac.signal });
+    d.addEventListener('close', () => { ac.abort(); d.classList.remove('wide'); }, { once: true });
+    upd(); d.showModal(); d.querySelector('[data-dupact=first]').focus();
   }
 
   function entryRow(e, L, R, noMove) {
@@ -401,7 +439,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const np = L.notPlaced.find(x => x.e.id === e.id);
     const prioRank = np && (np.why === 'voll' || np.why === 'max') ? L.prio.filter(id => { const x = cfg.eintraege.find(y => y.id === id); return x && x.block === e.block; }).indexOf(e.id) + 1 : 0;
     const ad = M.hasIcao(e);
-    const seg = ad ? `<div class="seg small" role="group" aria-label="${esc(t('st_adloc'))}"><button type="button" data-act="kmode" data-v="icao" aria-pressed="${e.kurzModus === 'icao'}" title="${esc(t('ed_icao_btn'))}">${esc(e.ort.icao)}</button><button type="button" data-act="kmode" data-v="kurz" aria-pressed="${e.kurzModus === 'kurz'}" title="${esc(t('ed_short_btn'))}">${esc(e.ort.code || e.ort.iata || M.locCode(e.ort.name))}</button></div>` : '';
+    const seg = ad ? `<div class="seg small" role="group" aria-label="${esc(t('st_adloc'))}"><button type="button" data-act="kmode" data-v="icao" aria-pressed="${e.kurzModus === 'icao'}" title="${esc(t('ed_icao_btn'))}">${esc(e.ort.icao)}</button><button type="button" data-act="kmode" data-v="kurz" aria-pressed="${e.kurzModus === 'kurz'}" title="${esc(t('ed_short_btn'))}">${esc(M.kurzLoc(e))}</button></div>` : '';
     const qcls = { g: 'g', y: 'y', r: e.bestaetigt ? 'y' : 'r', s: '' }[e.vertrauen] || '';
     const qtxt = e.vertrauen === 'g' ? t('q_g', { n: (e.quellen || []).length }) : e.vertrauen === 'y' ? t('q_y') : e.vertrauen === 'r' ? t('q_r') : t('q_s');
     const qtitle = [(e.quellen || []).join(', '), e.note].filter(Boolean).join(' – ');
@@ -414,7 +452,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
 <td class="mv">${noMove ? '' : `<span class="handle" data-drag draggable="true" title="${esc(t('col_move'))}"><span aria-hidden="true">⋮⋮</span></span><button type="button" class="ghost" data-act="up" aria-label="${esc(t('ed_up'))}">▲</button><button type="button" class="ghost" data-act="down" aria-label="${esc(t('ed_down'))}">▼</button>`}</td>
 <td class="nr">${nr != null ? pad2(nr) : prioRank ? `<span class="ptag" title="${esc(t('ed_prio_tip'))}">P${prioRank}</span>` : '–'}${np && np.why === 'ohneBlock' ? `<span class="ptag warn" title="${esc(t('why_ohneBlock'))}">!</span>` : ''}</td>
 <td><input type="checkbox" data-f="aktiv" class="${prioRank ? 'prio' : ''}" ${e.aktiv ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(k)}${prioRank ? ' – ' + esc(t('ed_prio')) : ''}" title="${prioRank ? esc(t('ed_prio_tip')) : ''}"></td>
-<td><div class="kcell"><input type="text" data-f="kurz" value="${esc(k)}" maxlength="12" spellcheck="false" autocomplete="off" class="${kBad ? 'bad' : ''}" aria-label="${esc(t('col_k'))}" title="${e.kurzModus === 'frei' ? esc(t('ed_free_name')) : ''}"><span class="kcount${k.length > 8 ? ' bad' : ''}">${k.length}/8</span>${seg}</div></td>
+<td><div class="kcell"><input type="text" data-f="kurz" value="${esc(k)}" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname class="${kBad ? 'bad' : ''}" aria-label="${esc(t('col_k'))}" title="${e.kurzModus === 'frei' ? esc(t('ed_free_name')) : ''}"><span class="kcount${k.length > 8 ? ' bad' : ''}">${k.length}/8</span>${seg}</div></td>
 <td><input type="text" class="freq${fBad ? ' bad' : ''}" data-f="ch" value="${esc(e.ch)}" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="${esc(t('col_f'))}"></td>
 <td><input type="text" class="klar" data-f="klar" value="${esc(e.klar)}" aria-label="${esc(t('col_t'))}"></td>
 <td><select class="svc" data-f="dienst" aria-label="${esc(t('col_d'))}">${svcOptions(e.dienst)}</select></td>
@@ -469,6 +507,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       if (target) { M.moveTo(cfg, x.id, target.id, Infinity); x.aktiv = true; msg(t('m_brought', { k: M.entryShort(x) || x.ch, b: target.name }), 'ok'); afterChange(edRefresh); }
       return;
     }
+    if (act === 'dups') { dupDialog(); return; }
     if (act === 'own') {
       // nach der Zeile, in der der Cursor zuletzt stand; sonst am Ende des gefilterten oder ersten Blocks
       const cur = ui.lastRow && cfg.eintraege.find(x => x.id === ui.lastRow);
@@ -607,14 +646,14 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <div class="fixedgrid">
     <span class="mono muted">00</span>
     <input type="text" class="mono" data-fx="p00.ch" value="${esc(p0.ch)}" aria-label="${esc(t('col_f'))} 00" ${p0.on ? '' : 'disabled'}>
-    <input type="text" class="mono" data-fx="p00.kurz" value="${esc(p0.kurz)}" maxlength="8" aria-label="${esc(t('col_k'))} 00" ${p0.on ? '' : 'disabled'}>
+    <input type="text" class="mono" data-fx="p00.kurz" value="${esc(p0.kurz)}" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname aria-label="${esc(t('col_k'))} 00" ${p0.on ? '' : 'disabled'}>
     <input type="text" data-fx="p00.klar" value="${esc(p0.klar)}" aria-label="${esc(t('col_t'))} 00" ${p0.on ? '' : 'disabled'}>
     <button type="button" class="sec" data-act="p00">${p0.on ? t('st_release') : t('st_take')}</button>
     <span class="mono muted">99</span><span class="mono" style="font-weight:600">${esc(p9.ch)}</span><span class="mono" style="font-weight:600">${esc(p9.kurz)}</span><span>${esc(p9.klar)} <span class="small muted">· ${p9.on ? t('st_always') : t('st_off99')}</span></span>
     <button type="button" class="${p9.on ? 'danger' : 'sec'}" data-act="p99">${p9.on ? t('e99_yes') : t('st_take')}</button>
     ${cfg.fixed.extra.map(x => `<input type="number" min="1" max="98" class="mono" data-fxe="${esc(x.id)}.nr" value="${esc(String(x.nr).padStart(2, '0'))}" aria-label="${esc(t('st_fx_nr'))}" style="width:64px">
     <input type="text" class="mono" data-fxe="${esc(x.id)}.ch" value="${esc(x.ch)}" placeholder="123.455" aria-label="${esc(t('col_f'))} ${pad2(x.nr)}">
-    <input type="text" class="mono" data-fxe="${esc(x.id)}.kurz" value="${esc(x.kurz)}" maxlength="8" placeholder="CREW" aria-label="${esc(t('col_k'))} ${pad2(x.nr)}">
+    <input type="text" class="mono" data-fxe="${esc(x.id)}.kurz" value="${esc(x.kurz)}" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname placeholder="CREW" aria-label="${esc(t('col_k'))} ${pad2(x.nr)}">
     <input type="text" data-fxe="${esc(x.id)}.klar" value="${esc(x.klar)}" placeholder="${esc(t('st_fx_klar_ph'))}" aria-label="${esc(t('col_t'))} ${pad2(x.nr)}">
     <button type="button" class="ghost" data-act="fxdel" data-id="${esc(x.id)}" aria-label="${esc(t('st_fx_del'))} ${pad2(x.nr)}" title="${esc(t('st_fx_del'))}">×</button>`).join('')}
   </div>
@@ -630,13 +669,13 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <p class="note">${t('sv_note')}</p></section>
 <div class="settings-3">
   <section class="card stack"><span class="label">${t('st_freeslots')}</span>
-    <div class="row"><input type="text" class="mono" data-st="free.ch" value="${esc(st.free.ch)}" aria-label="${esc(t('col_f'))} ${esc(t('fixed_free'))}" style="width:100px"><input type="text" class="mono" data-st="free.kurz" value="${esc(st.free.kurz)}" maxlength="8" aria-label="${esc(t('col_k'))} ${esc(t('fixed_free'))}" style="width:110px"></div>
+    <div class="row"><input type="text" class="mono" data-st="free.ch" value="${esc(st.free.ch)}" aria-label="${esc(t('col_f'))} ${esc(t('fixed_free'))}" style="width:100px"><input type="text" class="mono" data-st="free.kurz" value="${esc(st.free.kurz)}" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname aria-label="${esc(t('col_k'))} ${esc(t('fixed_free'))}" style="width:110px"></div>
     <p class="note">${t('st_free_note')}</p></section>
   <section class="card stack"><span class="label">${t('st_names')}</span>
-    <span>${t('st_names_rule')}</span><span class="mono small" style="font-weight:600">BIR AFIS · ZRH TWR · ZRH ATIS · ZRH INFO · ZRHE RDR</span>
+    <span>${t('st_names_rule')}</span><span class="mono small" style="font-weight:600">LSZF AF · LSZH T · LSZH AT · ZURICH I · ZRCH E R</span>
     <span class="small">${t('st_adloc')}</span>
-    <label><input type="radio" name="adloc" data-st="adLoc" value="kurz" ${st.adLoc !== 'icao' ? 'checked' : ''}> ${t('st_adloc_short')} <span class="mono small muted">ZRH TWR · BIR AFIS</span></label>
-    <label><input type="radio" name="adloc" data-st="adLoc" value="icao" ${st.adLoc === 'icao' ? 'checked' : ''}> ${t('st_adloc_icao')} <span class="mono small muted">LSZH TWR · LSZFAFIS</span></label>
+    <label><input type="radio" name="adloc" data-st="adLoc" value="kurz" ${st.adLoc !== 'icao' ? 'checked' : ''}> ${t('st_adloc_short')} <span class="mono small muted">ZURICH T · BRFLD AF</span></label>
+    <label><input type="radio" name="adloc" data-st="adLoc" value="icao" ${st.adLoc === 'icao' ? 'checked' : ''}> ${t('st_adloc_icao')} <span class="mono small muted">LSZH T · LSZF AF</span></label>
     <div><button type="button" class="sec" data-act="applyall">${t('st_apply_all')}</button></div>
     <p class="note">${t('st_names_note')}</p>
     <label><input type="checkbox" data-st="allowDigits" ${st.allowDigits ? 'checked' : ''}> ${t('st_digits')} <span class="small muted">${t('st_digits_note')}</span></label></section>
@@ -843,12 +882,12 @@ ${footerNote()}`;
     const inDev = c => devs.filter(d => d.aktuell && d.aktuell.configId === c.id).map(d => esc(d.bezeichnung)).join(', ');
     const cur = cfg.server && cfg.server.id;
     $('#page').innerHTML = `
-<div class="spread"><h1>${t('kf_mine')}</h1><div class="row"><button type="button" data-act="kf-savedraft">${t('kf_save_draft')}</button><a class="btn sec" href="#gebiet" title="${esc(t('later_title', { v: '0.3.0' }))}">${t('kf_from_area')}</a></div></div>
-<section class="card flush"><table class="grid"><thead><tr><th>${t('kf_name')}</th><th>${t('kf_version')}</th><th>${t('kf_area')}</th><th>${t('kf_count')}</th><th>${t('kf_changed')}</th><th>${t('kf_in_dev')}</th><th>${t('kf_actions')}</th></tr></thead><tbody>
+<div class="spread"><h1>${t('kf_mine')}${mine.length > 7 ? ` <span class="muted" style="font-weight:400">(${mine.length})</span>` : ''}</h1><div class="row"><button type="button" data-act="kf-savedraft">${t('kf_save_draft')}</button><a class="btn sec" href="#gebiet" title="${esc(t('later_title', { v: '0.3.0' }))}">${t('kf_from_area')}</a></div></div>
+<section class="card flush"><div class="tscroll" id="kfbox"><table class="grid"><thead><tr><th>${t('kf_name')}</th><th>${t('kf_version')}</th><th>${t('kf_area')}</th><th>${t('kf_count')}</th><th>${t('kf_changed')}</th><th>${t('kf_in_dev')}</th><th>${t('kf_actions')}</th></tr></thead><tbody>
 ${mine.length ? mine.map(c => `<tr data-cid="${c.id}"><td><b>${esc(c.name)}</b>${c.id === cur ? ` <span class="badge">${t('kf_in_editor')}</span>` : ''}</td><td class="mono">v${c.version}</td><td>${esc(c.standort || '–')}</td><td class="mono">${c.anzahl}</td><td class="small">${esc(fmtDT(new Date(c.updated)))}</td><td class="small">${inDev(c) || '–'}</td>
-<td><div class="row nowrap" style="gap:6px"><button type="button" class="sec" data-act="kf-open">${t('kf_open')}</button><button type="button" class="sec" data-act="kf-copy">${t('kf_dup')}</button><button type="button" class="ghost" data-act="kf-del" title="${esc(t('kf_del'))}" aria-label="${esc(t('kf_del'))}">×</button></div></td></tr>`).join('')
+<td><div class="row nowrap" style="gap:6px"><button type="button" class="sec" data-act="kf-open">${t('kf_open')}</button><button type="button" class="sec" data-act="kf-load" title="${esc(t('kf_load_tip'))}">${t('kf_load')}</button><button type="button" class="sec" data-act="kf-copy">${t('kf_dup')}</button><button type="button" class="ghost" data-act="kf-del" title="${esc(t('kf_del'))}" aria-label="${esc(t('kf_del'))}">×</button></div></td></tr>`).join('')
   : `<tr><td colspan="7" class="muted">${t('kf_none')}</td></tr>`}
-</tbody></table></section>
+</tbody></table></div></section>
 
 <section class="card stack"><div class="spread"><span class="label">${t('kf_devices')}</span>
   <form class="row" data-form="devadd"><label class="sr" for="devname">${t('kf_dev_name')}</label><input id="devname" type="text" maxlength="60" placeholder="${esc(t('kf_dev_ph'))}" required style="width:240px"><button type="submit" class="sec">${t('kf_dev_add')}</button></form></div>
@@ -861,6 +900,9 @@ ${mine.length ? mine.map(c => `<tr data-cid="${c.id}"><td><b>${esc(c.name)}</b>$
   ${others.length ? others.map(c => `<div class="left-item" data-cid="${c.id}"><span><b>${esc(c.name)}</b> <span class="mono small">v${c.version}</span> · ${esc(c.owner.name || c.owner.login)} · ${esc(c.standort || '–')} <span class="small muted">· ${esc(fmtDate(c.updated))}</span></span>
     <button type="button" class="sec" data-act="kf-take">${t('kf_take')}</button></div>`).join('') : `<p class="note">${t('kf_others_none')}</p>`}</section>
 ${footerNote()}`;
+    // höchstens 7 Konfigurationen sichtbar, der Rest mit Schieber
+    const box = $('#kfbox'), rows = box ? box.querySelectorAll('tbody tr') : [];
+    if (rows.length > 7) box.style.maxHeight = rows[7].offsetTop + 'px';
   }
 
   async function onKonfigClick(ev) {
@@ -872,9 +914,9 @@ ${footerNote()}`;
       if (act === 'kf-savedraft') {
         if (!(cfg.name || '').trim()) cfg.name = t('kf_unnamed');
         const c = await API.createConfig(cfg.name, cfgData()); adopt(c); msg(t('m_srv_saved', { n: c.name, v: c.version }), 'ok');
-      } else if (act === 'kf-open') {
+      } else if (act === 'kf-open' || act === 'kf-load') {
         if (cfg.dirty && !(await ask(t('m_ask_replace'), t('m_ask_replace_b'), t('yes')))) return;
-        adopt(await API.config(cid)); msg(t('m_loaded', { n: cfg.name }), 'ok'); location.hash = '#editor'; return;
+        adopt(await API.config(cid)); msg(t('m_loaded', { n: cfg.name }), 'ok'); location.hash = act === 'kf-load' ? '#geraet?programmieren' : '#editor'; return;
       } else if (act === 'kf-copy' || act === 'kf-take') {
         const c = await API.copyConfig(cid);
         msg(t('m_copied', { n: c.name }), 'ok');
@@ -1011,6 +1053,15 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);
   });
+  // Kurznamen: nur Zeichen, die das Gerät speichert (Versalien A–Z, Leerzeichen; mit Einstellung 0–9 und Bindestrich), höchstens 8
+  document.addEventListener('input', ev => {
+    const el = ev.target;
+    if (!el.hasAttribute || !el.hasAttribute('data-kname')) return;
+    const dig = cfg.settings.allowDigits, v = C.cleanNameInput(el.value, dig);
+    if (v === el.value) return;
+    const pos = C.cleanNameInput(el.value.slice(0, el.selectionStart || 0), dig).length;
+    el.value = v; try { el.setSelectionRange(pos, pos); } catch (e) { /* nicht jedes Feld kennt eine Auswahl */ }
+  }, true);
   document.addEventListener('input', ev => {
     if (route() !== 'editor') return;
     if (ev.target.id === 'fk') { ui.colF.k = ev.target.value; applyFilter(); return; }

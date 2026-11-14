@@ -310,7 +310,7 @@
 
 <section class="card stack" aria-labelledby="gr-l5"><span class="label" id="gr-l5">${t('gr_check')}</span>
   <p class="note">${t('gr_check_note')}</p>
-  <div class="row"><button type="button" class="sec" data-gr="check" ${S.roOn ? 'disabled' : ''} aria-pressed="${S.check.on}">${t(S.check.on ? 'gr_check_stop' : 'gr_check_start')}</button></div>
+  <div class="row"><button type="button" class="sec" data-gr="check" ${S.roOn ? 'disabled' : ''} aria-pressed="${S.check.on}">${t(S.check.on ? 'gr_check_stop' : 'gr_check_start')}</button><button type="button" class="ghost" data-gr="checkclear" ${S.check.list.length ? '' : 'disabled'}>${t('gr_check_clear')}</button></div>
   <div id="gr-checklist"></div>
 </section>
 ${ctx.footerNote()}`;
@@ -408,6 +408,7 @@ ${P ? `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="1
   }
   function paintCheck() {
     const el = $('#gr-checklist'); if (!el) return;
+    const cb = $('[data-gr=checkclear]'); if (cb) cb.disabled = !S.check.list.length;
     if (!S.check.on && !S.check.list.length) { el.innerHTML = ''; return; }
     el.innerHTML = (S.check.on ? `<p class="gr-prompt">${t('gr_check_prompt')}</p>` : '') + S.check.list.map(c => `<div class="row" style="gap:8px"><span class="mono">${esc(c.freq + ' «' + c.name + '»')}</span>
 ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ? `<span class="badge g">${t('gr_check_hit', { p: c.hits.map(pad2).join(', ') })}</span>` : `<span class="badge r">${t('gr_check_miss')}</span>`}</div>`).join('');
@@ -438,6 +439,7 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     if (a === 'restore') { restore(null); return; }
     if (a === 'progstop') { if (S.prog) S.prog.stop = true; return; }
     if (a === 'check') { S.check.on = !S.check.on; if (S.check.on) S.check.list = []; render(); return; }
+    if (a === 'checkclear') { S.check.list = []; paintCheck(); return; }
   }
   function onChange(ev) {
     const el = ev.target;

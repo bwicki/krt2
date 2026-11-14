@@ -183,6 +183,26 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   Eingabehinweise erscheinen nur noch in der Zeile über dem Raster statt als bleibender Hinweis unten rechts, und das
   Nummernfeld bleibt beim Eintreffen von Meldungen stehen.
 
+**0.4.3 – Rückmeldungen 14.11.2026:**
+- *Kurznamen:* immer «Ort + Leerzeichen + Dienst», höchstens 8 Zeichen. Häufige Dienste kurz (`SVC_KURZ`): I = INFO, F = FIS,
+  T = TWR, R = RDR, RD = RDO, AF = AFIS, AT = ATIS, AR = ARR, D = DEP; die übrigen bleiben (APP, GND, UNIC …). Der Klartext
+  bleibt ausgeschrieben (`svcShort`). ICAO-Code ist Vorgabe, wo es einen gibt (`settings.adLoc = 'icao'`, einmalig auch für
+  ältere Entwürfe, Merker `icaoDefault`); passt er nicht neben einen vierstelligen Dienst, nimmt die App das Kürzel.
+- *Ortskürzel ohne ICAO* (`locCode(name, room)`): der ganze Name, wenn er passt (ZURICH I); sonst ohne Doppelte, dann Vokale
+  von hinten weg, der erste Buchstabe bleibt (Birrfeld → BRFLD AF, Lugano → LUGAN AT, Grenchen → GRNCH RD); bei «Bern-Belp»
+  zählt der Teil vor dem Bindestrich; mehrere Wörter: jeder Wortanfang zählt, Füllwörter (am, de, la …) fallen weg; Zusatz mit
+  Leerzeichen (ZRCH E R). Die Namen werden laufend aus den Teilen gebildet, ältere Entwürfe zeigen sie sofort.
+- *Eingabe der Kurznamen* (Editor, feste Plätze, freie Plätze): nur, was das Gerät speichert – Versalien A–Z und Leerzeichen,
+  mit Einstellung auch 0–9 und Bindestrich; Kleinbuchstaben werden beim Tippen zu Versalien, Umlaute zu AE/OE/UE, höchstens
+  8 Zeichen (`C.cleanNameInput`). Im Speicher des Geräts (13.11.2026) standen nur Versalien, Ziffern und Bindestrich.
+- *Doppelte Frequenzen bereinigen* (Editor): eigene Übersicht je Frequenz mit Platz, Kurzname, Klartext und Block; gleich ist
+  auch der 25-kHz- und der 8.33-Name desselben Trägers (`freqKey`: 123.550 = 123.555). Häkchen weg = abwählen; Vorschlag
+  «je Frequenz nur den ersten behalten» (neben einem festen Platz alle Einträge). Die Prüfung «Frequenz mehrfach» nutzt
+  denselben Schlüssel.
+- *Konfigurationen:* alle eigenen in einer Liste, höchstens 7 sichtbar, der Rest mit Schieber (Kopf bleibt stehen);
+  «Ins Gerät laden» übernimmt die Konfiguration und springt zu «Gerät programmieren».
+- *Stichprobe:* «Liste leeren».
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

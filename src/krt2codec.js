@@ -40,6 +40,13 @@
     out = out.slice(0, NAME_LEN);
     return { ok: bad.length === 0 && !tooLong, name: out.padEnd(NAME_LEN, ' '), trimmed: out.trimEnd(), bad, tooLong };
   }
+  /** Während der Eingabe: nur, was das Gerät speichert – Versalien, Umlaute als AE/OE/UE, höchstens 8 Zeichen; Leerzeichen am Ende bleiben (man tippt weiter). */
+  function cleanNameInput(input, allowDigits = true) {
+    const s = String(input == null ? '' : input).replace(/[ÄÖÜäöüßÉÈÊéèêÀàÂâÇçÔôÎîÛû]/g, c => UML[c]).toUpperCase();
+    let out = '';
+    for (const c of s) if ((c >= 'A' && c <= 'Z') || c === ' ' || (allowDigits && ((c >= '0' && c <= '9') || c === '-'))) out += c;
+    return out.slice(0, NAME_LEN);
+  }
 
   function nameBytes(name) { return Array.from(normalizeName(name).name, c => c.charCodeAt(0)); }
 
@@ -62,6 +69,6 @@
   const buildW = () => [STX, CMD.W];
   const buildWPrev = () => [STX, CMD.w];
 
-  const api = { encodeFreq, normalizeName, nameBytes, buildZ, buildR, buildU, buildW, buildWPrev, NAME_LEN, CMD };
+  const api = { encodeFreq, normalizeName, cleanNameInput, nameBytes, buildZ, buildR, buildU, buildW, buildWPrev, NAME_LEN, CMD };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KRT2CODEC = api;
 })(typeof window !== 'undefined' ? window : globalThis);
