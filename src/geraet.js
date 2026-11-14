@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
   const L = root.KRT2LINK.link, RO = root.KRT2READOUT, C = root.KRT2CODEC;
-  const LS_DEV = 'krt2.progdev', LS_LOCAL = 'krt2.lokal.aktuell', LS_BAK = 'krt2.sicherung.';
+  const LS_DEV = 'krt2.progdev', LS_LOCAL = 'krt2.lokal.aktuell', LS_BAK = 'krt2.sicherung.', LS_COPY = 'krt2.aktuell.';
   const pad2 = n => String(n).padStart(2, '0');
   const nm = s => String(s || '').trimEnd();
   const sameSlot = (a, b) => !!a && !!b && a.ch === b.ch && nm(a.name) === nm(b.name);
@@ -29,7 +29,21 @@
   /** Gerätestand des gewählten Geräts: { plaetze[100], herkunft, zeit, configName, version, quittiert } oder null. */
   function aktuell() {
     if (S.devId === 'lokal' || !S.devId) return localAktuell();
-    return S.dev && S.dev.id === S.devId ? S.dev.aktuell : null;
+    const copy = readCopy(S.devId);
+    if (copy && copy.pending) return copy;                      // im Flug ohne Netz geschrieben, noch nicht hochgeladen
+    if (S.dev && S.dev.id === S.devId) return S.dev.aktuell;
+    return copy;                                                // ohne Netz: letzte Kopie in diesem Browser
+  }
+  // Kopie des Gerätestands eines Server-Geräts in diesem Browser – für den Flug ohne Netz (0.6.0)
+  function readCopy(id) { try { return JSON.parse(localStorage.getItem(LS_COPY + id) || 'null'); } catch (e) { return null; } }
+  function keepCopy(id, a, pending) { if (!a) return; try { localStorage.setItem(LS_COPY + id, JSON.stringify(Object.assign({}, a, { pending: !!pending }))); } catch (e) { /* Speicher voll */ } }
+  /** Offline geschriebenen Stand nachliefern, sobald der Server wieder erreichbar ist. */
+  async function syncPending(id) {
+    const c = readCopy(id); if (!c || !c.pending || !S.dev || S.dev.id !== id) return;
+    const sv = S.dev.aktuell;
+    if (sv && sv.zeit && c.zeit && sv.zeit > c.zeit) { keepCopy(id, sv, false); return; }
+    try { const a = Object.assign({}, c); delete a.pending; delete a.zeit; S.dev = await ctx.API.setAktuell(id, a); keepCopy(id, S.dev.aktuell, false); ctx.msg(t('gr_m_synced', { d: devLabel() }), 'ok'); }
+    catch (e) { /* weiter offline */ }
   }
   function devLabel() { return S.devId && S.devId !== 'lokal' && S.dev ? S.dev.bezeichnung : t('gr_local'); }
   /** Gerät wählen; nur eine ausdrückliche Wahl (Auswahlfeld) wird für den nächsten Besuch gemerkt. */
@@ -37,8 +51,8 @@
     S.devId = id || 'lokal'; S.dev = null; S.devErr = '';
     if (explicit) { S.devPicked = true; try { localStorage.setItem(LS_DEV, S.devId); } catch (e) { /* egal */ } }
     if (S.devId !== 'lokal') {
-      try { S.dev = await ctx.API.device(S.devId); ctx.setDeviceSel(S.devId); }
-      catch (e) { S.devErr = e.message; ctx.msg(t('m_api_err', { e: e.message }), 'err'); }
+      try { S.dev = await ctx.API.device(S.devId); ctx.setDeviceSel(S.devId); if (S.dev && S.dev.aktuell) { const c = readCopy(S.devId); if (c && c.pending) await syncPending(S.devId); else keepCopy(S.devId, S.dev.aktuell, false); } }
+      catch (e) { S.devErr = readCopy(S.devId) ? '' : e.message; if (!readCopy(S.devId)) ctx.msg(t('m_api_err', { e: e.message }), 'err'); }
     }
     S.backup = null; await loadBackup();
     if (here()) render();
@@ -74,9 +88,19 @@
     });
     if (a.herkunft === 'ausgelesen') keepBackup(Object.assign({}, a, { plaetze, zeit: new Date().toISOString() }));
     if (S.devId && S.devId !== 'lokal') {
-      S.dev = await ctx.API.setAktuell(S.devId, Object.assign({}, a, { plaetze }));
-      ctx.refreshDevices(S.devId);
-      return 'server';
+      try {
+        S.dev = await ctx.API.setAktuell(S.devId, Object.assign({}, a, { plaetze }));
+        keepCopy(S.devId, S.dev.aktuell, false);
+        ctx.refreshDevices(S.devId);
+        return 'server';
+      } catch (e) {
+        // ohne Netz (im Flug): in diesem Browser festhalten und später hochladen
+        if (e instanceof TypeError || /fetch|network|offline/i.test(e.message || '') || (root.navigator && root.navigator.onLine === false)) {
+          keepCopy(S.devId, Object.assign({}, a, { plaetze, zeit: new Date().toISOString() }), true);
+          return 'offline';
+        }
+        throw e;
+      }
     }
     localStorage.setItem(LS_LOCAL, JSON.stringify(Object.assign({}, a, { plaetze, zeit: new Date().toISOString() })));
     return 'lokal';
@@ -167,7 +191,7 @@
     if (plaetze.some(p => !p)) { ctx.msg(t('gr_m_incomplete'), 'warn'); return; }
     try {
       const where = await storeAktuell({ plaetze, herkunft: 'ausgelesen', configId: null, configName: quelle || '', version: null, quittiert: null });
-      ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
+      ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : where === 'offline' ? 'gr_m_saved_off' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
       if (S.imp) S.imp = null; else S.roSaved = true;
       await loadBackup(); render();
     } catch (e) { ctx.msg(t('m_api_err', { e: e.message }), 'err'); }
@@ -254,7 +278,7 @@
       ctx.msg(t(meta.kind === 'restore' ? 'gr_m_rs_ok' : 'gr_m_prog_ok', { d: devLabel(), ms: ms[Math.floor(ms.length / 2)] }), 'ok');
       try {
         const where = await storeAktuell({ plaetze: slots, herkunft: 'geschrieben', configId: meta.configId, configName: meta.configName, version: meta.version, quittiert: 100 });
-        ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
+        ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : where === 'offline' ? 'gr_m_saved_off' : 'gr_m_saved_loc', { d: devLabel() }), 'ok');
         if (meta.unsaved) ctx.msg(t('gr_m_prog_unsaved'), 'info');
       } catch (e) { ctx.msg(t('gr_m_store_err', { e: e.message }), 'err'); }
     } else ctx.msg(t('gr_m_prog_fail', { n: failed.length, s: failed.map(pad2).join(', ') }), 'err');
@@ -486,6 +510,9 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     },
     onClick, onChange, onKey,
     get busy() { return !!(S.prog && S.prog.running); },
+    // für die Seite «Im Flug» (0.6.0)
+    async ensure() { if (ctx) await initDevice(); },
+    aktuell: () => aktuell(), devLabel: () => devLabel(), storeAktuell: a => storeAktuell(a),
     _state: S   // für Tests
   };
 })(typeof window !== 'undefined' ? window : globalThis);

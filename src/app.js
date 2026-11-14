@@ -1,9 +1,9 @@
 /* krt2.wicki.aero – App-Oberfläche: Aktuell, Gebiet, Editor, Gerät (ab 0.4.0), Konfigurationen, Einstellungen, A6-Karte. */
 (function () {
   'use strict';
-  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
+  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI;
   const t = I.t;
-  const VERSION = '0.5.2';
+  const VERSION = '0.6.0';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -88,10 +88,10 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   }
 
   // ---------- Gerüst ----------
-  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'konfigurationen', 'einstellungen', 'karte', 'konten', 'protokoll'];
+  const ROUTES = ['aktuell', 'gebiet', 'editor', 'geraet', 'flug', 'konfigurationen', 'einstellungen', 'karte', 'konten', 'protokoll'];
   const isSuper = () => !!(API.user && API.user.role === 'super');
   function nav() {
-    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
+    const n = [['aktuell', 'nav_aktuell'], ['gebiet', 'nav_gebiet'], ['editor', 'nav_editor'], ['geraet', 'nav_geraet'], ['flug', 'nav_flug'], ['konfigurationen', 'nav_konfig', API.enabled ? null : '0.2.0'], ['einstellungen', 'nav_einst']];
     if (isSuper()) n.push(['konten', 'nav_konten']);
     return n;
   }
@@ -102,7 +102,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     $('#app').innerHTML = `
 <header class="top">
   <div class="brand"><strong>${t('title')}</strong>
-    <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : k === 'geraet' && LINK.connected ? ' class="live"' : ''}>${t(l)}</a>`).join('')}</nav>
+    <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : (k === 'geraet' || k === 'flug') && LINK.connected ? ' class="live"' : ''}>${t(l)}</a>`).join('')}</nav>
   </div>
   <div class="top-right">
     <a class="btn sec iconbtn" id="logbtn" href="#protokoll" title="${esc(t('log_title'))}"${r === 'protokoll' ? ' aria-current="page"' : ''}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbadge" id="logbadge" hidden></span></a>
@@ -127,7 +127,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     M.setSvcKurz(cfg.settings.svcKurz);
     if (window.KRT2GEBIET) window.KRT2GEBIET.leave();
     shell(r);
-    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => GR.render(), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
+    ({ aktuell: pageAktuell, editor: pageEditor, einstellungen: pageEinst, karte: pageKarte, gebiet: () => window.KRT2GEBIET.render(gctx), geraet: () => GR.render(), flug: () => FL.render(), konfigurationen: pageKonfig, konten: pageKonten, protokoll: pageProtokoll })[r]();
   }
 
   function footerNote() {
@@ -626,6 +626,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const L = M.layout(cfg);
     const st = cfg.settings;
     st.area = Object.assign({ von: 'GND', bis: 'FL195', radar: false, marginKm: 10 }, st.area || {});
+    const fl = st.flug = M.flugOf(cfg);
     // Belegungsstreifen: Platz für Platz, gleiche Nachbarn zusammengefasst (feste Plätze können mitten in einem Block liegen)
     const segs = [], shades = ['#1f5fbf', '#174a95', '#3b4a5c', '#2f6f8f', '#5b6b7f', '#255a3c'];
     const kindAt = n => { const x = L.slots[n]; if (x.kind === 'fixed') return n === 99 ? 'e' : 'f:' + n; if (x.kind === 'free') return 'free'; return 'b:' + x.block; };
@@ -700,6 +701,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     <div class="row"><span>${t('st_band')}</span><input type="text" class="mono" data-st="area.von" value="${esc(st.area.von)}" style="width:80px" aria-label="${esc(t('st_band'))} von"><span>–</span><input type="text" class="mono" data-st="area.bis" value="${esc(st.area.bis)}" style="width:90px" aria-label="${esc(t('st_band'))} bis"></div>
     <label><input type="checkbox" data-st="area.radar" ${st.area.radar ? 'checked' : ''}> ${t('st_radar')}</label>
     <div class="row"><label for="margin">${t('st_margin')}</label><input id="margin" type="number" min="0" max="100" data-st="area.marginKm" value="${esc(st.area.marginKm)}" style="width:80px"></div></section>
+  <section class="card stack"><span class="label">${t('st_flug')}</span>
+    <div class="row"><label for="flw">${t('st_flug_w')}</label><input id="flw" type="number" min="5" max="90" step="5" inputmode="numeric" data-st="flug.winkel" value="${esc(fl.winkel)}" style="width:80px"><span class="small muted">${t('st_flug_w_note', { w: fl.winkel, g: 2 * fl.winkel })}</span></div>
+    <div class="row"><label for="fld">${t('st_flug_d')}</label><input id="fld" type="number" min="10" max="300" step="10" inputmode="numeric" data-st="flug.distKm" value="${esc(fl.distKm)}" style="width:80px"><span class="small muted">km</span></div>
+    <span class="small">${t('st_flug_b')}</span>
+    <div class="row">${cfg.bloecke.map(b => `<label><input type="checkbox" data-stfb="${esc(b.id)}" ${fl.bloecke.includes(b.id) ? 'checked' : ''} ${b.on ? '' : 'disabled'}> ${esc(b.name)}${b.on ? '' : ` <span class="small muted">${t('st_flug_off')}</span>`}</label>`).join('')}</div>
+    <p class="note">${t('st_flug_note')}</p></section>
 </div>
 ${footerNote()}`;
   }
@@ -774,6 +781,10 @@ ${footerNote()}`;
       if (el.dataset.st === 'free.kurz') v = kname(v);
       if (el.dataset.st === 'area.marginKm') v = Math.max(0, Number(v) || 0);
       set(cfg.settings, el.dataset.st, v);
+      if (el.dataset.st.startsWith('flug.')) { cfg.settings.flug = M.flugOf(cfg); el.value = cfg.settings.flug[el.dataset.st.slice(5)]; }
+    } else if (el.dataset.stfb) {
+      const fl = cfg.settings.flug = M.flugOf(cfg), id = el.dataset.stfb;
+      fl.bloecke = el.checked ? fl.bloecke.filter(x => x !== id).concat([id]) : fl.bloecke.filter(x => x !== id);
     } else if (el.dataset.b) {
       const blk = M.blockById(cfg, el.closest('tr[data-bid]').dataset.bid);
       const k = el.dataset.b;
@@ -1027,6 +1038,12 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     setDeviceSel(id) { ui.deviceSel = id; try { localStorage.setItem('krt2.device', id); } catch (e) { /* egal */ } },
     async refreshDevices(id) { ui.devices = null; try { ui.devices = await API.devices(); } catch (e) { ui.devices = false; } if (id) { try { ui.device = await API.device(id); } catch (e) { /* egal */ } } } });
 
+  // Kontext für die Seite «Im Flug» (src/flugui.js)
+  FL.init({ get cfg() { return cfg; }, t, esc, msg, ask, download, stamp, fmtDT, footerNote, route, GR });
+
+  // Offline: Service Worker hält App und Frequenzdaten bereit (0.6.0)
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(e => console.warn('Service Worker:', e.message));
+
   // ---------- Platzhalterseiten ----------
   function pageLater(v, key) {
     $('#page').innerHTML = `<section class="card stack"><h1>${t('later_title', { v })}</h1><p style="margin:0">${t(key)}</p>
@@ -1039,6 +1056,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (ev.target.closest('[data-act=printcard]')) { ev.preventDefault(); const go = () => setTimeout(() => window.print(), 350); if (route() === 'karte') go(); else { location.hash = '#karte'; go(); } return; }
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     if (route() === 'geraet' && ev.target.closest('[data-gr]')) { GR.onClick(ev); return; }
+    if (route() === 'flug' && ev.target.closest('[data-fl]')) { FL.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
     if (b.dataset.act === 'mclose') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m) { m.toast = false; m.seen = true; saveLog(); } renderMsgs(); return; }
@@ -1074,6 +1092,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     const r = route();
     if (r === 'gebiet') { window.KRT2GEBIET.onChange(ev); return; }
     if (r === 'geraet') { GR.onChange(ev); return; }
+    if (r === 'flug') { FL.onChange(ev); return; }
     if (r === 'editor') onEditorChange(ev);
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);

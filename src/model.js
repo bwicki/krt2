@@ -41,7 +41,8 @@
       schema: SCHEMA, id: uid('c'), name: '', version: 0, created: now, updated: now,
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
-      settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
+      settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice(),
+        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] } },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
@@ -51,6 +52,13 @@
       bloecke: defaultBlocks(),
       eintraege: []
     };
+  }
+
+  // Vorausschau im Flug (0.6.0): halber Öffnungswinkel 5–90°, Distanz 10–300 km, Blöcke für Vorschläge
+  function flugOf(cfg) {
+    const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
+    const ids = (cfg.bloecke || []).map(b => b.id);
+    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: Array.isArray(f.bloecke) ? f.bloecke.filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) : ['b-info', 'b-radar'] };
   }
 
   let counter = 0;
@@ -325,7 +333,7 @@
       if (!k.trim()) add(e.id, 'r', 'nameLeer');
       else if (!n.ok) add(e.id, 'r', n.tooLong ? 'nameLang' : 'nameZeichen', n.bad || k);
       if (e.vertrauen === 'r') add(e.id, e.bestaetigt ? 'y' : 'r', 'widerspruch', e.note);
-      const only = Array.isArray(e.quellen) && e.quellen.length && !e.quellen.includes('openAIP') && ambiguous833(e.ch, e.note);   // vor 0.5.2 vorgeschlagen
+      const only = Array.isArray(e.quellen) && e.quellen.length && !e.quellen.includes('openAIP') && !e.quellen.includes('eigen');   // vor 0.5.2 vorgeschlagen
       if (only) add(e.id, 'y', 'nicht833');
       else if (e.vertrauen === 'y') add(e.id, 'y', 'eineQuelle');
       const fk = f.ok && freqKey(e.ch);
@@ -366,6 +374,7 @@
     cfg.fixed = { p00: Object.assign(d.fixed.p00, ofx.p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, ofx.p99 || {}),
       extra: (Array.isArray(ofx.extra) ? ofx.extra : []).map(x => ({ id: x.id || uid('fx'), nr: Number(x.nr), ch: String(x.ch || ''), kurz: String(x.kurz || ''), klar: String(x.klar || '') })) };
     cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
+    cfg.settings.flug = flugOf(cfg);
     cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
@@ -399,6 +408,6 @@
     SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm
+    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf
   };
 });

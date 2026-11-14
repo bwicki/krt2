@@ -170,11 +170,10 @@
     for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name, cc: String(d.cc || '').toUpperCase() }); }
     const out = [], byCh = new Map();
     const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, unconfirmed: 0, outsideBand: 0, svcOff: 0 };
-    // Nur eindeutige 8.33-Kanalnamen vorschlagen (Rückmeldung 14.11.2026). openAIP führt Kanalnamen (125.255).
-    // OurAirports allein nur, wenn der Wert eindeutig ein 8.33-Kanalname ist: dort steht oft die Trägerfrequenz
-    // (125.250 statt 125.255) oder ein Wert mit nur zwei Nachkommastellen – beides bleibt weg.
+    // Nur 8.33-Kanalnamen von openAIP vorschlagen (Entscheid 14.11.2026). openAIP führt Kanalnamen (125.255); OurAirports
+    // dient nur noch zur Gegenprobe – dort steht oft die Trägerfrequenz (125.250 statt 125.255) oder ein gerundeter Wert.
     const chOk = f => !!f.ch && M.freqKey(f.ch) !== null;
-    const ok833 = f => chOk(f) && Array.isArray(f.src) && (f.src.includes('oaip') || !M.ambiguous833(f.ch, f.note));
+    const ok833 = f => chOk(f) && Array.isArray(f.src) && f.src.includes('oaip');
     const off = new Set(opt.svcOff || []);
     const layers = { airports: [], airspaces: [] };
     const srcName = s => (s === 'oa' ? 'OurAirports' : 'openAIP');

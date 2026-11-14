@@ -168,3 +168,15 @@ console.log(n + ' Prüfungen bestanden');
   M.setSvcKurz({});
   console.log('0.4.5: Dienstkürzel in den Einstellungen – ' + k + ' Prüfungen bestanden');
 }
+{ // 0.6.0: Vorausschau im Flug in den Einstellungen
+  let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.0: ' + m); k++; };
+  const c = S.sampleConfig();
+  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] }), 'Vorgabe ±40° · 100 km · INFO und RADAR');
+  c.settings.flug = { winkel: 120, distKm: 5, bloecke: ['b-info', 'gibtsnicht', 7] };
+  const f = M.flugOf(c); okk(f.winkel === 90 && f.distKm === 10, 'Grenzen 5–90° und 10–300 km');
+  okk(f.bloecke.length === 1 && f.bloecke[0] === 'b-info', 'nur bestehende Blöcke');
+  c.settings.flug = { winkel: '35', distKm: '150', bloecke: [] };
+  const back = M.fromJSON(M.toJSON(c)); okk(back.settings.flug.winkel === 35 && back.settings.flug.distKm === 150 && back.settings.flug.bloecke.length === 0, 'gespeichert, leere Auswahl bleibt leer');
+  const old = JSON.parse(M.toJSON(c)); delete old.settings.flug; okk(M.fromJSON(old).settings.flug.winkel === 40, 'ältere Entwürfe ohne Vorausschau');
+  console.log('0.6.0: Vorausschau im Flug – ' + k + ' Prüfungen bestanden');
+}

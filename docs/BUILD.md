@@ -275,9 +275,34 @@ je näher am Rand, desto schneller), damit Einträge über die sichtbare Strecke
 - Der Hinweis «OurAirports: … (25-kHz-Angabe derselben Frequenz)» entfällt.
 - 25-kHz-Kanalnamen von openAIP (z. B. 124.700 Zurich Information) bleiben: sie sind im 8.33-Raster gültige Kanäle.
 
+**0.6.0 – Phase 3: Vorschläge im Flug (Rückmeldung 14.11.2026):**
+- Vorschläge nur noch aus openAIP (Entscheid Benutzer: «am besten stützt Du Dich auf openAIP ab»). Eine Frequenz kommt nur
+  in Frage, wenn sie ein gültiger 8.33-Kanalname ist (`M.freqKey`) und `src` «oaip» enthält; Lufträume ohne openAIP-Angabe
+  zählen als «nicht bestätigt» (`stats.unconfirmed`). 25-kHz-Kanalnamen wie 124.700 bleiben gültig.
+  Folge: europaweit fallen 2521 von 9335 Flugplatz-Angaben weg (nur OurAirports); um Zürich die neun Sektoren von
+  Zurich Radar (M1–M6, North, West, East) und Approach East/Final. openAIP führt dort an Radar nur ALPS RADAR (119.175,
+  119.225, 119.925) und MIL RADAR (135.480); ZUERICH TERMINAL 127.755 ist APP (Block APP/TWR). Test 14.11.: Sektor ab
+  Zürich nach Osten → RADAR 1 Kandidat.
+- Prüfung im Editor: «nicht833» (gelb) heisst jetzt «Quelle nicht openAIP»; eigene Einträge («eigen») sind ausgenommen.
+- Neue Seite «Im Flug» (`#flug`, `src/flugui.js`, Logik in `src/flug.js`, Tests `tests/flug.test.js`):
+  Funkgerät verbinden (Bluetooth oder USB, wie «Gerät»), GPS (`watchPosition`, 20 min Verlauf), Richtung aus der Trajektorie
+  (mind. 300 m, höchstens 10 min zurück) oder von Hand, Vorausschau-Sektor (Spitze am Standort, ±Winkel, Distanz; ohne
+  Richtung Kreis), je Block «Vorschlag holen» → Tabelle alt/neu/km → «n Plätze schreiben» mit Bestätigung. Frequenzen, die
+  im Block schon stehen, behalten ihren Platz; Frequenzen, die ausserhalb des Blocks im Gerät stehen, werden übersprungen;
+  Plätze ohne Ersatz bleiben unverändert. Schreiben über `Link.program` (wartet beim Senden, pausiert bei Verbindungsverlust).
+- Einstellungen «Im Flug: Vorausschau»: halber Öffnungswinkel (Vorgabe 40°, 5–90°), Distanz (Vorgabe 100 km, 10–300 km),
+  Blöcke mit Vorschlägen (Vorgabe INFO und RADAR) – `settings.flug`, bereinigt durch `M.flugOf`.
+- Gerätestand: Kopie je Server-Gerät im Browser (`krt2.aktuell.<id>`); ohne Netz geschrieben → «pending», wird beim
+  nächsten Kontakt mit dem Server nachgeliefert (`GR.storeAktuell` liefert dann 'offline').
+- Fluglog (`krt2.fluglog`, höchstens 1000 Zeilen): Zeit, Position, Block, Platz, alt, neu, Klartext, quittiert; CSV.
+- Ohne Netz: `sw.js` (Service Worker) – App und Frequenzdaten zuerst aus dem Netz, nach 4 s oder ohne Netz aus dem Cache.
+  «Für den Flug vorbereiten» lädt die Länderdateien für max(300 km, 2 × Distanz) um die Position (um Zürich 9 Länder).
+  Nicht im Cache: API, Kartenkacheln, Schriften.
+- Bildschirm bleibt wach, solange GPS läuft (Wake Lock); ohne sichtbaren Bildschirm liefert Chrome keine Positionen.
+
 ## 5 Prüfen
 
-- `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`
 - `node tests/area.test.mjs [freq-ch.json]` (Formen, Höhenband, Rufnamen; mit Datendatei Vorschlag um Zürich)
 - `node tests/worker.test.mjs` gegen einen lokalen Worker mit leerer Datenbank (SETUP.md, Abschnitt 5)
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus
