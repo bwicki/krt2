@@ -251,6 +251,7 @@
     cfg.eintraege = cfg.eintraege.filter(e => (e.quellen || []).includes('eigen'));
     for (const p of entries) M.addEntry(cfg, Object.assign({ aktiv: true }, p));
     for (const b of cfg.bloecke) M.sortBlock(cfg, b.id);
+    M.deselectOverflow(cfg);   // was keinen Platz mehr hat, erscheint abgewählt; Anwählen setzt es auf die Prio-Liste
     return cfg;
   }
 

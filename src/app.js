@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET;
   const t = I.t;
-  const VERSION = '0.4.1';
+  const VERSION = '0.4.2';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -137,8 +137,9 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   /** Gruppen für die Anzeige: [{ name, rg, rows:[{nr,kurz,ch,klar,dienst}], free }] – aus dem Entwurf oder aus dem Gerät. */
   function groupsFromLayout(L) {
     const g = [];
-    if (L.slots[0].kind === 'fixed') g.push({ name: t('blk_fixed'), rg: '00', rows: [L.slots[0]] });
-    for (const r of L.ranges) g.push({ name: r.name, rg: range(r.from, r.to), rows: L.slots.slice(r.from, r.to + 1) });
+    const fx = L.slots.filter(x => x.kind === 'fixed' && x.nr !== 99);   // 00 und weitere feste Plätze
+    if (fx.length) g.push({ name: t('blk_fixed'), rg: fx.map(x => pad2(x.nr)).join(', '), rows: fx });
+    for (const r of L.ranges) g.push({ name: r.name, rg: range(r.from, r.to), rows: (r.nrs || []).map(n => L.slots[n]) });
     const frees = L.slots.filter(x => x.kind === 'free' && x.nr < 99);
     if (frees.length) g.push({ name: t('blk_free'), rg: range(frees[0].nr, frees[frees.length - 1].nr), rows: frees, free: true });
     if (L.slots[99].kind === 'fixed') g.push({ name: t('blk_emerg'), rg: '99', rows: [L.slots[99]] });
@@ -149,12 +150,15 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     const g = [];
     const rows = pl.map(p => ({ nr: p.nr, kurz: (p.name || '').trimEnd(), ch: p.ch, klar: p.klar || '', dienst: p.dienst || '', block: p.block || '', kind: p.kind || '' }));
     const freeOf = r => r.kind === 'free' || r.kind === 'leer' || (!r.kind && (r.kurz === 'FREE' || !r.kurz));
-    for (const r of rows) {
-      const name = r.nr === 0 && r.kind !== 'entry' && !r.block ? t('blk_fixed') : r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : (r.block || '–');
+    const isFixed = r => r.nr !== 99 && (r.kind === 'fixed' || (r.nr === 0 && r.kind !== 'entry' && !r.block && !freeOf(r)));
+    const fx = rows.filter(isFixed);
+    if (fx.length) g.push({ name: t('blk_fixed'), rows: fx, rg: fx.map(x => pad2(x.nr)).join(', ') });
+    for (const r of rows.filter(x => !isFixed(x))) {
+      const name = r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : (r.block || '–');
       const last = g[g.length - 1];
-      if (last && last.name === name) last.rows.push(r); else g.push({ name, rows: [r], free: freeOf(r) });
+      if (last && last.name === name && !last.rg) last.rows.push(r); else g.push({ name, rows: [r], free: freeOf(r) });
     }
-    g.forEach(x => { x.rg = range(x.rows[0].nr, x.rows[x.rows.length - 1].nr); });
+    g.forEach(x => { if (!x.rg) x.rg = range(x.rows[0].nr, x.rows[x.rows.length - 1].nr); });
     return g;
   }
 
@@ -252,7 +256,7 @@ ${footerNote()}`;
     $('#page').className = 'wide';
     $('#page').innerHTML = `
 <div class="spread">
-  <div class="stack"><div class="row"><label class="sr" for="cname">${t('ed_name_ph')}</label><input id="cname" type="text" data-act="cname" value="${esc(cfg.name)}" placeholder="${esc(t('ed_name_ph'))}" style="font-size:20px;font-weight:600;min-width:280px"><span class="badge${cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''}" id="savestate">${esc(saveState())}</span></div>
+  <div class="stack"><div class="row"><label class="sr" for="cname">${t('ed_name_ph')}</label><input id="cname" type="text" data-act="cname" value="${esc(cfg.name)}" placeholder="${esc(t('ed_name_ph'))}" style="font-size:20px;font-weight:600;min-width:280px"><span class="badge${cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''}" id="savestate">${esc(saveState())}</span><span class="badge o" id="priobadge" hidden></span></div>
     <span class="small muted">${esc(area)}</span></div>
   <div class="row"><button type="button" class="sec" data-act="new">${t('ed_new')}</button><button type="button" class="sec" data-act="sample">${t('ed_sample')}</button></div>
 </div>
@@ -329,8 +333,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const colOn = anyFilter();
     const showFixed = ui.filter === 'all' && !q && !colOn && ui.sort.by === 'nr';
     let h = '';
-    const fixedRow = (key, nr) => {  // 00 und 99: fest, nur 99 abwählbar
-      const p = cfg.fixed[key];
+    const fixedRow = (key, nr) => {  // 00 und 99: fest, nur 99 abwählbar; weitere feste Plätze aus den Einstellungen
+      const p = key === 'p00' || key === 'p99' ? cfg.fixed[key] : Object.assign({ on: true }, cfg.fixed.extra.find(x => x.id === key));
       const is99 = key === 'p99';
       const box = is99 ? `<input type="checkbox" data-act="e99" ${p.on ? 'checked' : ''} aria-label="${t('col_on')} 99">` : `<span class="fixtag">${t('fest')}</span>`;
       return `<tr class="fixed${p.on ? '' : ' off'}"><td class="mv"></td><td class="nr">${pad2(nr)}</td><td>${box}</td><td class="k">${esc(p.kurz)}</td><td class="f">${esc(p.ch)}</td><td>${esc(p.klar)}</td><td class="small muted">${t('fest')}</td><td class="small muted">–</td><td class="small muted">–</td><td><span class="badge">${t('fest')}</span></td></tr>`;
@@ -344,11 +348,13 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       const list = cfg.eintraege.filter(e => on.has(e.block) && match(e)).sort(cmp);
       h = `<tr class="head"><td colspan="10"><span class="small muted">${esc(t('ed_sorted_view', { c: t({ k: 'col_k', d: 'col_d', dist: 'col_km', cc: 'col_cc' }[ui.sort.by]) }))}</span></td></tr>` + list.map(e => entryRow(e, L, R, true)).join('');
     }
-    if (showFixed && cfg.fixed.p00.on) h += `<tr class="head"><td colspan="10"><b>${t('blk_fixed')}</b> <span class="small muted">00</span></td></tr>` + fixedRow('p00', 0);
+    const fxRows = (cfg.fixed.p00.on ? [['p00', 0]] : []).concat(Object.entries(M.fixedExtra(cfg)).map(([n, x]) => [x.id, Number(n)])).sort((a, b) => a[1] - b[1]);
+    if (showFixed && fxRows.length) h += `<tr class="head"><td colspan="10"><div class="row" style="gap:8px"><b>${t('blk_fixed')}</b><span class="small muted">${fxRows.map(x => pad2(x[1])).join(', ')}</span><a class="small" href="#einstellungen">${t('ed_fixed_edit')}</a></div></td></tr>` + fxRows.map(x => fixedRow(x[0], x[1])).join('');
+    const prioSet = new Set(L.prio);
     if (ui.sort.by === 'nr') for (const b of cfg.bloecke.filter(x => x.on)) {
       const list = M.entriesOf(cfg, b.id);
       const rg = L.ranges.find(r => r.block === b.id);
-      const vis = list.filter(match);
+      const vis = list.filter(e => match(e) && !prioSet.has(e.id));
       if (!vis.length && (q || colOn || (ui.filter !== 'all' && ui.filter !== b.id))) continue;
       h += `<tr class="head" data-block="${b.id}"><td colspan="10"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="small muted">${rg ? range(rg.from, rg.to) : '–'} · ${t('ord_' + b.order)}</span>` +
         `<button type="button" class="ghost small" data-act="sort" data-b="${b.id}">${t('ed_sort')}</button></div></td></tr>`;
@@ -357,6 +363,18 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     if (showFixed) {
       if (L.freeTo != null) h += `<tr class="head" data-block="__free"><td colspan="10"><b>${t('blk_free')}</b> <span class="small muted">${range(L.freeFrom, L.freeTo)}: ${esc(cfg.settings.free.ch)} ${esc(cfg.settings.free.kurz)}</span></td></tr>`;
       h += `<tr class="head"><td colspan="10"><b>${t('blk_emerg')}</b> <span class="small muted">99</span></td></tr>` + fixedRow('p99', 99);
+    }
+    // Prio-Liste: gewählt, aber im Block kein Platz mehr – rückt als erste nach, wenn vorne abgewählt wird
+    if (ui.sort.by === 'nr' && L.prio.length) {
+      const pr = L.prio.map(id => cfg.eintraege.find(e => e.id === id)).filter(e => e && match(e));
+      if (pr.length) {
+        h += `<tr class="head prio" data-block="__prio"><td colspan="10"><div class="row" style="gap:8px"><b>${t('ed_prio')}</b><span class="small">${esc(t('ed_prio_head', { n: L.prio.length }))}</span></div></td></tr>`;
+        let lastB = null;
+        for (const e of pr) {
+          if (e.block !== lastB) { lastB = e.block; const bb = M.blockById(cfg, e.block); h += `<tr class="sub"><td colspan="10"><span class="small muted">${esc(bb ? bb.name : '–')}</span></td></tr>`; }
+          h += entryRow(e, L, R, true);
+        }
+      }
     }
     $('#edbody').innerHTML = h || `<tr><td colspan="10" class="muted">${t('cur_none')}</td></tr>`;
     // Prüfliste
@@ -370,6 +388,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       (x.why === 'blockAus' || x.why === 'ohneBlock' ? `<button type="button" class="sec" data-act="bring" data-id="${x.e.id}">${t('ed_bring')}</button>` : '') + `</div>`).join('') : `<p class="note">${t('ed_left_none')}</p>`);
     const sb = $('#savestate'); if (sb) { sb.textContent = saveState(); sb.className = 'badge' + (cfg.server && !cfg.dirty ? ' g' : cfg.server ? ' y' : ''); }
     $('#edstatus').textContent = t('ed_status', { used: L.used + (cfg.fixed.p99.on ? 1 : 0), r: R.count.r, y: R.count.y });
+    const pb = $('#priobadge'); if (pb) { pb.hidden = !L.prio.length; pb.textContent = t('ed_prio_badge', { n: L.prio.length }); }
   }
 
   function entryRow(e, L, R, noMove) {
@@ -380,6 +399,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const kBad = has('nameLang') || has('nameZeichen') || has('nameLeer');
     const fBad = has('freq');
     const np = L.notPlaced.find(x => x.e.id === e.id);
+    const prioRank = np && (np.why === 'voll' || np.why === 'max') ? L.prio.filter(id => { const x = cfg.eintraege.find(y => y.id === id); return x && x.block === e.block; }).indexOf(e.id) + 1 : 0;
     const ad = M.hasIcao(e);
     const seg = ad ? `<div class="seg small" role="group" aria-label="${esc(t('st_adloc'))}"><button type="button" data-act="kmode" data-v="icao" aria-pressed="${e.kurzModus === 'icao'}" title="${esc(t('ed_icao_btn'))}">${esc(e.ort.icao)}</button><button type="button" data-act="kmode" data-v="kurz" aria-pressed="${e.kurzModus === 'kurz'}" title="${esc(t('ed_short_btn'))}">${esc(e.ort.code || e.ort.iata || M.locCode(e.ort.name))}</button></div>` : '';
     const qcls = { g: 'g', y: 'y', r: e.bestaetigt ? 'y' : 'r', s: '' }[e.vertrauen] || '';
@@ -392,8 +412,8 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const dist = e.dist != null ? e.dist + ' km' : e.lage ? t('lage_' + e.lage) : '–';
     return `<tr data-id="${e.id}" class="${e.aktiv ? '' : 'off'}">
 <td class="mv">${noMove ? '' : `<span class="handle" data-drag draggable="true" title="${esc(t('col_move'))}"><span aria-hidden="true">⋮⋮</span></span><button type="button" class="ghost" data-act="up" aria-label="${esc(t('ed_up'))}">▲</button><button type="button" class="ghost" data-act="down" aria-label="${esc(t('ed_down'))}">▼</button>`}</td>
-<td class="nr">${nr != null ? pad2(nr) : '–'}${np && np.why !== 'blockAus' ? `<div class="small" style="color:var(--warn-fg)">${esc(t('why_' + np.why))}</div>` : ''}</td>
-<td><input type="checkbox" data-f="aktiv" ${e.aktiv ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(k)}"></td>
+<td class="nr">${nr != null ? pad2(nr) : prioRank ? `<span class="ptag" title="${esc(t('ed_prio_tip'))}">P${prioRank}</span>` : '–'}${np && np.why === 'ohneBlock' ? `<span class="ptag warn" title="${esc(t('why_ohneBlock'))}">!</span>` : ''}</td>
+<td><input type="checkbox" data-f="aktiv" class="${prioRank ? 'prio' : ''}" ${e.aktiv ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(k)}${prioRank ? ' – ' + esc(t('ed_prio')) : ''}" title="${prioRank ? esc(t('ed_prio_tip')) : ''}"></td>
 <td><div class="kcell"><input type="text" data-f="kurz" value="${esc(k)}" maxlength="12" spellcheck="false" autocomplete="off" class="${kBad ? 'bad' : ''}" aria-label="${esc(t('col_k'))}" title="${e.kurzModus === 'frei' ? esc(t('ed_free_name')) : ''}"><span class="kcount${k.length > 8 ? ' bad' : ''}">${k.length}/8</span>${seg}</div></td>
 <td><input type="text" class="freq${fBad ? ' bad' : ''}" data-f="ch" value="${esc(e.ch)}" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="${esc(t('col_f'))}"></td>
 <td><input type="text" class="klar" data-f="klar" value="${esc(e.klar)}" aria-label="${esc(t('col_t'))}"></td>
@@ -412,7 +432,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     if (a.id) return '#' + a.id;
     const row = a.closest('tr[data-id], tr[data-bid]');
     const scope = row ? (row.dataset.id ? `tr[data-id="${row.dataset.id}"] ` : `tr[data-bid="${row.dataset.bid}"] `) : '';
-    for (const k of ['f', 'fx', 'st', 'b']) if (a.dataset[k]) return scope + `[data-${k}="${a.dataset[k]}"]` + (a.type === 'radio' ? `[value="${a.value}"]` : '');
+    for (const k of ['f', 'fx', 'fxe', 'st', 'b']) if (a.dataset[k]) return scope + `[data-${k}="${a.dataset[k]}"]` + (a.type === 'radio' ? `[value="${a.value}"]` : '');
     if (a.dataset.act) return scope + `[data-act="${a.dataset.act}"]` + (a.dataset.v ? `[data-v="${a.dataset.v}"]` : '') + (a.dataset.svc ? `[data-svc="${a.dataset.svc}"]` : '');
     return null;
   }
@@ -551,12 +571,20 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const L = M.layout(cfg);
     const st = cfg.settings;
     st.area = Object.assign({ von: 'GND', bis: 'FL195', radar: false, marginKm: 10 }, st.area || {});
-    const segs = [];
-    if (L.slots[0].kind === 'fixed') segs.push({ label: '00', n: 1, bg: '#14202e', fg: '#fff', tip: t('blk_fixed') + ': ' + cfg.fixed.p00.kurz });
-    const shades = ['#1f5fbf', '#174a95', '#3b4a5c', '#2f6f8f', '#5b6b7f', '#255a3c'];
-    L.ranges.forEach((r, i) => segs.push({ label: r.name + ' ' + range(r.from, r.to), n: r.to - r.from + 1, bg: shades[i % shades.length], fg: '#fff', tip: r.name + ' ' + range(r.from, r.to) }));
-    if (L.freeTo != null) segs.push({ label: t('blk_free').toLowerCase() + ' ' + range(L.freeFrom, L.freeTo), n: L.freeTo - L.freeFrom + 1, cls: 'gap', tip: cfg.settings.free.ch + ' ' + cfg.settings.free.kurz });
-    segs.push(cfg.fixed.p99.on ? { label: '99', n: 1, bg: '#c0392b', fg: '#fff', tip: 'EMERGENC 121.500' } : { label: '99', n: 1, cls: 'gap', tip: t('st_off99') });
+    // Belegungsstreifen: Platz für Platz, gleiche Nachbarn zusammengefasst (feste Plätze können mitten in einem Block liegen)
+    const segs = [], shades = ['#1f5fbf', '#174a95', '#3b4a5c', '#2f6f8f', '#5b6b7f', '#255a3c'];
+    const kindAt = n => { const x = L.slots[n]; if (x.kind === 'fixed') return n === 99 ? 'e' : 'f:' + n; if (x.kind === 'free') return 'free'; return 'b:' + x.block; };
+    for (let n = 0; n <= 99; n++) {
+      const k = kindAt(n), last = segs[segs.length - 1];
+      if (last && last.k === k && !k.startsWith('f:')) { last.n++; last.to = n; continue; }
+      const x = L.slots[n], bi = cfg.bloecke.findIndex(b => 'b:' + b.id === k);
+      segs.push(k === 'e' ? { k, n: 1, from: n, to: n, label: '99', bg: '#c0392b', fg: '#fff', tip: 'EMERGENC 121.500' }
+        : k.startsWith('f:') ? { k, n: 1, from: n, to: n, label: pad2(n), bg: '#14202e', fg: '#fff', tip: t('blk_fixed') + ': ' + x.kurz + ' ' + x.ch }
+        : k === 'free' ? { k, n: 1, from: n, to: n, cls: 'gap', name: t('blk_free').toLowerCase(), tip: cfg.settings.free.ch + ' ' + cfg.settings.free.kurz }
+        : { k, n: 1, from: n, to: n, bg: shades[bi % shades.length], fg: '#fff', name: (cfg.bloecke[bi] || {}).name || '–' });
+    }
+    segs.forEach(sg => { if (sg.name) { sg.label = sg.name + ' ' + range(sg.from, sg.to); sg.tip = sg.tip || sg.label; } });
+    if (!cfg.fixed.p99.on) segs[segs.length - 1].tip = t('st_off99');
     const blockRow = (b, i) => {
       const rest = M.servicesOf(cfg).filter(s => !b.svc.includes(s));
       return `<tr data-bid="${b.id}" class="${b.on ? '' : 'off'}">
@@ -584,7 +612,14 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     <button type="button" class="sec" data-act="p00">${p0.on ? t('st_release') : t('st_take')}</button>
     <span class="mono muted">99</span><span class="mono" style="font-weight:600">${esc(p9.ch)}</span><span class="mono" style="font-weight:600">${esc(p9.kurz)}</span><span>${esc(p9.klar)} <span class="small muted">· ${p9.on ? t('st_always') : t('st_off99')}</span></span>
     <button type="button" class="${p9.on ? 'danger' : 'sec'}" data-act="p99">${p9.on ? t('e99_yes') : t('st_take')}</button>
-  </div></section>
+    ${cfg.fixed.extra.map(x => `<input type="number" min="1" max="98" class="mono" data-fxe="${esc(x.id)}.nr" value="${esc(String(x.nr).padStart(2, '0'))}" aria-label="${esc(t('st_fx_nr'))}" style="width:64px">
+    <input type="text" class="mono" data-fxe="${esc(x.id)}.ch" value="${esc(x.ch)}" placeholder="123.455" aria-label="${esc(t('col_f'))} ${pad2(x.nr)}">
+    <input type="text" class="mono" data-fxe="${esc(x.id)}.kurz" value="${esc(x.kurz)}" maxlength="8" placeholder="CREW" aria-label="${esc(t('col_k'))} ${pad2(x.nr)}">
+    <input type="text" data-fxe="${esc(x.id)}.klar" value="${esc(x.klar)}" placeholder="${esc(t('st_fx_klar_ph'))}" aria-label="${esc(t('col_t'))} ${pad2(x.nr)}">
+    <button type="button" class="ghost" data-act="fxdel" data-id="${esc(x.id)}" aria-label="${esc(t('st_fx_del'))} ${pad2(x.nr)}" title="${esc(t('st_fx_del'))}">×</button>`).join('')}
+  </div>
+  <div class="row"><button type="button" class="sec" data-act="fxadd">${t('st_fx_add')}</button></div>
+  <p class="note">${t('st_fx_note')}</p></section>
 <section class="card stack"><div class="spread"><span class="label">${t('st_blocks')}</span><button type="button" class="sec" data-act="badd">${t('st_add_block')}</button></div>
   <div style="overflow-x:auto"><table class="grid"><thead><tr><th><span class="sr">${t('col_move')}</span></th><th>${t('col_on')}</th><th>${t('st_block')}</th><th>${t('st_svc')}</th><th>${t('st_max')}</th><th>${t('st_order')}</th><th></th></tr></thead>
   <tbody>${cfg.bloecke.map(blockRow).join('')}</tbody></table></div></section>
@@ -618,6 +653,15 @@ ${footerNote()}`;
     const act = b.dataset.act;
     const tr = b.closest('tr[data-bid]'); const blk = tr && M.blockById(cfg, tr.dataset.bid);
     if (act === 'p00') { cfg.fixed.p00.on = !cfg.fixed.p00.on; }
+    else if (act === 'fxadd') {
+      const used = new Set(cfg.fixed.extra.map(x => Number(x.nr)));
+      let nr = 1; while (nr <= 98 && used.has(nr)) nr++;
+      if (nr > 98) { msg(t('st_fx_full'), 'warn'); return; }
+      cfg.fixed.extra.push({ id: M.uid('fx'), nr, ch: '', kurz: '', klar: '' });
+      cfg.fixed.extra.sort((a, c) => a.nr - c.nr);
+      msg(t('st_fx_added', { n: pad2(nr) }), 'info');
+    }
+    else if (act === 'fxdel') { const x = cfg.fixed.extra.find(y => y.id === b.dataset.id); cfg.fixed.extra = cfg.fixed.extra.filter(y => y.id !== b.dataset.id); if (x) msg(t('st_fx_deleted', { n: pad2(x.nr) }), 'info'); }
     else if (act === 'p99') { await toggle99(); }
     else if (act === 'bup' || act === 'bdown') { const i = cfg.bloecke.indexOf(blk), j = i + (act === 'bup' ? -1 : 1); if (j < 0 || j >= cfg.bloecke.length) return; [cfg.bloecke[i], cfg.bloecke[j]] = [cfg.bloecke[j], cfg.bloecke[i]]; }
     else if (act === 'svcdel') { blk.svc = blk.svc.filter(s => s !== b.dataset.svc); }
@@ -648,6 +692,18 @@ ${footerNote()}`;
       if (el.dataset.fx.endsWith('.ch')) { const r = C.encodeFreq(v); v = r.ok ? r.display : v.trim(); }
       if (el.dataset.fx.endsWith('.kurz')) v = v.toUpperCase();
       set(cfg.fixed, el.dataset.fx, v);
+    } else if (el.dataset.fxe) {
+      const [id, k] = el.dataset.fxe.split('.'), x = cfg.fixed.extra.find(y => y.id === id); if (!x) return;
+      let v = el.value;
+      if (k === 'nr') {
+        const n = parseInt(v, 10);
+        if (!(n >= 1 && n <= 98) || cfg.fixed.extra.some(y => y !== x && Number(y.nr) === n)) { msg(t('st_fx_nr_bad', { n: v }), 'warn'); el.value = pad2(x.nr); return; }
+        x.nr = n; cfg.fixed.extra.sort((a, c) => a.nr - c.nr);
+      } else {
+        if (k === 'ch') { const r = C.encodeFreq(v); v = r.ok ? r.display : v.trim(); }
+        if (k === 'kurz') v = v.toUpperCase();
+        x[k] = v;
+      }
     } else if (el.dataset.st) {
       let v = el.type === 'checkbox' ? el.checked : el.value;
       if (el.dataset.st === 'free.ch') { const r = C.encodeFreq(v); v = r.ok ? r.display : String(v).trim(); }
@@ -682,7 +738,7 @@ ${footerNote()}`;
     } else {
       const L = M.layout(cfg);
       D = M.deviceSlots(cfg, L);
-      [1, L.freeFrom, 99].forEach(x => starts.add(x)); L.ranges.forEach(r => starts.add(r.from));
+      groupsFromLayout(L).forEach(g => starts.add(g.rows[0].nr));
       L.slots.forEach(x => { if (x.kind === 'free') freeSet.add(x.nr); });
       title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
       sub = t('a6_draft') + ' · ' + fmtDT(new Date());
@@ -690,7 +746,7 @@ ${footerNote()}`;
     // Blockname je Platz; erscheint klein auf der Trennlinie, wo ein Block beginnt, und oben in jeder Spalte
     const blockAt = {};
     if (dev) groupsFromDevice(dev.aktuell.plaetze).forEach(g => g.rows.forEach(r => { blockAt[r.nr] = g.name; }));
-    else { const L2 = M.layout(cfg); if (L2.slots[0].kind === 'fixed') blockAt[0] = t('blk_fixed'); L2.ranges.forEach(r => { for (let i = r.from; i <= r.to; i++) blockAt[i] = r.name; }); L2.slots.forEach(x => { if (x.kind === 'free') blockAt[x.nr] = t('blk_free'); }); if (L2.slots[99].kind === 'fixed') blockAt[99] = t('blk_emerg'); }
+    else groupsFromLayout(M.layout(cfg)).forEach(g => g.rows.forEach(r => { blockAt[r.nr] = g.name; }));
     // Blockname auf der Höhe des ersten Eintrags (dunkelgrau); oben in einer Spalte als Fortsetzung («RADAR …», hellgrau)
     const label = d => (d.nr % 25 === 0 || blockAt[d.nr] !== blockAt[d.nr - 1]) ? `<span class="bl${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' cont' : ''}">${esc(blockAt[d.nr] || '')}${d.nr % 25 === 0 && blockAt[d.nr] === blockAt[d.nr - 1] ? ' …' : ''}</span>` : '<span></span>';
     const row = d => `<div class="r${freeSet.has(d.nr) ? ' free' : ''}${blockAt[d.nr] !== blockAt[d.nr - 1] && d.nr % 25 ? ' start' : ''}${d.nr === 99 && d.ch === '121.500' ? ' emerg' : ''}"><span class="n">${pad2(d.nr)}</span><span class="k">${freeSet.has(d.nr) ? '' : esc(String(d.name).trimEnd())}</span><b>${freeSet.has(d.nr) ? '' : esc(d.ch)}</b><span class="t">${freeSet.has(d.nr) ? '' : esc(d.klar)}</span>${label(d)}<span class="c">${freeSet.has(d.nr) ? '' : esc(d.cc)}</span></div>`;

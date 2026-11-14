@@ -13,7 +13,7 @@
 
   const S = {
     devId: null, dev: null, devErr: '', ro: new RO.Readout(), roOn: false, roSaved: false, imp: null, impName: '',
-    prog: null, showAll: false, check: { on: false, list: [] }, asked: {}, backup: null
+    prog: null, showAll: false, check: { on: false, list: [] }, asked: {}, backup: null, hint: ''
   };
   try { S.devId = localStorage.getItem(LS_DEV); S.devPicked = !!S.devId; } catch (e) { /* egal */ }
   let ctx = null;
@@ -140,17 +140,20 @@
   }
   function onReadoutR(r) {
     const res = S.ro.onR(r);
+    if (res.type === 'put' || res.type === 'pend') S.hint = '';
     if (res.type === 'closed') { S.roOn = false; ctx.msg(t('gr_m_ro_closed', { p: pad2(res.slot) }), 'ok'); if (here()) render(); return; }
     if (res.type === 'mismatch') ctx.msg(t('gr_m_ro_mismatch', { p: pad2(res.slot) }), 'warn');
     if (here()) paintRo();
   }
+  // Eingabehinweise erscheinen nur in der Zeile über dem Raster (kein bleibender Hinweis unten rechts); als Warnung ins
+  // Protokoll geht nur, was wirklich nicht stimmt (Kontrolle falsch, Runde nicht geschlossen).
   function applySel() {
     const inp = $('#gr-sel'); if (!inp) return;
     const v = inp.value.trim(), nr = Number(v);
-    if (v === '' || !Number.isInteger(nr) || nr < 0 || nr > 99) { ctx.msg(t('gr_sel_bad'), 'warn'); return; }
-    inp.value = '';
+    if (v === '' || !Number.isInteger(nr) || nr < 0 || nr > 99) { S.hint = t('gr_sel_bad'); paintRo(); inp.focus(); return; }
+    inp.value = ''; S.hint = '';
     const res = S.ro.sel(nr);
-    if (res.type === 'none') ctx.msg(t('gr_sel_none'), 'warn');
+    if (res.type === 'pre') S.hint = t('gr_m_pre', { p: pad2(nr), q: pad2((nr + 1) % 100) });
     else if (res.type === 'anchor') ctx.msg(t('gr_m_anchor', { p: pad2(nr), n: res.back }), 'info');
     else if (res.type === 'ok') ctx.msg(t('gr_m_chk_ok', { p: pad2(nr) }), 'info');
     else if (res.type === 'jump') ctx.msg(t('gr_m_jump', { p: pad2(nr), w: pad2(res.was) }), 'info');
@@ -334,15 +337,21 @@ ${ctx.footerNote()}`;
     const el = $('#gr-ro'); if (!el) return;
     const ro = S.ro;
     if (!S.roOn && !ro.count) { el.innerHTML = ''; return; }
-    let prompt = '';
-    if (S.roOn) {
-      if (ro.cursor === null) prompt = ro.pend.length ? t('gr_ro_need_nr', { r: ro.pend[ro.pend.length - 1].r.freq + ' «' + nm(ro.pend[ro.pend.length - 1].r.name) + '»' }) : t('gr_ro_first');
-      else { const e = ro.slots[ro.cursor]; prompt = t('gr_ro_last', { p: pad2(ro.cursor), r: e.freq + ' «' + e.name + '»' }); }
-    }
-    el.innerHTML = `${S.roOn ? `<ol class="small gr-steps"><li>${t('gr_ro_s1')}</li><li>${t('gr_ro_s2')}</li><li>${t('gr_ro_s3')}</li></ol>
+    // Bedienzeile nur beim Wechsel neu aufbauen: so bleiben Eingabe und Fokus erhalten, während Meldungen eintreffen
+    if (S.roOn && !$('#gr-sel')) {
+      el.innerHTML = `<ol class="small gr-steps"><li>${t('gr_ro_s1')}</li><li>${t('gr_ro_s2')}</li><li>${t('gr_ro_s3')}</li></ol>
 <div class="row"><label for="gr-sel">${t('gr_sel_lbl')}</label><input id="gr-sel" type="number" min="0" max="99" class="mono" style="width:72px"><button type="button" data-gr="sel">${t('gr_sel_btn')}</button>
-<button type="button" class="sec" data-gr="undo" ${ro.hist.length ? '' : 'disabled'}>${t('gr_undo')}</button><button type="button" class="sec" data-gr="rostop">${t('gr_ro_stop')}</button></div>
-<p class="gr-prompt ${ro.cursor === null ? 'warn' : ''}">${esc(prompt)}</p>` : ''}
+<button type="button" class="sec" data-gr="undo">${t('gr_undo')}</button><button type="button" class="sec" data-gr="rostop">${t('gr_ro_stop')}</button></div>
+<div id="gr-ro-dyn"></div>`;
+    } else if (!S.roOn) el.innerHTML = '<div id="gr-ro-dyn"></div>';
+    const undo = el.querySelector('[data-gr=undo]'); if (undo) undo.disabled = !ro.hist.length;
+    let prompt = '', warn = false;
+    if (S.roOn) {
+      if (S.hint) { prompt = S.hint; warn = !ro.count && ro.cursor === null; }
+      else if (ro.cursor === null) { prompt = ro.pend.length ? t('gr_ro_need_nr', { r: ro.pend[ro.pend.length - 1].r.freq + ' «' + nm(ro.pend[ro.pend.length - 1].r.name) + '»' }) : t('gr_ro_first'); warn = ro.pend.length > 0; }
+      else { const e = ro.slots[ro.cursor]; prompt = e ? t('gr_ro_last', { p: pad2(ro.cursor), r: e.freq + ' «' + e.name + '»' }) : t('gr_m_pre', { p: pad2(ro.cursor), q: pad2((ro.cursor + 1) % 100) }); }
+    }
+    $('#gr-ro-dyn').innerHTML = `${S.roOn ? `<p class="gr-prompt ${warn ? 'warn' : ''}" aria-live="polite">${esc(prompt)}</p>` : ''}
 <p class="small"><b>${esc(roSummaryText())}</b></p>
 ${S.roSaved ? `<p class="note">${t('gr_ro_saved_note', { d: devLabel() })}</p>` : `<div class="gr-grid" aria-label="${esc(t('gr_grid'))}">${Array.from({ length: 100 }, (_, i) => cell(i)).join('')}</div>`}
 ${!S.roOn && ro.count ? `<div class="row">${S.roSaved ? '' : `<button type="button" data-gr="rosave" ${ro.count === 100 ? '' : 'disabled'}>${t('gr_ro_save', { d: devLabel() })}</button>`}<button type="button" class="sec" data-gr="rocsv">CSV</button><button type="button" class="sec" data-gr="rojson">JSON</button><button type="button" class="ghost" data-gr="rodrop">${t('gr_ro_drop')}</button></div>

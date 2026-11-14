@@ -60,3 +60,14 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   let err = ''; try { parseBackup('{"typ":"x"}'); } catch (e) { err = e.message; } ok(/keine KRT2-Sicherung/.test(err), 'falscher Typ');
 }
 console.log('readout: ' + n + ' Prüfungen bestanden');
+// 6. Nummer vor der ersten Meldung (0.4.2): MEM zeigt SEL[..] ohne Meldung – die erste Meldung ist der Platz danach
+{
+  const R = new Readout(); R.start();
+  ok(R.sel(98).type === 'pre', 'Vor-Anker');
+  ok(R.sel(97).type === 'pre' && R.cursor === 97, 'Vor-Anker korrigiert');
+  R.onR({ t: 0, freq: '136.975', name: 'TEST2' });
+  ok(R.cursor === 98 && R.slots[98].name === 'TEST2', 'erste Meldung = Platz danach');
+  R.onR({ t: 2000, freq: '136.975', name: '' });
+  ok(R.cursor === 99 && R.sel(99).type === 'ok', 'Kontrolle danach');
+  console.log('readout: Vor-Anker geprüft');
+}

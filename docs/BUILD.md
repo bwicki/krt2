@@ -172,6 +172,17 @@ Wiederholen der Fehlgeschlagenen) und hält danach den Stand fest (Herkunft `ges
 Geprüft: Worker-Test (59 Prüfungen), Playwright angemeldet: Sicherung aus Datei → programmieren → neuer Browser ohne
 lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und Wiederholung) → simuliertes Gerät = Sicherung.
 
+**0.4.2 – Rückmeldungen 14.11.2026:**
+- *Weitere feste Plätze* (Einstellungen → Feste Plätze → «Festen Platz hinzufügen»): `cfg.fixed.extra = [{ id, nr 01–98, ch, kurz, klar }]`.
+  Die Blöcke laufen um sie herum (`layout`: Bereiche mit `nrs`), Startseite, A6-Karte und Belegungsstreifen zeigen sie unter «Fest».
+- *Prio-Liste:* Was im Block keinen Platz mehr hat, ist nach einem Vorschlag abgewählt (`deselectOverflow`, einmalig auch
+  beim Laden älterer Entwürfe). Wählt man es wieder an, steht es auf der Prio-Liste: ockerfarbenes Kästchen, Kennzeichen
+  «P1, P2 …» statt des umbrechenden Texts, eigene Gruppe nach Platz 99, Hinweis in der Titelzeile «n Freq. auf der
+  Prio-Liste – weniger wichtige Freq. abwählen». Wird vorne abgewählt, rückt die erste Prio-Freq. des Blocks nach.
+- *Auslesen von Hand:* Die SEL-Nummer darf vor der ersten Raste eingetragen werden (MEM zeigt sie an, meldet aber nichts);
+  Eingabehinweise erscheinen nur noch in der Zeile über dem Raster statt als bleibender Hinweis unten rechts, und das
+  Nummernfeld bleibt beim Eintreffen von Meldungen stehen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

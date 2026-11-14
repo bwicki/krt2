@@ -35,8 +35,10 @@
       settings: { adLoc: 'kurz', allowDigits: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice() },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
-        p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' }
+        p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
+        extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
+      prioListe: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -160,34 +162,53 @@
    * Blöcke folgen ab 00 (oder ab 01, wenn 00 fest belegt ist) lückenlos; freie Plätze nur am Ende vor 99.
    * Ergebnis: slots[100] = { nr, kind:'fixed'|'entry'|'free', ch, kurz, klar, dienst, block, entryId }.
    */
+  /** Weitere feste Plätze (01–98), gültig und ohne Doppel: { nr → Eintrag }. */
+  function fixedExtra(cfg) {
+    const at = {};
+    for (const x of (cfg.fixed.extra || [])) { const n = Number(x.nr); if (Number.isInteger(n) && n >= 1 && n <= LAST_SLOT && !at[n]) at[n] = x; }
+    return at;
+  }
   function layout(cfg) {
     const slots = new Array(100).fill(null);
     const free = cfg.settings.free;
-    const fx = cfg.fixed;
+    const fx = cfg.fixed, fxAt = fixedExtra(cfg);
     let next = 0;
     if (fx.p00.on) { slots[0] = { nr: 0, kind: 'fixed', fixed: 'p00', ch: fx.p00.ch, kurz: fx.p00.kurz, klar: fx.p00.klar, dienst: '', block: null }; next = 1; }
+    for (const n of Object.keys(fxAt)) { const x = fxAt[n]; slots[n] = { nr: Number(n), kind: 'fixed', fixed: x.id, ch: x.ch, kurz: x.kurz, klar: x.klar || '', dienst: '', block: null }; }
+    const skip = () => { while (next <= LAST_SLOT && fxAt[next]) next++; };   // feste Plätze überspringen
+    skip();
     const ranges = [], notPlaced = [], slotOf = {};
     for (const b of cfg.bloecke) {
       const all = entriesOf(cfg, b.id);
       if (!b.on) { all.filter(e => e.aktiv).forEach(e => notPlaced.push({ e, why: 'blockAus' })); continue; }
       const items = all.filter(e => e.aktiv);
-      const from = next;
+      const nrs = [];
       items.forEach((e, i) => {
         if (b.max != null && i >= b.max) { notPlaced.push({ e, why: 'max' }); return; }
         if (next > LAST_SLOT) { notPlaced.push({ e, why: 'voll' }); return; }
         slotOf[e.id] = next;
         slots[next] = { nr: next, kind: 'entry', ch: e.ch, kurz: entryShort(e), klar: e.klar, dienst: e.dienst, cc: ccOf(e), block: b.id, entryId: e.id };
-        next++;
+        nrs.push(next); next++; skip();
       });
-      if (next > from) ranges.push({ block: b.id, name: b.name, from, to: next - 1 });
+      if (nrs.length) ranges.push({ block: b.id, name: b.name, from: nrs[0], to: nrs[nrs.length - 1], nrs });
     }
     cfg.eintraege.filter(e => e.aktiv && !blockById(cfg, e.block)).forEach(e => notPlaced.push({ e, why: 'ohneBlock' }));
-    const freeFrom = next;
-    for (let n = next; n <= LAST_SLOT; n++) slots[n] = { nr: n, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
+    for (let n = next; n <= LAST_SLOT; n++) if (!slots[n]) slots[n] = { nr: n, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
     slots[99] = fx.p99.on
       ? { nr: 99, kind: 'fixed', fixed: 'p99', ch: fx.p99.ch, kurz: fx.p99.kurz, klar: fx.p99.klar, dienst: '', block: null }
       : { nr: 99, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
-    return { slots, ranges, notPlaced, slotOf, freeFrom, freeTo: freeFrom <= LAST_SLOT ? LAST_SLOT : null, used: freeFrom };
+    const frees = slots.filter(x => x.kind === 'free' && x.nr <= LAST_SLOT).map(x => x.nr);
+    const prio = notPlaced.filter(x => x.why === 'voll' || x.why === 'max').map(x => x.e.id);
+    return { slots, ranges, notPlaced, slotOf, prio, freeFrom: frees.length ? frees[0] : LAST_SLOT + 1, freeTo: frees.length ? frees[frees.length - 1] : null,
+      used: slots.filter(x => x.nr <= LAST_SLOT && x.kind !== 'free').length };
+  }
+
+  /** Prio-Liste: gewählte Einträge, für die im Block kein Platz mehr frei ist. Sie rücken als erste nach, wenn vorne
+      ein Eintrag abgewählt wird. Nach einem Vorschlag sind alle, die nicht mehr Platz haben, abgewählt (ab 0.4.2). */
+  function deselectOverflow(cfg) {
+    const L = layout(cfg); let n = 0;
+    for (const id of L.prio) { const e = cfg.eintraege.find(x => x.id === id); if (e) { e.aktiv = false; n++; } }
+    return n;
   }
 
   /** Was ins Gerät geht: 100 × { nr, ch, name (8 Zeichen) } – Grundlage für Z-Befehle und die A6-Karte. */
@@ -220,8 +241,8 @@
       if (f.ok && lay.slotOf[e.id] != null && (placedCh[f.display] || []).length > 1) add(e.id, 'y', 'doppelt', placedCh[f.display].map(x => String(x).padStart(2, '0')).join(', '));
     }
     const fixedIssues = [];
-    for (const key of ['p00', 'p99']) {
-      const p = cfg.fixed[key];
+    const fxAll = [['p00', cfg.fixed.p00], ['p99', cfg.fixed.p99]].concat((cfg.fixed.extra || []).map(x => [x.id, Object.assign({ on: true }, x)]));
+    for (const [key, p] of fxAll) {
       if (!p.on) continue;
       if (!C.encodeFreq(p.ch).ok) fixedIssues.push({ key, lvl: 'r', code: 'freq', arg: p.ch });
       const n = C.normalizeName(p.kurz, cfg.settings.allowDigits);
@@ -249,10 +270,13 @@
     cfg.settings = Object.assign(defaultConfig().settings, o.settings || {});
     if (!Array.isArray(cfg.settings.services) || !cfg.settings.services.length) cfg.settings.services = SERVICES.slice();
     cfg.settings.free = Object.assign({ ch: '118.000', kurz: 'FREE' }, (o.settings || {}).free || {});
-    cfg.fixed = { p00: Object.assign(d.fixed.p00, (o.fixed || {}).p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, (o.fixed || {}).p99 || {}) };
+    const ofx = o.fixed || {};
+    cfg.fixed = { p00: Object.assign(d.fixed.p00, ofx.p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, ofx.p99 || {}),
+      extra: (Array.isArray(ofx.extra) ? ofx.extra : []).map(x => ({ id: x.id || uid('fx'), nr: Number(x.nr), ch: String(x.ch || ''), kurz: String(x.kurz || ''), klar: String(x.klar || '') })) };
     cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
     cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
     cfg.schema = SCHEMA;
+    if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
     return cfg;
   }
 
@@ -278,6 +302,6 @@
     SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
+    layout, fixedExtra, deselectOverflow, deviceSlots, check, toJSON, fromJSON, toCSV, distKm
   };
 });

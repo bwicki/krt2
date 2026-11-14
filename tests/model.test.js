@@ -87,3 +87,27 @@ const before = L5.slotOf[inR[1].id]; inR[0].aktiv = false; L5 = M.layout(c5);
 ok(L5.slotOf[fourth.id] != null, 'rückt nach, Block wieder voll'); eq(L5.slotOf[inR[1].id], before - 1, 'folgende rücken einen Platz vor');
 eq(L5.ranges.find(r => r.block === 'b-radar').to - L5.ranges.find(r => r.block === 'b-radar').from + 1, 3);
 console.log(n + ' Prüfungen bestanden');
+
+// ---------- 0.4.2: weitere feste Plätze und Prio-Liste ----------
+{
+  const M2 = require('../src/model.js');
+  const c = M2.defaultConfig();
+  const b = c.bloecke[0]; b.max = null;
+  for (let i = 0; i < 120; i++) M2.addEntry(c, { ch: '118.' + String(100 + i * 5).padStart(3, '0').slice(-3), kurz: 'S' + i, block: b.id, dienst: 'INFO' });
+  c.fixed.extra = [{ id: 'fxa', nr: 1, ch: '123.455', kurz: 'CREW', klar: 'Verfolger' }, { id: 'fxb', nr: 50, ch: '122.480', kurz: 'TEAM', klar: '' }];
+  const L = M2.layout(c);
+  const okf = (cond, m) => { if (!cond) throw new Error('0.4.2: ' + m); };
+  okf(L.slots[1].kind === 'fixed' && L.slots[1].kurz === 'CREW' && L.slots[50].kurz === 'TEAM', 'feste Plätze 01 und 50');
+  okf(L.slots[2].kind === 'entry' && L.slots[49].kind === 'entry' && L.slots[51].kind === 'entry', 'Block läuft um die festen Plätze');
+  const r0 = L.ranges[0]; okf(r0.from === 2 && !r0.nrs.includes(50) && r0.nrs.length === 96 && r0.to === 98, 'Bereich ohne festen Platz, 96 Einträge');
+  okf(L.prio.length === 24 && L.used === 99, 'Prio-Liste 24, 00–98 belegt');
+  const D = M2.deviceSlots(c, L); okf(D[50].name.trim() === 'TEAM' && D[50].kind === 'fixed', 'Gerät: fester Platz');
+  okf(M2.deselectOverflow(c) === 24 && M2.layout(c).prio.length === 0, 'Überzählige abgewählt');
+  const e = c.eintraege.find(x => !x.aktiv); e.aktiv = true;
+  okf(M2.layout(c).prio.length === 1, 'wieder gewählt = Prio');
+  const first = c.eintraege.find(x => x.aktiv && M2.layout(c).slotOf[x.id] != null); first.aktiv = false;
+  const L3 = M2.layout(c); okf(L3.prio.length === 0 && L3.slotOf[e.id] != null, 'Prio rückt nach');
+  const back = M2.fromJSON(M2.toJSON(c)); okf(back.fixed.extra.length === 2 && back.fixed.extra[1].nr === 50, 'feste Plätze gespeichert');
+  c.fixed.extra.push({ id: 'fxc', nr: 60, ch: '999.000', kurz: 'X' }); okf(M2.check(c).fixed.some(i => i.key === 'fxc' && i.code === 'freq'), 'Prüfung fester Platz');
+  console.log('0.4.2: feste Plätze und Prio-Liste – 11 Prüfungen bestanden');
+}

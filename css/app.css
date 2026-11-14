@@ -144,7 +144,9 @@ td select.svc{min-width:84px}
 .alloc div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 6px;min-width:max-content}
 .alloc div.gap{min-width:40px}
 .alloc .gap{background:repeating-linear-gradient(45deg,#eef1f5 0 6px,#fff 6px 12px);color:var(--muted)}
-.fixedgrid{display:grid;grid-template-columns:40px 110px 130px minmax(160px,1fr) auto;gap:8px 10px;align-items:center}
+.fixedgrid{display:grid;grid-template-columns:60px 110px 130px minmax(160px,1fr) auto;gap:8px 10px;align-items:center}
+.fixedgrid input[data-fxe$='.nr']{width:60px!important}
+.fixedgrid button.ghost{justify-self:start}
 .settings-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 
 /* Startseite */
@@ -216,7 +218,7 @@ dialog .row{justify-content:flex-end;margin-top:16px}
 }
 @media (max-width:900px){
   header.top,main,.bar-actions{padding-left:14px;padding-right:14px}
-  .fixedgrid{grid-template-columns:40px 1fr 1fr}
+  .fixedgrid{grid-template-columns:60px 1fr 1fr}
 }
 @media print{
   @page{size:A4 portrait;margin:0}
@@ -247,3 +249,11 @@ nav.main a.live::after{content:"";display:inline-block;width:7px;height:7px;bord
 .gr-bar{height:10px;border-radius:5px;background:var(--hair);overflow:hidden}
 .gr-bar span{display:block;height:100%;background:var(--primary);transition:width .15s}
 @media (max-width:700px){.gr-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+/* 0.4.2: Prio-Liste und weitere feste Plätze */
+:root{--ochre:#b7811d;--ochre-bg:#fbf1dc;--ochre-bd:#e7c98a}
+input[type=checkbox].prio{accent-color:var(--ochre);outline:2px solid var(--ochre);outline-offset:1px;border-radius:3px}
+.ptag{display:inline-block;white-space:nowrap;font-size:11px;line-height:1.4;padding:0 6px;border-radius:9px;background:var(--ochre-bg);color:var(--ochre);border:1px solid var(--ochre-bd);font-weight:600}
+.ptag.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn-bd);margin-left:4px}
+.badge.o{background:var(--ochre-bg);color:var(--ochre);border-color:var(--ochre-bd)}
+tr.head.prio td{background:var(--ochre-bg);border-top:2px solid var(--ochre-bd)}
+tr.sub td{padding-top:6px;padding-bottom:2px;border-bottom:0}

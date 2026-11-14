@@ -64,8 +64,12 @@
         Gibt { type: anchor | ok | jump | bad | none, ... } zurück. */
     sel(nr) {
       if (!Number.isInteger(nr) || nr < 0 || nr > 99) return { type: 'invalid' };
+      // Nummer schon vor der ersten Meldung (MEM zeigt SEL[..], meldet aber nichts): die nächste Meldung ist der Platz danach
+      const noneYet = !this.hist.length || this.hist[this.hist.length - 1].kind !== 'put';
+      if ((this.cursor === null && !this.pend.length) || (this.cursor !== null && noneYet && !this.sinceChk.length && !this.slots[this.cursor])) {
+        this.cursor = nr; return { type: 'pre', slot: nr };
+      }
       if (this.cursor === null) {
-        if (!this.pend.length) return { type: 'none' };
         const list = this.pend; this.pend = []; this.hist = this.hist.filter(h => h.kind !== 'pend');
         this.cursor = ((nr - list.length) % 100 + 100) % 100;
         for (const p of list) this._put((this.cursor + 1) % 100, p.r, p.dt);
