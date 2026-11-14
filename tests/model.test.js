@@ -10,7 +10,7 @@ eq(M.shortName({ name: 'Zürich', svc: 'TWR' }, 'kurz'), 'ZURICH T', 'ganzer Nam
 eq(M.shortName({ name: 'Zürich', svc: 'FIS' }, 'kurz'), 'ZURICH F');
 eq(M.shortName({ name: 'Zürich', svc: 'INFO' }, 'kurz'), 'ZURICH I');
 eq(M.shortName({ name: 'Zürich', qual: 'E', svc: 'RDR' }, 'kurz'), 'ZRCH E R', 'Zusatz mit Leerzeichen');
-eq(M.shortName({ name: 'Bern-Belp', svc: 'APP' }, 'kurz'), 'BERN APP', 'Teil vor dem Bindestrich');
+eq(M.shortName({ name: 'Bern-Belp', svc: 'APP' }, 'kurz'), 'BERN A', 'Teil vor dem Bindestrich');
 eq(M.shortName({ name: 'Grenchen', svc: 'RDO' }, 'kurz'), 'GRNCH RD');
 eq(M.shortName({ name: 'Lugano', svc: 'ATIS' }, 'kurz'), 'LUGAN AT', 'Vokale von hinten weg');
 eq(M.shortName({ name: 'Genève', svc: 'DEP' }, 'kurz'), 'GENEVE D');
@@ -21,8 +21,10 @@ eq(M.shortName({ name: 'Zürich', icao: 'LSZH', svc: 'TWR' }, 'icao'), 'LSZH T')
 eq(M.shortName({ name: 'Zürich', icao: 'LSZH', svc: 'ATIS' }, 'icao'), 'LSZH AT', 'immer Leerzeichen vor dem Dienst');
 eq(M.shortName({ name: 'Birrfeld', icao: 'LSZF', svc: 'AFIS' }, 'icao'), 'LSZF AF');
 eq(M.shortName({ name: 'Grenchen', icao: 'LSZG', svc: 'RDO' }, 'icao'), 'LSZG RD');
-eq(M.shortName({ name: 'Payerne', icao: 'LSMP', svc: 'UCOM' }, 'icao'), 'PRN UNIC', 'ICAO passt nicht neben vierstelligen Dienst → Kürzel');
-eq(M.shortName({ loc: 'ZRH', svc: 'VOLMET' }, 'kurz'), 'Z VOLMET', 'Ortsteil kürzen, nie den Dienst');
+eq(M.shortName({ name: 'Payerne', icao: 'LSMP', svc: 'BALL' }, 'icao'), 'PRN BALL', 'ICAO passt nicht neben vierstelligen eigenen Dienst → Kürzel');
+eq(M.shortName({ name: 'Zürich', icao: 'LSZH', svc: 'VOLMET' }, 'icao'), 'LSZH VOL');
+eq(['APP', 'GND', 'DEL', 'APN', 'ACC', 'GLD', 'CTAF', 'MIL', 'UCOM'].map(M.svcKurz).join(' '), 'A G DL AP AC GL CT M U', 'übrige Dienste kurz (0.4.4)');
+eq(M.shortName({ loc: 'ZRH', svc: 'BALLON' }, 'kurz'), 'Z BALLON', 'Ortsteil kürzen, nie den Dienst');
 eq(M.shortName({ name: 'Zürich', icao: '', svc: 'TWR' }, 'icao'), 'ZURICH T', 'ohne ICAO-Code bleibt das Kürzel');
 eq(M.shortName({ loc: 'BIR', svc: 'AFIS' }, 'kurz'), 'BIR AF', 'ohne Namen das gespeicherte Kürzel');
 eq(M.locCode('Dübendorf', 4), 'DBND'); eq(M.locCode('Saanen', 5), 'SANEN', 'Doppelte weg'); eq(M.locCode('Hausen am Albis', 6), 'HAUSNA', 'Füllwort weg, Wortanfang bleibt');

@@ -35,7 +35,7 @@
 <section class="wide step" id="s0">
   <h2><span class="num">0</span> Vorbereitung <span class="badge" id="b0"></span></h2>
   <ul class="checks">
-    <li><label><input type="checkbox" data-prep> Funkgerät am Boden, eingeschaltet, kein Funkverkehr, kein Sendebetrieb geplant</label></li>
+    <li><label><input type="checkbox" data-prep> Funkgerät am Boden, eingeschaltet, kein Funkverkehr; gesendet wird nur in Schritt 5c, von Hand und mit Antenne oder Kunstlast</label></li>
     <li><label><input type="checkbox" data-prep> Prüfkabel an der Binder-Buchse der ART-36A, Adapter DA-70156 am Laptop (Wartezeit im Geräte-Manager 1 ms)</label></li>
     <li><label><input type="checkbox" data-prep> Laptop am Netzteil oder Akku genügend geladen; Chrome oder Edge</label></li>
     <li><label><input type="checkbox" data-prep> Am Funkgerät notiert: aktive Frequenz, Standby-Frequenz, Lautstärke</label></li>
@@ -46,7 +46,7 @@
     <label><input type="checkbox" id="optSend"> <b>Senden freigeben</b></label>
     <label><input type="checkbox" id="optCmd"> <b>Befehle an das Funkgerät freigeben</b> (W, Z, R)</label>
   </div>
-  <p class="muted small">Ohne «Senden freigeben» hört die Seite nur mit. Ohne «Befehle freigeben» sendet sie nur die Antworten auf «S» und ACK. Nie gesendet werden: aktive Frequenz, Lautstärke, Squelch, Kanalraster, Sendetasten.</p>
+  <p class="muted small">Ohne «Senden freigeben» hört die Seite nur mit. Ohne «Befehle freigeben» sendet sie nur die Antworten auf «S» und ACK. Nie gesendet werden: aktive Frequenz, Lautstärke, Squelch, Kanalraster, Sendetasten – die Sendetaste in Schritt 5c drückst Du selbst.</p>
 </section>
 
 <section class="wide step" id="s1">
@@ -158,6 +158,41 @@
   </div>
 </section>
 
+<section class="wide step" id="s5b">
+  <h2><span class="num">5b</span> Kleinbuchstaben im Namen (Platz 97) <span class="badge" id="b5b"></span></h2>
+  <p>Schreibt <span class="mono">121.500 «Test ab»</span> mit Kleinbuchstaben auf Platz 97 – genau so, ohne Umwandlung in Versalien. Die App selbst lässt Kleinbuchstaben nicht zu; dieser Schritt zeigt, ob das Gerät sie annimmt und wie es sie anzeigt. Danach am Gerät Platz 97 mit MEM ansehen.</p>
+  <div class="row"><button id="btnZlow">Platz 97 mit Kleinbuchstaben schreiben</button><span id="zlow" class="status"></span></div>
+  <div class="ask">
+    <span>Was zeigt das Gerät auf Platz 97?</span>
+    <label><input type="radio" name="m5b" value="klein"> «Test ab» mit Kleinbuchstaben</label>
+    <label><input type="radio" name="m5b" value="gross"> «TEST AB» in Versalien</label>
+    <label><input type="radio" name="m5b" value="falsch"> falsche Zeichen, leer oder Fehler</label>
+    <input type="text" placeholder="Was steht im Display?" data-note="5b">
+  </div>
+</section>
+
+<section class="wide step" id="s5c">
+  <h2><span class="num">5c</span> Schreiben während Empfang und Senden (Platz 98) <span class="badge" id="b5c"></span></h2>
+  <p>Prüft, ob das Gerät Speicherbefehle annimmt, während es empfängt oder sendet, und ob Empfang oder Aussendung dabei gestört werden – Voraussetzung für das Umprogrammieren in der Luft. Eine Serie schreibt 10-mal im Abstand von 1.5 s abwechselnd <span class="mono">«RXTX A»</span> und <span class="mono">«RXTX B»</span> auf Platz 98 (ohne Wiederholung) und hält zu jedem Befehl Quittung, Antwortzeit und Funkzustand fest (Meldungen J = Empfang, K = Senden, Y/V = Ende).</p>
+  <ol class="small">
+    <li><b>Empfang:</b> aktive Frequenz auf eine Station mit Dauerempfang stellen (ATIS oder VOLMET in Reichweite), Lautstärke hörbar. «Serie bei Empfang» starten und zuhören: Knacken, Aussetzer?</li>
+    <li><b>Senden:</b> nur mit angeschlossener Antenne oder Kunstlast, auf einer Frequenz ohne Verkehr, nie auf einer Flugsicherungsfrequenz. «Serie beim Senden» starten und während der Serie 2- bis 3-mal je 2–3 s die Sendetaste drücken. Ein Handfunkgerät in der Nähe zeigt, ob die Aussendung aussetzt.</li>
+  </ol>
+  <div class="row">
+    <button id="btnRxSer">Serie bei Empfang</button>
+    <button id="btnTxSer">Serie beim Senden</button>
+    <button id="btnSerStop" class="sec" disabled>Serie abbrechen</button>
+    <span id="ser" class="status"></span>
+  </div>
+  <div class="auto" id="a5c">Noch keine Serie.</div>
+  <div class="ask">
+    <span>Liefen Empfang und Aussendung während der Serien ungestört weiter?</span>
+    <label><input type="radio" name="m5c" value="ja"> ja</label>
+    <label><input type="radio" name="m5c" value="nein"> nein</label>
+    <input type="text" placeholder="Was war zu hören oder zu sehen?" data-note="5c">
+  </div>
+</section>
+
 <section class="wide step" id="s6">
   <h2><span class="num">6</span> Kanalraster (Standby setzen) <span class="badge" id="b6"></span></h2>
   <p>Setzt die Standby-Frequenz nacheinander auf einen 8.33-kHz-Kanal und einen 25-kHz-Kanal. Der Speicher bleibt unberührt.</p>
@@ -175,7 +210,7 @@
 
 <section class="wide step" id="s7">
   <h2><span class="num">7</span> Zurückstellen <span class="badge" id="b7"></span></h2>
-  <p>Schreibt die Plätze 97 und 98 mit den Werten aus der Sicherung (Schritt 3) zurück und setzt die Standby-Frequenz zurück. Ohne Sicherung die Werte von Hand eintragen.</p>
+  <p>Schreibt die Plätze 97 und 98 (überschrieben in den Schritten 4 bis 5c) mit den Werten aus der Sicherung (Schritt 3) zurück und setzt die Standby-Frequenz zurück. Ohne Sicherung die Werte von Hand eintragen.</p>
   <div class="form">
     <label>Platz 97 <input type="text" id="r97f" class="mono" placeholder="Frequenz"> <input type="text" id="r97n" class="mono" placeholder="Name" maxlength="8"></label>
     <label>Platz 98 <input type="text" id="r98f" class="mono" placeholder="Frequenz"> <input type="text" id="r98n" class="mono" placeholder="Name" maxlength="8"></label>

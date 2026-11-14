@@ -203,6 +203,16 @@ lokale Kopie → Sicherung vom Server zurückschreiben (mit einem Fehlschlag und
   «Ins Gerät laden» übernimmt die Konfiguration und springt zu «Gerät programmieren».
 - *Stichprobe:* «Liste leeren».
 
+**0.4.4 und test 0.3.2 – Antworten 14.11.2026:**
+- *Alle Dienste kurz:* zusätzlich A = APP, G = GND, DL = DEL, AP = APN, AC = ACC, VOL = VOLMET (wie im Werksspeicher «GENF VOL»),
+  GL = GLD, CT = CTAF, M = MIL, U = UCOM. Damit passt der ICAO-Code neben jeden Dienst; die Ausweichregel bleibt für lange eigene Dienste.
+  Ortskürzel: Vokale vorne bleiben, wenn Platz ist (Entscheid: LUGAN AT statt LGN AT).
+- *test 0.3.2, Schritt 5b:* schreibt «Test ab» mit Kleinbuchstaben ohne Umwandlung auf Platz 97 (Rohbytes, Prüfsumme unverändert
+  MHz xor Kanal); Antwort am Gerät: Kleinbuchstaben / Versalien / falsch.
+- *Schritt 5c:* je eine Serie bei Empfang und beim Senden: 10 × Z auf Platz 98 im Abstand 1.5 s, ohne Wiederholung; je Befehl
+  Quittung, Antwortzeit und Funkzustand aus den Meldungen J (Empfang), K (Senden), Y/V (Ende). Die Sendetaste drückt der Benutzer
+  selbst, nur mit Antenne oder Kunstlast. Schritt 7 stellt 97 und 98 wie bisher zurück.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/frequencies.test.mjs`

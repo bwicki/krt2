@@ -14,7 +14,9 @@
   const SVC_SHORT = { FIS: 'INFO', INFO: 'INFO', UCOM: 'UNIC', OTH: '' };      // für Klartext und Bezeichnungen
   const svcShort = s => (s in SVC_SHORT ? SVC_SHORT[s] : (s || ''));
   // Im Kurznamen werden häufige Dienste abgekürzt, damit der Ort mehr Platz hat (0.4.3)
-  const SVC_KURZ = { INFO: 'I', FIS: 'F', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D', UCOM: 'UNIC', OTH: '' };
+  // 0.4.4: auch die übrigen Dienste kurz (VOL wie im Werksspeicher des Geräts: «GENF VOL»)
+  const SVC_KURZ = { INFO: 'I', FIS: 'F', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D',
+    APP: 'A', GND: 'G', DEL: 'DL', APN: 'AP', ACC: 'AC', VOLMET: 'VOL', GLD: 'GL', CTAF: 'CT', MIL: 'M', UCOM: 'U', OTH: '' };
   const svcKurz = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
 
   const ORDERS = ['dist', 'ad', 'corridor', 'freq', 'manual'];

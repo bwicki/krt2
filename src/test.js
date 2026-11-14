@@ -1,10 +1,11 @@
 // krt2.wicki.aero – geführter Machbarkeitstest (Schritte 0–8). Schritt 3: Speicher von Hand auslesen.
+// 5b: Kleinbuchstaben im Namen, 5c: Schreiben während Empfang und Senden (test 0.3.2).
 // Baut auf der Seite «KRT2 mitlesen» aus Projekt 024 auf. Befehle (W, Z, R) gehen nur hinaus, wenn
 // «Senden freigeben» und «Befehle freigeben» gesetzt sind. Nie gesendet: U (aktive Frequenz),
 // Lautstärke, Squelch, Kanalraster, Sendetasten.
 (function () {
   'use strict';
-  const VERSION = 'test 0.3.1';
+  const VERSION = 'test 0.3.2';
   const $ = id => document.getElementById(id);
   const K = window.KRT2, C = window.KRT2CODEC;
   const SIM = new URLSearchParams(location.search).has('sim');
@@ -25,8 +26,10 @@
   const st = {
     pings: 0, answered: 0, lastAnswerT: null, lastAnswerMs: null, statusSeen: false,
     active: null, standby: null, saved: null,
-    s2: null, s3: null, s4: null, s5: null, s6: { r833: null, r25: null }, s7: null
+    s2: null, s3: null, s4: null, s5: null, s5b: null, s5c: { rx: null, tx: null }, s6: { r833: null, r25: null }, s7: null,
+    rf: ''                                  // Funkzustand laut Gerät: 'RX' (J), 'TX' (K), '' (Y/V)
   };
+  let series = null;                        // Schritt 5c: laufende Serie
   let pending = null, stbyWait = null, busy = false, abortRead = false;
   let hm = new Array(100).fill(null);   // Schritt 3: Platz → { freq, name, dt, state, seen, prev }
 
@@ -81,22 +84,38 @@
       3: badge(3, st.s3 && st.s3.ok, st.s3 && st.s3.bad),
       4: badge(4, st.s4 === 'ACK', st.s4 && st.s4 !== 'ACK'),
       5: badge(5, st.s5 === 'ACK', st.s5 && st.s5 !== 'ACK'),
+      '5b': badge5b(),
+      '5c': badge('5c', serOk('rx') && serOk('tx'), serBad('rx') || serBad('tx')),
       6: badge(6, st.s6.r833 === 'ACK' && st.s6.r25 === 'ACK', (st.s6.r833 && st.s6.r833 !== 'ACK') || (st.s6.r25 && st.s6.r25 !== 'ACK')),
       7: badge(7, st.s7 === 'ACK', st.s7 && st.s7 !== 'ACK')
     };
     $('summary').textContent = summaryText(r);
   }
-  const LABEL = { 1: 'Verbindung «r»', 2: 'Blättern mit W', 3: 'Speicher von Hand auslesen', 4: 'Platz 98 schreiben', 5: 'Ziffern im Namen', 6: 'Kanalraster', 7: 'Zurückstellen' };
+  const LABEL = { 1: 'Verbindung «r»', 2: 'Blättern mit W', 3: 'Speicher von Hand auslesen', 4: 'Platz 98 schreiben', 5: 'Ziffern im Namen', '5b': 'Kleinbuchstaben im Namen', '5c': 'Schreiben bei Empfang und Senden', 6: 'Kanalraster', 7: 'Zurückstellen' };
+  const LOWER = { klein: 'Kleinbuchstaben gehen', gross: 'zeigt Versalien', falsch: 'Kleinbuchstaben gehen nicht' };
+  function badge5b() {
+    const m = manual('5b'), b = $('b5b');
+    let cls = 'open', txt = 'offen';
+    if (st.s5b && st.s5b !== 'ACK') { cls = 'bad'; txt = 'Problem'; }
+    else if (m) { cls = 'ok'; txt = LOWER[m]; }
+    else if (st.s5b === 'ACK') txt = 'Gerät prüfen';
+    b.className = 'badge ' + cls; b.textContent = txt;
+    return cls;
+  }
+  const serOk = k => { const x = st.s5c[k]; return !!x && x.done && x.ack === x.n && (k === 'rx' ? x.rx : x.tx) > 0; };
+  const serBad = k => { const x = st.s5c[k]; return !!x && x.done && x.ack < x.n; };
   const WORD = { ok: 'bestanden', bad: 'NICHT bestanden', open: 'offen' };
   function summaryText(r) {
     const lines = [];
-    for (let n = 1; n <= 7; n++) {
+    for (const n of [1, 2, 3, 4, 5, '5b', '5c', 6, 7]) {
       const m = manual(n), nt = noteOf(n);
-      lines.push('Schritt ' + n + ' ' + LABEL[n] + ': ' + WORD[r[n]] + (m ? ' (Gerät: ' + m + ')' : '') + (nt ? ' – ' + nt : ''));
+      const res = n === '5b' && m ? LOWER[m] : WORD[r[n]];
+      lines.push('Schritt ' + n + ' ' + LABEL[n] + ': ' + res + (m ? ' (Gerät: ' + m + ')' : '') + (nt ? ' – ' + nt : ''));
     }
     if (st.s2) lines.push('', 'W einmal: ' + st.s2.text);
     if (st.trialText) lines.push('Versuche (Schritt 3 A): ' + st.trialText);
     if (st.s3) lines.push('Auslesen von Hand: ' + st.s3.text);
+    lines.push('Kleinbuchstaben (Platz 97): ' + (st.s5b || '–') + ' · Serien (Platz 98): ' + serText());
     lines.push('Platz 98: ' + (st.s4 || '–') + ' · Platz 97: ' + (st.s5 || '–') + ' · Standby 132.505: ' + (st.s6.r833 || '–') + ' · 123.450: ' + (st.s6.r25 || '–') + ' · Zurückstellen: ' + (st.s7 || '–'));
     return lines.join('\n');
   }
@@ -178,9 +197,10 @@
       if (e.ok && e.freq && e.name === 'U') { st.active = { freq: e.freq.display, name: e.station.trim() }; st.statusSeen = true; hand.lastUT = e.t; }
       if (e.ok && e.freq && e.name === 'R') { st.standby = { freq: e.freq.display, name: e.station.trim() }; if (stbyWait) stbyWait.resolve(e); handR(e); }
       if (e.name === 'C') { const a = st.active; st.active = st.standby; st.standby = a; }
-      if (e.name === 'K') { $('sbTx').textContent = 'SENDET'; if (busy) note('ACHTUNG: Funkgerät sendet während eines Tests', 'bad'); }
-      if (e.name === 'J') $('sbTx').textContent = 'Empfang';
-      if (e.name === 'Y' || e.name === 'V') $('sbTx').textContent = '';
+      if (e.name === 'K') { st.rf = 'TX'; if (series) series.cur.add('TX'); $('sbTx').textContent = 'SENDET'; if (busy && !series) note('ACHTUNG: Funkgerät sendet während eines Tests', 'bad'); }
+      if (e.name === 'J') { if (st.rf !== 'TX') st.rf = 'RX'; if (series) series.cur.add('RX'); $('sbTx').textContent = st.rf === 'TX' ? 'SENDET' : 'Empfang'; }
+      if (e.name === 'Y') { st.rf = ''; $('sbTx').textContent = ''; }
+      if (e.name === 'V' && st.rf === 'RX') { st.rf = ''; $('sbTx').textContent = ''; }
       if ('URZCA1234'.includes(e.name) && e.ok && $('optSend').checked) sendRaw([K.ACK], 'ACK auf Meldung ' + e.name, false);
       refresh(); return;
     }
@@ -217,6 +237,11 @@
     disp();
     return {
       close() { clearInterval(timer); clearTimeout(memTimer); },
+      // Schritt 5c: Empfang (J … Y) bzw. zweimal Senden (K … Y) während einer Serie nachbilden
+      rfDemo(kind) {
+        if (kind === 'rx') { reply([K.STX, 0x4A], 500); reply([K.STX, 0x59], 9000); }
+        else { reply([K.STX, 0x4B], 2500); reply([K.STX, 0x59], 5200); reply([K.STX, 0x4B], 9000); reply([K.STX, 0x59], 11800); }
+      },
       memKey() { if (inMem) { leave(); return; } inMem = true; sel = idx; arm(); disp(); },
       turn() {
         if (!inMem) { note('Simulation: Knopf ausserhalb des Speichermodus – verstellt die Lautstärke, keine Meldung'); return; }
@@ -581,6 +606,72 @@
   }
   $('btnZ98').onclick = () => writeSlot(98, '121.500', 'TEST', 'z98', 's4');
   $('btnZ97').onclick = () => writeSlot(97, '121.500', 'TEST 12', 'z97', 's5');
+
+  // ---------- Schritt 5b: Kleinbuchstaben, ohne Umwandlung ----------
+  function zRaw(freq, name, slot) {
+    const b = C.buildZ(freq, 'X', slot);
+    b.splice(4, 8, ...Array.from(name.padEnd(8, ' ').slice(0, 8), c => c.charCodeAt(0)));
+    return b;
+  }
+  $('btnZlow').onclick = async () => {
+    if (!guard('zlow')) return;
+    busy = true; setStatus('zlow', 'sende …');
+    const r = await command(zRaw('121.500', 'Test ab', 97), 'Z: Platz 97 ← 121.500 «Test ab» (Kleinbuchstaben, ohne Umwandlung)', 2);
+    busy = false; st.s5b = r.kind;
+    const txt = r.kind === 'ACK' ? 'ACK nach ' + fmtMs(r.ms) + ' – jetzt am Gerät Platz 97 ansehen' : r.kind === 'NAK' ? 'NAK – Gerät lehnt Kleinbuchstaben ab' : r.kind;
+    setStatus('zlow', txt, r.kind === 'ACK' ? 'ok' : 'warn');
+    note('Schritt 5b: ' + txt, r.kind === 'ACK' ? 'note' : 'bad'); refresh();
+  };
+
+  // ---------- Schritt 5c: Schreiben während Empfang und Senden ----------
+  const SER_N = 10, SER_GAP = 1500;
+  function serLine(k) {
+    const x = st.s5c[k]; if (!x) return null;
+    const ms = x.ms.length ? ' (' + Math.round(Math.min(...x.ms)) + '–' + Math.round(Math.max(...x.ms)) + ' ms)' : '';
+    const during = k === 'rx' ? x.rx + ' während Empfang' : x.tx + ' während Senden';
+    return (k === 'rx' ? 'Empfang' : 'Senden') + ': ' + x.n + ' Befehle, ' + x.ack + ' ACK' + ms + (x.nak ? ', ' + x.nak + ' NAK' : '') + (x.none ? ', ' + x.none + ' ohne Antwort' : '') +
+      ', ' + during + ' (laut Meldungen des Geräts)' + (x.done ? '' : ' – abgebrochen');
+  }
+  const serText = () => ['rx', 'tx'].map(serLine).filter(Boolean).join(' · ') || '–';
+  function showSeries() {
+    const lines = ['rx', 'tx'].map(serLine).filter(Boolean);
+    const warn = [];
+    for (const k of ['rx', 'tx']) {
+      const x = st.s5c[k];
+      if (x && x.done && !(k === 'rx' ? x.rx : x.tx)) warn.push(k === 'rx' ? 'Kein Befehl fiel in einen Empfang – Station mit Dauerempfang wählen und wiederholen.' : 'Kein Befehl fiel in eine Aussendung – während der Serie die Sendetaste drücken und wiederholen.');
+    }
+    const any = st.s5c.rx || st.s5c.tx;
+    setAuto('a5c', any ? lines.concat(warn).join('\n') : 'Noch keine Serie.', serBad('rx') || serBad('tx') ? 'bad' : (serOk('rx') && serOk('tx') ? 'ok' : (warn.length ? 'warn' : '')));
+  }
+  async function runSeries(k) {
+    if (!guard('ser')) return;
+    busy = true; series = { k, stop: false, cur: new Set() };
+    const x = st.s5c[k] = { n: 0, ack: 0, nak: 0, none: 0, rx: 0, tx: 0, ms: [], done: false };
+    $('btnRxSer').disabled = $('btnTxSer').disabled = true; $('btnSerStop').disabled = false;
+    note('Schritt 5c: Serie ' + (k === 'rx' ? 'bei Empfang' : 'beim Senden') + ' gestartet');
+    if (port.sim && writer.rfDemo) writer.rfDemo(k);
+    for (let i = 0; i < SER_N && !series.stop; i++) {
+      const name = i % 2 ? 'RXTX B' : 'RXTX A';
+      series.cur = new Set(st.rf ? [st.rf] : []);
+      setStatus('ser', 'Befehl ' + (i + 1) + ' von ' + SER_N + (st.rf ? ' – Gerät ' + (st.rf === 'TX' ? 'sendet' : 'empfängt') : '') + ' …');
+      const r = await command(C.buildZ('121.500', name, 98), 'Z (Serie ' + k.toUpperCase() + ' ' + (i + 1) + '/' + SER_N + '): Platz 98 ← 121.500 «' + name + '»' + (st.rf ? ' – Gerät ' + (st.rf === 'TX' ? 'sendet' : 'empfängt') : ''), 0);
+      if (st.rf) series.cur.add(st.rf);
+      x.n++;
+      if (r.kind === 'ACK') { x.ack++; x.ms.push(r.ms); } else if (r.kind === 'NAK') x.nak++; else x.none++;
+      if (series.cur.has('TX')) x.tx++; else if (series.cur.has('RX')) x.rx++;
+      showSeries(); refresh();
+      if (r.kind === 'nicht gesendet') break;
+      if (i < SER_N - 1) await sleep(SER_GAP);
+    }
+    x.done = !series.stop && x.n === SER_N;
+    series = null; busy = false;
+    $('btnRxSer').disabled = $('btnTxSer').disabled = false; $('btnSerStop').disabled = true;
+    setStatus('ser', 'Serie ' + (k === 'rx' ? 'bei Empfang' : 'beim Senden') + (x.done ? ' fertig' : ' abgebrochen'), x.ack === x.n && x.done ? 'ok' : 'warn');
+    note('Schritt 5c: ' + serLine(k), x.ack === x.n ? 'note' : 'bad'); showSeries(); refresh();
+  }
+  $('btnRxSer').onclick = () => runSeries('rx');
+  $('btnTxSer').onclick = () => runSeries('tx');
+  $('btnSerStop').onclick = () => { if (series) series.stop = true; };
   async function rTest(freq, name, el, key) {
     if (!guard(el)) return;
     busy = true; rememberStandby();
