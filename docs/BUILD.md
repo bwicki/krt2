@@ -332,6 +332,14 @@ nicht mit INFO klassifizieren, sondern mit AD».
 - «Zurich Radar» (OurAirports M1–M6 usw.) nicht übernommen – nach Angabe Benutzer gibt es das nicht mehr; openAIP führt es
   ohnehin nicht.
 
+**0.6.3 – Abstand nach «Ende» (Schnittstelle Abstimmgerät–App v0.1, Projekt 024, Punkt A6):**
+- `Link._txClear` wartet nach dem letzten «Ende» (Y) immer `AFTER_TX_MS` (300 ms), bevor ein Befehl hinausgeht – auch wenn
+  beim Aufruf gerade nicht gesendet wird (`st.txEnd`). Beginnt in dieser Zeit eine neue Aussendung, wartet es wie bisher auf
+  deren Ende, und die 300 ms beginnen nach deren Y neu. Vorher galt die Frist nur, wenn beim Aufruf gesendet wurde: ein
+  Befehl kurz nach Y ging nach 3 ms hinaus.
+- `tests/link.test.js`: Aussendung 200 ms, danach `writeSlot` → Befehl 301 ms nach Y; zweite Aussendung in der Wartezeit →
+  301 ms nach deren Y (ohne die Änderung: 3 ms, Prüfung rot).
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`

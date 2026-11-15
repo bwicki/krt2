@@ -207,15 +207,26 @@
         return false;
       }
     }
-    /** Nie während einer Aussendung schreiben (Test 14.11.: Befehle während «Senden» riskieren die Verbindung): bis «Ende» (Y) warten. */
+    /** Nie während einer Aussendung schreiben (Test 14.11.: Befehle während «Senden» riskieren die Verbindung): bis «Ende» (Y) warten.
+        Nach dem letzten «Ende» immer AFTER_TX_MS abwarten, auch wenn die Aussendung schon vorbei ist (st.txEnd); beginnt in dieser
+        Zeit eine neue Aussendung, auf deren Ende warten und die Frist neu beginnen (Schnittstelle Abstimmgerät–App v0.1, Projekt 024, A6). */
     async _txClear() {
-      if (!this.st.tx) return true;
-      this._note('Gerät sendet – Schreiben wartet auf das Ende der Aussendung'); this._emit('wait', { why: 'tx' });
-      const t1 = now() + TX_WAIT_MS;
-      while (this.st.tx && this.port && now() < t1) await sleep(100);
-      if (this.st.tx) { this._note('Aussendung dauert länger als ' + Math.round(TX_WAIT_MS / 1000) + ' s – Schreiben abgebrochen'); return false; }
-      await sleep(AFTER_TX_MS); this._emit('wait', { why: null });
-      return !!this.port;
+      let waited = false;
+      for (;;) {
+        if (!this.port) return false;
+        if (this.st.tx) {
+          if (!waited) { this._note('Gerät sendet – Schreiben wartet auf das Ende der Aussendung'); this._emit('wait', { why: 'tx' }); waited = true; }
+          const t1 = now() + TX_WAIT_MS;
+          while (this.st.tx && this.port && now() < t1) await sleep(100);
+          if (this.st.tx) { this._note('Aussendung dauert länger als ' + Math.round(TX_WAIT_MS / 1000) + ' s – Schreiben abgebrochen'); return false; }
+          continue;
+        }
+        const rest = this.st.txEnd == null ? 0 : this.st.txEnd + AFTER_TX_MS - now();
+        if (rest <= 0) break;
+        await sleep(Math.ceil(rest));
+      }
+      if (waited) this._emit('wait', { why: null });
+      return true;
     }
     /** Einen Befehl senden und auf ACK/NAK warten; Befehle laufen nacheinander. Ergebnis { kind, ms, tries }. */
     command(bytes, why, retries) {
