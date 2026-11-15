@@ -32,8 +32,8 @@
   function defaultBlocks() {
     return [
       { id: 'b-info', name: 'INFO', on: true, svc: ['FIS', 'INFO'], max: null, order: 'dist' },
-      { id: 'b-ad', name: 'AD', on: true, svc: ['AD', 'AFIS', 'RDO'], max: null, order: 'dist' },
-      { id: 'b-apptwr', name: 'APP/TWR', on: true, svc: ['APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET'], max: null, order: 'ad' },
+      // 0.6.4: Flugplätze (AD) und Türme (TWR) in einem Block «AD/TWR», nach Distanz; APP usw. nur für eigene Einträge (nur VFR)
+      { id: 'b-apptwr', name: 'AD/TWR', on: true, svc: ['AD', 'AFIS', 'RDO', 'TWR', 'ATIS', 'APP', 'ARR', 'DEP', 'VOLMET'], max: null, order: 'dist' },
       { id: 'b-radar', name: 'RADAR', on: true, svc: ['RDR', 'ACC', 'MIL'], max: 10, order: 'corridor' },
       { id: 'b-more', name: 'WEITERE', on: false, svc: ['GLD', 'CTAF', 'UCOM', 'OTH'], max: 10, order: 'dist' },
       { id: 'b-ground', name: 'GROUND', on: false, svc: ['GND', 'APN', 'DEL'], max: null, order: 'ad' }
@@ -47,13 +47,13 @@
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
       settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice(),
-        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-ad', 'b-radar'] }, vfr: true },
+        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-apptwr', 'b-radar'] }, vfr: true },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
         extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
-      prioListe: true, icaoDefault: true, adKlasse: true, radar10: true,
+      prioListe: true, icaoDefault: true, adKlasse: true, radar10: true, adTwr: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -63,7 +63,7 @@
   function flugOf(cfg) {
     const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
     const ids = (cfg.bloecke || []).map(b => b.id);
-    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: (Array.isArray(f.bloecke) ? f.bloecke : ['b-info', 'b-ad', 'b-radar']).filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) };
+    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: (Array.isArray(f.bloecke) ? f.bloecke : ['b-info', 'b-apptwr', 'b-radar']).filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) };
   }
 
   let counter = 0;
@@ -389,6 +389,28 @@
     return id;
   }
 
+  // ---------- Umstellung 0.6.4: Block «APP/TWR» heisst «AD/TWR» und nimmt den Block AD auf ----------
+  // Der Name bleibt als Alias (alias), damit der Gerätestand mit den alten Blocknamen weiter passt. Liefert { from, to } mit der
+  // Kennung des aufgelösten Blocks AD (oder null) und des Blocks AD/TWR.
+  function migrateAdTwr(cfg) {
+    const twr = cfg.bloecke.find(b => b.id === 'b-apptwr') || cfg.bloecke.find(b => b.name === 'APP/TWR');
+    if (!twr) return null;
+    const alias = new Set(twr.alias || []);
+    if (twr.name === 'APP/TWR') { alias.add('APP/TWR'); twr.name = 'AD/TWR'; }
+    const ad = cfg.bloecke.find(b => b !== twr && (b.id === 'b-ad' || (b.name === 'AD' && b.svc.includes('AD'))));
+    if (ad) {
+      twr.svc = ad.svc.concat(twr.svc).filter((x, i, a) => a.indexOf(x) === i);
+      alias.add(ad.name);
+      if (ad.max == null) twr.max = null;
+      twr.order = 'dist';
+      for (const e of cfg.eintraege) if (e.block === ad.id) e.block = twr.id;
+      cfg.bloecke = cfg.bloecke.filter(b => b !== ad);
+      sortBlock(cfg, twr.id);
+    }
+    if (alias.size) twr.alias = Array.from(alias);
+    return { from: ad ? ad.id : null, to: twr.id };
+  }
+
   // ---------- Speichern / Laden ----------
   function toJSON(cfg) { return JSON.stringify(cfg, null, 1); }
   /** Konfiguration aus Datei/Speicher übernehmen; fehlende Felder mit Vorgaben ergänzen. */
@@ -418,6 +440,11 @@
       if (rb && (rb.max == null || rb.max > 10)) rb.max = 10;
     }
     cfg.radar10 = true;
+    if (!o.adTwr) {                                                        // einmalig (0.6.4): AD in «AD/TWR»
+      const m = migrateAdTwr(cfg);
+      if (m && m.from) cfg.settings.flug.bloecke = cfg.settings.flug.bloecke.map(x => (x === m.from ? m.to : x)).filter((x, i, a) => a.indexOf(x) === i);
+    }
+    cfg.adTwr = true;
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
     if (!o.icaoDefault) {                                                 // einmalig (0.4.3): ICAO-Code ist der Normalfall, wo es einen gibt

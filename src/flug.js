@@ -1,5 +1,5 @@
 /* krt2.wicki.aero – Im Flug (0.6.0, Konzept Bluetooth-Brücke, Phase 3).
-   Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor (Vorgabe ±40°, 100 km), Vorschlag je Block (INFO, RADAR) und
+   Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor (Vorgabe ±40°, 100 km), Vorschlag je Block (INFO, AD/TWR, RADAR) und
    Plan der zu schreibenden Plätze: was im Block schon passt, bleibt auf seinem Platz; frei werdende Plätze bekommen die
    nächstgelegenen neuen Stationen. Feste Plätze und Frequenzen, die ausserhalb des Blocks schon im Gerät stehen, bleiben
    unberührt. Reine Logik ohne DOM (Browser: window.KRT2FLUG). */
@@ -56,58 +56,110 @@
 
   const nameOf = (cfg, e) => C.normalizeName(M.entryShort(e), cfg.settings.allowDigits, cfg.settings.allowLower !== false).trimmed;
 
+  /** Namen, unter denen ein Block im Gerätestand stehen kann (aktueller Name und frühere, z. B. «APP/TWR» → «AD/TWR»). */
+  const blockNames = b => new Set([b.name].concat(b.alias || []));
+  /** Plätze eines Blocks im Gerätestand, aufsteigend. */
+  const slotsOf = (device, b) => { const n = blockNames(b); return (device || []).filter(p => p && p.kind !== 'fixed' && n.has(p.block)).sort((x, y) => x.nr - y.nr); };
+
   /**
    * Plan für einen Block. device = Gerätestand (100 Plätze, mit .block beim Programmieren aus der App), entries = Vorschlag
-   * aus A.propose (mit .dist ab der Position). Ergebnis { nrs, keep, changes:[{ nr, old, neu, name }], cand, chosen }.
+   * aus A.propose (mit .dist ab der Position).
+   * - Der Block behält seine Grösse: was schon passt, bleibt auf seinem Platz; frei werdende Plätze bekommen die
+   *   nächstgelegenen neuen Stationen; Plätze ohne Ersatz werden FREE (0.6.2).
+   * - Findet sich keine Frequenz für den Block, fällt er weg und die folgenden Plätze rücken nach (0.6.4).
+   * - Steht der Block nicht (mehr) im Gerät und gibt es wieder Frequenzen, wird er an seiner Stelle wieder eingefügt –
+   *   mit der Grösse aus der Konfiguration – und die folgenden Plätze rücken nach hinten.
+   * Feste Plätze und Frequenzen, die ausserhalb des Blocks schon im Gerät stehen, bleiben unberührt.
+   * Ergebnis { nrs, keep, changes:[{ nr, old, neu, name }], after, seq, cand, chosen, mode, dropped }.
    */
   function planBlock(o) {
     const { cfg, block, entries } = o;
-    const dev = o.device || [];
     const L = o.layout || M.layout(cfg);
-    const fixed = new Set(L.slots.filter(s => s && s.kind === 'fixed').map(s => s.nr));
-    let nrs = dev.filter(p => p && p.block === block.name && p.kind !== 'fixed' && !fixed.has(p.nr)).map(p => p.nr);
-    if (!nrs.length) nrs = L.slots.filter(s => s && s.block === block.id && s.kind !== 'fixed').map(s => s.nr);
+    const LAST = M.LAST_SLOT || 98;
     const key = ch => M.freqKey(ch);
-    const inBlock = new Set(nrs);
-    const outside = new Set(dev.filter(p => p && !inBlock.has(p.nr)).map(p => key(p.ch)).filter(Boolean));
+    const fr = Object.assign({ ch: '118.000', kurz: 'FREE' }, (cfg.settings && cfg.settings.free) || {});
+    const isFree = p => !p || (key(p.ch) === key(fr.ch) && String(p.name || '').trim() === fr.kurz);
+    const nameById = id => { const b = cfg.bloecke.find(x => x.id === id); return b ? b.name : ''; };
+    let dev = (o.device || []).slice();
+    // Gerätestand ohne Blocknamen (z. B. ausgelesen): Blöcke aus der Konfiguration übernehmen, wo der Inhalt passt
+    if (!dev.some(p => p && p.block)) dev = dev.map(p => { const s = p && L.slots[p.nr]; return s && s.block && key(s.ch) === key(p.ch) ? Object.assign({}, p, { block: nameById(s.block) }) : p; });
+    const fixed = new Set(dev.filter(p => p && p.kind === 'fixed').map(p => p.nr).concat(L.slots.filter(x => x && x.kind === 'fixed').map(x => x.nr)));
+    const seq = []; for (let n = 0; n <= LAST; n++) if (!fixed.has(n)) seq.push(n);
+    const cur = slotsOf(dev, block).filter(p => p.nr <= LAST);
+    const curNr = new Set(cur.map(p => p.nr));
+    const outside = new Set(dev.filter(p => p && !curNr.has(p.nr)).map(p => key(p.ch)).filter(Boolean));
     const svc = new Set(block.svc || []);
     const cand = entries.filter(e => svc.has(e.dienst)).sort((a, b) => (a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist));
+    const planned = ((L.ranges || []).find(r => r.block === block.id) || { nrs: [] }).nrs.length;
+    const size = cur.length || planned || block.max || Math.min(10, cand.length);
     const chosen = [], seen = new Set();
     for (const e of cand) {
       const k = key(e.ch);
       if (!k || outside.has(k) || seen.has(k)) continue;
       seen.add(k); chosen.push(e);
-      if (chosen.length >= nrs.length) break;
+      if (chosen.length >= size) break;
     }
-    const want = new Map(chosen.map(e => [key(e.ch), e]));
-    const keep = [], placed = new Set();
-    for (const nr of nrs) {
-      const p = dev[nr], k = p && key(p.ch);
-      if (k && want.has(k) && !placed.has(k)) { keep.push(nr); placed.add(k); }
+    const slotOf = (e) => ({ ch: e.ch, name: nameOf(cfg, e), klar: e.klar || '', dienst: e.dienst, block: block.name, kind: 'entry', cc: e.ort && e.ort.cc ? e.ort.cc : '', _e: e });
+    const freeSlot = (blk) => ({ ch: fr.ch, name: fr.kurz, klar: '', dienst: '', block: blk || null, kind: 'free', _free: true });
+    // neuer Inhalt des Blocks (Länge = Blockgrösse; leer, wenn nichts gefunden)
+    let content = [];
+    if (chosen.length) {
+      const want = new Map(chosen.map(e => [key(e.ch), e]));
+      const placed = new Set();
+      content = new Array(size).fill(null);
+      if (cur.length) cur.forEach((p, i) => { const k = key(p.ch); if (k && want.has(k) && !placed.has(k)) { content[i] = { keep: p }; placed.add(k); } });
+      const todo = chosen.filter(e => !placed.has(key(e.ch)));
+      for (let i = 0; i < size; i++) if (!content[i]) content[i] = todo.length ? slotOf(todo.shift()) : freeSlot(block.name);
     }
-    const todo = chosen.filter(e => !placed.has(key(e.ch)));
-    const free = nrs.filter(nr => !keep.includes(nr));
-    const changes = todo.slice(0, free.length).map((e, i) => ({ nr: free[i], old: dev[free[i]] || null, neu: e, name: nameOf(cfg, e) }));
-    // 0.6.2: Plätze ohne Ersatz werden FREE (Entscheid Benutzer) – sofern nicht schon FREE
-    const fr = Object.assign({ ch: '118.000', kurz: 'FREE' }, (cfg.settings && cfg.settings.free) || {});
-    for (const nr of free.slice(todo.length)) {
-      const p = dev[nr];
-      if (p && key(p.ch) === key(fr.ch) && String(p.name || '').trim() === fr.kurz) continue;
-      changes.push({ nr, old: p || null, neu: { ch: fr.ch, dienst: '', klar: '', dist: null, ort: {}, frei: true }, name: fr.kurz });
+    const after = dev.map(p => (p ? Object.assign({}, p) : p));
+    let mode = 'block', dropped = [];
+    if (cur.length && content.length === cur.length) {
+      cur.forEach((p, i) => { const c = content[i]; after[p.nr] = c.keep ? Object.assign({}, p, { block: block.name }) : Object.assign({ nr: p.nr }, c); });
+    } else if (cur.length || content.length) {
+      // Block fällt weg oder kommt wieder: ab seiner Stelle rücken die folgenden Plätze nach vorne bzw. nach hinten
+      mode = content.length ? 'insert' : 'drop';
+      let p0;
+      if (cur.length) p0 = seq.indexOf(cur[0].nr);
+      else {
+        const later = new Set(); let past = false;
+        for (const b of cfg.bloecke) { if (b.id === block.id) { past = true; continue; } if (past && b.on) blockNames(b).forEach(n => later.add(n)); }
+        p0 = seq.findIndex(n => dev[n] && later.has(dev[n].block));
+        if (p0 < 0) { let lastUsed = -1; seq.forEach((n, i) => { if (dev[n] && (dev[n].block || !isFree(dev[n]))) lastUsed = i; }); p0 = lastUsed + 1; }
+      }
+      let tail = seq.slice(p0).map(n => dev[n]).filter(p => p && !curNr.has(p.nr));
+      while (tail.length && !tail[tail.length - 1].block && isFree(tail[tail.length - 1])) tail.pop();   // Füller am Ende
+      const items = content.map(c => (c.keep ? Object.assign({}, c.keep, { block: block.name }) : c)).concat(tail.map(p => Object.assign({}, p, { _from: p.nr })));
+      const room = seq.length - p0;
+      dropped = items.slice(room).filter(x => !x._free);
+      for (let i = 0; i < room; i++) { const n = seq[p0 + i], it = items[i]; after[n] = Object.assign({}, it || freeSlot(null), { nr: n }); }
     }
-    return { nrs, keep, changes, cand: cand.length, chosen: chosen.length };
+    const changes = [];
+    for (const n of seq) {
+      const a = after[n], d = dev[n];
+      if (!a) continue;
+      if (d && key(d.ch) === key(a.ch) && String(d.name || '').trim() === String(a.name || '').trim()) continue;
+      const neu = a._e ? a._e : a._free ? { ch: a.ch, dienst: '', klar: '', dist: null, ort: {}, frei: true }
+        : { ch: a.ch, dienst: a.dienst || '', klar: a.klar || '', dist: null, ort: { cc: a.cc || '' }, moved: true, from: a._from, block: a.block || '' };
+      changes.push({ nr: n, old: d || null, neu, name: String(a.name || '').trim(), block: a.block || '' });
+    }
+    for (const n of seq) if (after[n]) { delete after[n]._e; delete after[n]._free; delete after[n]._from; }
+    const nrs = seq.filter(n => after[n] && after[n].block === block.name);
+    const keep = nrs.filter(n => !changes.some(c => c.nr === n) && !isFree(after[n]));   // Frequenzen, die auf ihrem Platz bleiben
+    return { nrs, keep, changes, after, seq, cand: cand.length, chosen: chosen.length, mode, dropped };
   }
 
   /** Schreibliste für Link.program. */
   const writeList = plan => plan.changes.map(c => ({ nr: c.nr, ch: c.neu.ch, name: c.name }));
 
-  /** Neuer Gerätestand: quittierte Änderungen übernehmen. res = { nr: { kind } }. */
+  /** Neuer Gerätestand: quittierte Änderungen übernehmen, Blocknamen nachführen. res = { nr: { kind } }. */
   function applyPlan(plaetze, plan, block, res) {
     const out = plaetze.map(p => (p ? Object.assign({}, p) : p));
-    for (const c of plan.changes) {
-      if (!res[c.nr] || res[c.nr].kind !== 'ACK') continue;
-      if (c.neu.frei) { out[c.nr] = { nr: c.nr, ch: c.neu.ch, name: c.name, klar: '', dienst: '', block: block.name, kind: 'free' }; continue; }
-      out[c.nr] = { nr: c.nr, ch: c.neu.ch, name: c.name, klar: c.neu.klar || '', dienst: c.neu.dienst, block: block.name, kind: 'entry', cc: c.neu.ort && c.neu.ort.cc ? c.neu.ort.cc : '' };
+    const changed = new Map(plan.changes.map(c => [c.nr, c]));
+    for (const n of plan.seq || []) {
+      const a = plan.after && plan.after[n];
+      if (!a) continue;
+      if (changed.has(n)) { if (res[n] && res[n].kind === 'ACK') out[n] = Object.assign({}, a, { nr: n }); }
+      else if (out[n]) out[n].block = a.block === undefined ? out[n].block : a.block;
     }
     return out;
   }
@@ -116,7 +168,7 @@
   function logRows(plan, block, res, pos, when) {
     const z = (when || new Date()).toISOString();
     return plan.changes.map(c => ({
-      zeit: z, lat: pos ? Math.round(pos.lat * 1e5) / 1e5 : null, lon: pos ? Math.round(pos.lon * 1e5) / 1e5 : null, block: block.name, nr: c.nr,
+      zeit: z, lat: pos ? Math.round(pos.lat * 1e5) / 1e5 : null, lon: pos ? Math.round(pos.lon * 1e5) / 1e5 : null, block: c.block || block.name, nr: c.nr,
       alt: c.old ? { ch: c.old.ch, name: c.old.name || '' } : null, neu: { ch: c.neu.ch, name: c.name, klar: c.neu.klar || '' },
       ok: !!(res[c.nr] && res[c.nr].kind === 'ACK')
     }));
@@ -134,5 +186,5 @@
     return n[Math.round(((b % 360) + 360) % 360 / 22.5) % 16];
   }
 
-  return { distKm, bearing, track, sectorArea, planBlock, writeList, applyPlan, logRows, logCsv, compass };
+  return { distKm, bearing, track, sectorArea, planBlock, writeList, applyPlan, logRows, logCsv, compass, blockNames, slotsOf };
 });

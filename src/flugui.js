@@ -115,9 +115,11 @@
         ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : where === 'offline' ? 'gr_m_saved_off' : 'gr_m_saved_loc', { d: ctx.GR.devLabel() }), 'ok');
       } catch (e) { ctx.msg(t('gr_m_store_err', { e: e.message }), 'err'); }
     }
+    // Plätze anderer Blöcke können sich verschoben haben (Block weg oder wieder da): deren Vorschläge neu holen
+    Object.keys(S.plans).forEach(k => { if (k !== bid && !(S.write[k] && S.write[k].running)) { S.plans[k] = null; S.write[k] = null; } });
     if (failed.length) ctx.msg(t('fl_w_fail', { b: blk.name, n: failed.length, s: failed.join(', ') }), 'err');
     else ctx.msg(t('fl_w_done', { b: blk.name, n: okN }), 'ok');
-    if (here()) { paintBlock(bid); paintLog(); paintStatus(); }
+    if (here()) { flightBlocks().forEach(x => paintBlock(x.id)); paintLog(); paintStatus(); }
   }
 
   // ---------- Ohne Netz ----------
@@ -187,16 +189,19 @@ ${p ? `<div class="row fl-row"><span class="label">${t('fl_pos')}</span><span cl
     const el = $('#fl-b-' + bid); if (!el) return;
     const blk = cfg().bloecke.find(b => b.id === bid); if (!blk) return;
     const P = S.plans[bid], W = S.write[bid], a = ctx.GR.aktuell();
-    const devNrs = a && a.plaetze ? a.plaetze.filter(p => p && p.block === blk.name).map(p => p.nr) : [];
+    const devNrs = a && a.plaetze ? F.slotsOf(a.plaetze, blk).map(p => p.nr) : [];
     const nrs = P ? P.plan.nrs : devNrs;
     const res = nr => (W && W.res[nr]) || null;
     const ch = P ? P.plan.changes : [];
     let body = '';
     if (P) {
       body = `<p class="small muted" style="margin:0">${t('fl_plan_info', { z: P.at.toTimeString().slice(0, 5), n: P.n, k: P.plan.keep.length, c: ch.length })}</p>`;
+      if (P.plan.mode === 'drop') body += `<p class="note gr-warn">${t('fl_plan_drop', { b: esc(blk.name) })}</p>`;
+      if (P.plan.mode === 'insert') body += `<p class="note">${t('fl_plan_insert', { b: esc(blk.name), n: P.plan.nrs.length })}</p>`;
+      if (P.plan.dropped && P.plan.dropped.length) body += `<p class="note gr-warn">${t('fl_plan_lost', { s: esc(P.plan.dropped.map(x => x.name).join(', ')) })}</p>`;
       if (!ch.length) body += `<p class="note">${t(P.plan.chosen ? 'fl_plan_none' : 'fl_plan_empty')}</p>`;
       else body += `<div class="card flush"><table class="grid fl-plan"><thead><tr><th style="width:56px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th><th style="width:110px">${t('gr_col_state')}</th></tr></thead><tbody>
-${ch.map(c => { const r = res(c.nr), info = [c.neu.klar, c.neu.dist == null ? '' : c.neu.dist + ' km'].filter(Boolean).join(' · ');
+${ch.map(c => { const r = res(c.nr), info = c.neu.moved ? t('fl_moved', { b: c.neu.block || '–' }) : [c.neu.klar, c.neu.dist == null ? '' : c.neu.dist + ' km'].filter(Boolean).join(' · ');
   return `<tr><td class="nr">${pad2(c.nr)}</td><td class="mono small">${c.old ? esc(c.old.ch + ' ' + (c.old.name || '')) : '–'}</td><td><span class="mono">${esc(c.neu.ch + ' ' + c.name)}</span>${info ? ` <span class="small muted">${esc(info)}</span>` : ''}</td>
 <td>${r ? `<span class="badge ${r.kind === 'ACK' ? 'g' : 'r'}">${r.kind === 'ACK' ? t('gr_w_ok', { ms: r.ms }) : esc(r.kind)}</span>` : `<span class="badge y">${t('gr_st_changed')}</span>`}</td></tr>`; }).join('')}
 </tbody></table></div>`;

@@ -340,6 +340,19 @@ nicht mit INFO klassifizieren, sondern mit AD».
 - `tests/link.test.js`: Aussendung 200 ms, danach `writeSlot` → Befehl 301 ms nach Y; zweite Aussendung in der Wartezeit →
   301 ms nach deren Y (ohne die Änderung: 3 ms, Prüfung rot).
 
+**0.6.4 – Antworten 15.11.2026 (12:10):**
+- Block «APP/TWR» heisst «AD/TWR» und nimmt den Block AD auf: AD, AFIS, RDO, TWR, ATIS (APP usw. nur für eigene Einträge),
+  nach Distanz. AD und TWR bleiben als Dienste getrennt. Im Flug: INFO, AD/TWR, RADAR. Einmalige Umstellung `adTwr`
+  (Name, Dienste, Einträge des Blocks AD wandern mit, Auswahl «im Flug» angepasst); die alten Namen «APP/TWR» und «AD»
+  bleiben als `alias` am Block, damit ein Gerätestand mit den alten Blocknamen weiter passt.
+- Im Flug: Findet sich für einen Block keine Frequenz, fällt er weg und die folgenden Plätze rücken nach (Plan `mode: 'drop'`).
+  Gibt es wieder Frequenzen, kommt er an seiner Stelle zurück – vor dem nächsten Block der Konfiguration, mit der Grösse
+  aus dem Entwurf (sonst Grenze bzw. Anzahl, höchstens 10), Rest FREE – und die folgenden Plätze rücken nach hinten
+  (`mode: 'insert'`). Sonst behält der Block seine Grösse (FREE für Plätze ohne Ersatz, 0.6.2). Passt nach dem Einfügen
+  nicht mehr alles ins Gerät, nennt der Plan die Plätze, die wegfallen (`dropped`). Nach dem Schreiben werden die
+  Vorschläge der anderen Blöcke verworfen (ihre Plätze können sich verschoben haben). Fluglog nennt den Block jedes Platzes.
+- Testanleitung v2 (docs/test/krt2_testanleitung_flug_v2_20261115.docx).
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`
