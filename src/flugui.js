@@ -82,7 +82,7 @@
       const data = got.filter(g => g.status === 'fulfilled').map(g => g.value);
       if (!data.length) throw new Error(got[0] && got[0].reason ? got[0].reason.message : t('fl_no_data'));
       const lo = A.parseAlt(c.hoehe.von), hi = A.parseAlt(c.hoehe.bis);
-      const res = A.propose(data, { area, standort: { lat: p.lat, lon: p.lon }, bandLo: isNaN(lo) ? 0 : lo, bandHi: isNaN(hi) ? 19500 : hi, radarNoLimit: !!c.hoehe.radarOhneGrenze, marginKm: (c.hoehe && c.hoehe.marginKm) || 0, services: M.servicesOf(c), adLoc: c.settings.adLoc, svcOff: [] });
+      const res = A.propose(data, { area, standort: { lat: p.lat, lon: p.lon }, bandLo: isNaN(lo) ? 0 : lo, bandHi: isNaN(hi) ? 19500 : hi, radarNoLimit: !!c.hoehe.radarOhneGrenze, marginKm: (c.hoehe && c.hoehe.marginKm) || 0, services: M.servicesOf(c), adLoc: c.settings.adLoc, svcOff: [], vfr: c.settings.vfr !== false });
       const pl = F.planBlock({ cfg: c, block: blk, entries: res.entries, device: a.plaetze });
       S.plans[bid] = { plan: pl, at: new Date(), pos: { lat: p.lat, lon: p.lon }, dir, n: res.entries.length };
       S.write[bid] = null;

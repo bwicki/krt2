@@ -52,7 +52,7 @@
   }
 
   function aside() {
-    const c = cfg(), g = c.gebiet, h = c.hoehe, s = c.standort || {};
+    const c = cfg(), g = c.gebiet, h = c.hoehe, s = c.standort || {}, vfr = c.settings.vfr !== false;
     const tool = (v, l) => `<button type="button" class="chip" data-ge="typ" data-v="${v}" aria-pressed="${g.typ === v}">${l}</button>`;
     const legs = g.typ === 'korridor' ? g.pts.map((p, i) => `<div class="ge-leg" data-i="${i}"><div class="row nowrap" style="gap:6px"><b class="mono">P${i + 1}</b><span class="small muted">${t('ge_leg', { a: i ? 'P' + i : 'S', b: 'P' + (i + 1) })}</span><span class="small mono muted">${fmt(p.lat)}, ${fmt(p.lon)}</span><button type="button" class="ghost" data-ge="ptdel" aria-label="P${i + 1} ×">✕</button></div>
   <div class="row nowrap" style="gap:6px"><span class="small">${t('ge_width')}</span><label class="small">${t('ge_left')} <input type="number" min="0" max="200" step="1" data-gf="l" value="${esc(p.l)}" style="width:64px"></label><label class="small">${t('ge_right')} <input type="number" min="0" max="200" step="1" data-gf="r" value="${esc(p.r)}" style="width:64px"></label><span class="small">km</span></div></div>`).join('') : '';
@@ -79,7 +79,7 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
 <label class="row nowrap">${t('ge_margin')} <input type="number" min="0" max="100" data-gh="marginKm" value="${esc(h.marginKm)}" style="width:70px"> km</label>
 <span class="small">${t('ge_countries')}: <b>${ccs.length ? ccs.map(cc2).join(', ') : '–'}</b> <span class="muted">${t('ge_countries_note')}</span></span>
 <div class="label" style="margin-top:8px">4 · ${t('ge_svc')}</div>
-${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small"><b>${esc(b.name)}</b></span><div class="row" style="gap:4px">${b.svc.length ? b.svc.map(s => `<label class="chip ge-chip"><input type="checkbox" data-gs="${esc(s)}" ${g.svcOff.includes(s) ? '' : 'checked'}> ${esc(s)}</label>`).join('') : `<span class="small muted">–</span>`}</div></div>`).join('')}
+${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small"><b>${esc(b.name)}</b></span><div class="row" style="gap:4px">${b.svc.length ? b.svc.map(s => vfr && M().IFR_SVC.includes(s) ? `<label class="chip ge-chip" title="${esc(t('ge_ifr_tip'))}"><input type="checkbox" disabled> <s>${esc(s)}</s></label>` : `<label class="chip ge-chip"><input type="checkbox" data-gs="${esc(s)}" ${g.svcOff.includes(s) ? '' : 'checked'}> ${esc(s)}</label>`).join('') : `<span class="small muted">–</span>`}</div></div>`).join('')}
 <span class="small muted">${t('ge_svc_note')} <a href="#einstellungen">${t('ge_change')}</a></span>
 <button type="button" data-ge="propose" ${areaOf() ? '' : 'disabled'}>${t('ge_propose')}</button>
 <div id="gestats">${statsHtml()}</div>
@@ -95,7 +95,7 @@ ${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small">
     if (!st.last) return '';
     const s = st.last;
     return `<div class="row" style="gap:6px;margin-top:4px"><span class="badge">${t('ge_cand', { n: s.cand })}</span><span class="badge g">${t('ge_taken', { n: s.taken })}</span><span class="badge y">${t('ge_left_n', { n: s.left })}</span></div>
-<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, u: s.stats.unconfirmed || 0, b: s.stats.outsideBand, o: s.stats.svcOff })}</p>`;
+<p class="small muted" style="margin:4px 0 0">${t('ge_stats', { a: s.stats.airports, s: s.stats.airspaces, i: s.stats.invalid, u: s.stats.unconfirmed || 0, b: s.stats.outsideBand, o: s.stats.svcOff, v: s.stats.ifr || 0 })}</p>`;
   }
   function hint() {
     const g = cfg().gebiet, el = document.getElementById('gehint'); if (!el) return;
@@ -198,7 +198,7 @@ ${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small">
       const miss = ccs.filter((_, i) => got[i].status !== 'fulfilled');
       if (miss.length) X.msg(t('ge_missing', { c: miss.map(cc2).join(', ') }), 'warn');
       if (!data.length) throw new Error(got[0].reason && got[0].reason.message || 'keine Daten');
-      const res = A().propose(data, { area: a, standort: hasStart() ? c.standort : null, bandLo: lo, bandHi: hi, radarNoLimit: c.hoehe.radarOhneGrenze, marginKm: c.hoehe.marginKm, services: M().servicesOf(c), adLoc: c.settings.adLoc, svcOff: c.gebiet.svcOff });
+      const res = A().propose(data, { area: a, standort: hasStart() ? c.standort : null, bandLo: lo, bandHi: hi, radarNoLimit: c.hoehe.radarOhneGrenze, marginKm: c.hoehe.marginKm, services: M().servicesOf(c), adLoc: c.settings.adLoc, svcOff: c.gebiet.svcOff, vfr: c.settings.vfr !== false });
       const replaced = c.eintraege.filter(e => !(e.quellen || []).includes('eigen')).length;
       if (replaced && !(await X.ask(t('ge_replace_q'), t('ge_replace_b', { n: replaced, m: res.entries.length }), t('ge_replace_yes'), null, 'go'))) { aside(); return; }
       A().applyProposal(c, res.entries);

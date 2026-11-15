@@ -36,7 +36,7 @@ eq(M.kurzLoc({ dienst: 'AFIS', ort: { name: 'Birrfeld', icao: 'LSZF' }, kurzModu
   const icaoE = old.eintraege.find(e => e.ort && e.ort.icao === 'LSZF'); icaoE.kurzModus = 'kurz';
   let c = M.fromJSON(old);
   eq([c.settings.adLoc, c.icaoDefault, c.eintraege.find(e => e.id === icaoE.id).kurzModus], ['icao', true, 'icao']);
-  eq(M.entryShort(c.eintraege.find(e => e.id === icaoE.id)), 'LSZF RD');
+  eq(M.entryShort(c.eintraege.find(e => e.id === icaoE.id)), 'LSZF AD');
   c.settings.adLoc = 'kurz'; c.eintraege.find(e => e.id === icaoE.id).kurzModus = 'kurz'; c = M.fromJSON(M.toJSON(c));
   eq([c.settings.adLoc, c.eintraege.find(e => e.id === icaoE.id).kurzModus], ['kurz', 'kurz'], 'danach bleibt die eigene Wahl');
 }
@@ -49,7 +49,7 @@ eq([L.slots[0].kind, L.slots[0].ch, L.slots[0].kurz], ['fixed', '122.255', 'BALL
 eq([L.slots[99].kind, L.slots[99].ch, L.slots[99].kurz], ['fixed', '121.500', 'EMERGENC']);
 ok(L.slots.slice(1, L.freeFrom).every(s => s.kind === 'entry'), 'Einträge lückenlos ab 01');
 ok(L.slots.slice(L.freeFrom, 99).every(s => s.kind === 'free' && s.ch === '118.000' && s.kurz === 'FREE'), 'frei nur am Ende');
-eq(L.ranges.map(r => r.name), ['INFO', 'APP/TWR', 'RADAR']);
+eq(L.ranges.map(r => r.name), ['INFO', 'AD', 'APP/TWR', 'RADAR']);
 for (let i = 1; i < L.ranges.length; i++) eq(L.ranges[i].from, L.ranges[i - 1].to + 1, 'Blöcke grenzen aneinander');
 ok(L.notPlaced.some(x => x.why === 'blockAus' && x.e.dienst === 'GND'), 'GROUND ausgeschaltet → nicht aufgenommen');
 ok(!Object.values(L.slotOf).includes(undefined));
@@ -61,8 +61,8 @@ eq(L.slots[1].kurz, 'ZURICH F', 'INFO-Block nach Distanz: Zürich FIS (0 km) zue
 cfg.fixed.p00.on = false; L = M.layout(cfg); eq(L.slots[0].kind, 'entry'); cfg.fixed.p00.on = true;
 
 // Höchstzahl je Block
-const info = cfg.bloecke.find(b => b.name === 'INFO'); info.max = 2; L = M.layout(cfg);
-eq(L.ranges[0].to - L.ranges[0].from + 1, 2); ok(L.notPlaced.some(x => x.why === 'max')); info.max = null;
+const adb = cfg.bloecke.find(b => b.name === 'AD'); adb.max = 1; L = M.layout(cfg);
+eq(L.ranges[1].to - L.ranges[1].from + 1, 1); ok(L.notPlaced.some(x => x.why === 'max')); adb.max = null;
 
 // Überlauf: mehr als 98 Einträge
 const big = M.defaultConfig();
@@ -73,10 +73,10 @@ L = M.layout(big); eq(L.freeFrom, 99); eq(L.notPlaced.filter(x => x.why === 'vol
 const c2 = S.sampleConfig();
 const apps = M.entriesOf(c2, 'b-apptwr'); const first = apps[0];
 ok(M.moveEntry(c2, first.id, 1)); eq(M.entriesOf(c2, 'b-apptwr')[1].id, first.id);
-ok(M.moveEntry(c2, first.id, -1)); ok(M.moveEntry(c2, first.id, -1)); eq(first.block, 'b-info', 'über die Grenze in den vorigen Block');
-eq(M.entriesOf(c2, 'b-info').slice(-1)[0].id, first.id, 'am Ende des vorigen Blocks');
+ok(M.moveEntry(c2, first.id, -1)); ok(M.moveEntry(c2, first.id, -1)); eq(first.block, 'b-ad', 'über die Grenze in den vorigen Block');
+eq(M.entriesOf(c2, 'b-ad').slice(-1)[0].id, first.id, 'am Ende des vorigen Blocks');
 ok(M.moveTo(c2, first.id, 'b-radar', 0)); eq(M.entriesOf(c2, 'b-radar')[0].id, first.id);
-eq(M.entriesOf(c2, 'b-info').map(e => e.pos), M.entriesOf(c2, 'b-info').map((_, i) => i), 'Quellblock neu nummeriert');
+eq(M.entriesOf(c2, 'b-ad').map(e => e.pos), M.entriesOf(c2, 'b-ad').map((_, i) => i), 'Quellblock neu nummeriert');
 
 // Prüfung
 const c3 = S.sampleConfig();
@@ -171,7 +171,7 @@ console.log(n + ' Prüfungen bestanden');
 { // 0.6.0: Vorausschau im Flug in den Einstellungen
   let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.0: ' + m); k++; };
   const c = S.sampleConfig();
-  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] }), 'Vorgabe ±40° · 100 km · INFO und RADAR');
+  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, bloecke: ['b-info', 'b-ad', 'b-radar'] }), 'Vorgabe ±40° · 100 km · INFO, AD und RADAR');
   c.settings.flug = { winkel: 120, distKm: 5, bloecke: ['b-info', 'gibtsnicht', 7] };
   const f = M.flugOf(c); okk(f.winkel === 90 && f.distKm === 10, 'Grenzen 5–90° und 10–300 km');
   okk(f.bloecke.length === 1 && f.bloecke[0] === 'b-info', 'nur bestehende Blöcke');
@@ -179,4 +179,32 @@ console.log(n + ' Prüfungen bestanden');
   const back = M.fromJSON(M.toJSON(c)); okk(back.settings.flug.winkel === 35 && back.settings.flug.distKm === 150 && back.settings.flug.bloecke.length === 0, 'gespeichert, leere Auswahl bleibt leer');
   const old = JSON.parse(M.toJSON(c)); delete old.settings.flug; okk(M.fromJSON(old).settings.flug.winkel === 40, 'ältere Entwürfe ohne Vorausschau');
   console.log('0.6.0: Vorausschau im Flug – ' + k + ' Prüfungen bestanden');
+}
+
+{ // 0.6.1: Flugplätze heissen AD – Umstellung älterer Konfigurationen, VFR-Vorgabe
+  let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.1: ' + m); k++; };
+  okk(M.SERVICES.includes('AD') && M.svcKurz('AD') === 'AD', 'Dienst AD, Kürzel AD');
+  okk(JSON.stringify(M.IFR_SVC) === JSON.stringify(['ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET']), 'IFR-Dienste');
+  okk(M.defaultConfig().settings.vfr === true, 'nur VFR ist Vorgabe');
+  // Konfiguration im Stand 0.6.0 nachbauen: INFO-Block mit AFIS/RDO, Flugplätze als RDO bzw. INFO mit ICAO
+  const c = S.sampleConfig(), o = JSON.parse(M.toJSON(c));
+  delete o.adKlasse; o.settings.services = o.settings.services.filter(x => x !== 'AD');
+  o.bloecke = o.bloecke.filter(b => b.id !== 'b-ad'); o.bloecke[0].svc = ['FIS', 'INFO', 'AFIS', 'RDO'];
+  o.settings.flug = { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] };
+  for (const e of o.eintraege) if (e.dienst === 'AD') { e.dienst = 'RDO'; e.block = 'b-info'; e.kurz = e.kurz.replace(/ AD$/, ' RD'); }
+  const ger = { id: 'e-x', ch: '122.605', kurz: 'EDTZ I', klar: 'Konstanz AD', dienst: 'INFO', aktiv: true, quellen: ['openAIP'], vertrauen: 'y', ort: { icao: 'EDTZ', name: 'Konstanz', code: 'KONST', cc: 'DE' }, kurzModus: 'icao', block: 'b-info', pos: 9, dist: 60 };
+  const own = { id: 'e-own', ch: '123.455', kurz: 'MEIN RD', klar: 'eigen', dienst: 'RDO', aktiv: true, quellen: ['eigen'], vertrauen: 's', ort: {}, kurzModus: 'frei', block: 'b-info', pos: 10 };
+  o.eintraege.push(ger, own);
+  const n = M.fromJSON(o), byId = id => n.eintraege.find(e => e.id === id);
+  okk(n.settings.services.indexOf('AD') === n.settings.services.indexOf('INFO') + 1, 'AD nach INFO in der Dienstliste');
+  okk(JSON.stringify(n.bloecke.map(b => b.name)) === JSON.stringify(['INFO', 'AD', 'APP/TWR', 'RADAR', 'WEITERE', 'GROUND']), 'Block AD nach INFO');
+  okk(JSON.stringify(n.bloecke[0].svc) === JSON.stringify(['FIS', 'INFO']), 'INFO ohne AFIS und RDO');
+  okk(byId('e-x').dienst === 'AD' && byId('e-x').kurz === 'EDTZ AD' && byId('e-x').block === 'b-ad', 'deutscher Info-Platz wird AD');
+  okk(n.eintraege.filter(e => e.ort && e.ort.icao && /^LS/.test(e.ort.icao) && e.klar.endsWith(' AD')).every(e => e.dienst === 'AD' && e.block === 'b-ad'), 'Schweizer Flugplätze AD');
+  okk(byId('e-own').dienst === 'RDO' && byId('e-own').kurz === 'MEIN RD', 'eigene Einträge bleiben');
+  okk(n.eintraege.find(e => e.ch === '124.700').dienst === 'FIS' && n.eintraege.find(e => e.ch === '134.680').dienst === 'INFO', 'FIS und regionale INFO bleiben INFO');
+  okk(JSON.stringify(n.settings.flug.bloecke) === JSON.stringify(['b-info', 'b-radar', 'b-ad']), 'im Flug: AD dazu, wo INFO gewählt war');
+  okk(M.check(n).count.r === 0, 'keine roten Befunde');
+  const again = M.fromJSON(M.toJSON(n)); okk(again.bloecke.length === n.bloecke.length && again.adKlasse, 'nur einmal');
+  console.log('0.6.1: Flugplätze als AD – ' + k + ' Prüfungen bestanden');
 }

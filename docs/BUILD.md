@@ -300,6 +300,27 @@ je näher am Rand, desto schneller), damit Einträge über die sichtbare Strecke
   Nicht im Cache: API, Kartenkacheln, Schriften.
 - Bildschirm bleibt wach, solange GPS läuft (Wake Lock); ohne sichtbaren Bildschirm liefert Chrome keine Positionen.
 
+**0.6.1 – Flugplätze heissen AD, nur VFR (Rückmeldung 15.11.2026):**
+Vorgabe Benutzer: «primär VFR-Frequenzen im Gerät, ausser einzelnen Radarfrequenzen keine IFR-Frequenzen … Flugplätze
+nicht mit INFO klassifizieren, sondern mit AD».
+- Neuer Dienst AD (Kürzel AD, z. B. «LSPH AD», «EDTZ AD»). AD wird ein Flugplatz-Dienst:
+  - Frequenzen eines Flugplatzes vom Typ Radio, Info, AFIS, CTAF oder Unicom, deren Rufname zum Platz passt
+    (z. B. «Konstanz Info», «Birrfeld Radio», «Aurillac Information»);
+  - Lufträume eines Flugplatzes (RMZ, TMZ, ATZ, MATZ, HTZ, TIZ, TIA) mit Info/AFIS-Frequenz, z. B. «RMZ EDTM → Mengen
+    Information» → «EDTM AD»; steht der ICAO-Code im Luftraumnamen, kommen Name und Code vom Flugplatz;
+  - jede RADIO-Frequenz aus einem Luftraum.
+  Regionale FIS bleibt INFO/FIS (Zurich, Langen, Geneva Information – auch wenn sie bei einem Flugplatz steht).
+  «Glider Info» und «Segelflug» sind GLD, nicht INFO.
+- Blöcke (Vorgabe): INFO = FIS, INFO; neu AD = AD, AFIS, RDO (nach Distanz), direkt nach INFO. Im Flug: INFO, AD, RADAR.
+- Nur VFR (Einstellung «Nur VFR-Frequenzen vorschlagen», Vorgabe an): ACC, ARR, DEP, DEL, GND, APN und VOLMET kommen
+  nicht in Vorschläge (Gebiet und im Flug), werden aber gezählt. Radar (RDR, MIL), APP, TWR und ATIS bleiben. Auf der
+  Seite «Gebiet» sind die IFR-Dienste durchgestrichen.
+- Einmalige Umstellung bestehender Konfigurationen (`adKlasse`): Dienst AD in die Liste; Block AD nach dem Block, der
+  RDO/AFIS enthielt (dort fallen RDO und AFIS weg); Vorschläge mit RDO, AFIS, CTAF, UCOM oder INFO mit ICAO-Code des
+  Platzes werden AD und wandern in den Block AD; Kurznamen neu (ausser von Hand gesetzte); eigene Einträge bleiben;
+  im Flug kommt AD dazu, wo INFO gewählt war.
+- Kurzname von FIS/INFO immer mit dem Ort («ZURICH F»), nie mit einem ICAO-Code.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`

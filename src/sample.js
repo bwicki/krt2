@@ -17,9 +17,9 @@
   // [Frequenz, Dienst, Klartext, Ort, Quellen, Vertrauen, Hinweis, Zusatz]
   const ROWS = [
     ['124.700', 'FIS', 'Zurich INFO', { code: 'ZRH', name: 'Zürich' }, ['openAIP', 'OurAirports'], 'g', '', { lage: 'gebiet' }],
-    ['123.555', 'RDO', 'Birrfeld AD', AD.LSZF, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 123.550 (25-kHz-Angabe derselben Frequenz)'],
-    ['120.355', 'RDO', 'Speck-Fehraltorf AD', AD.LSZK, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 120.350 (25-kHz-Angabe)'],
-    ['134.980', 'RDO', 'Winterthur AD', AD.LSPH, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 134.975 (25-kHz-Angabe)', { aktiv: false }],
+    ['123.555', 'AD', 'Birrfeld AD', AD.LSZF, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 123.550 (25-kHz-Angabe derselben Frequenz)'],
+    ['120.355', 'AD', 'Speck-Fehraltorf AD', AD.LSZK, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 120.350 (25-kHz-Angabe)'],
+    ['134.980', 'AD', 'Winterthur AD', AD.LSPH, ['openAIP', 'OurAirports'], 'g', 'OurAirports: 134.975 (25-kHz-Angabe)', { aktiv: false }],
     ['134.680', 'INFO', 'Bale INFO', { code: 'BSL', name: 'Basel' }, ['openAIP'], 'y', 'nur Luftraum TMA BALE', { lage: 'angrenzend' }],
     ['127.755', 'APP', 'Zurich APP (Terminal)', AD.LSZH, ['openAIP', 'OurAirports'], 'g', ''],
     ['118.100', 'TWR', 'Zurich TWR', AD.LSZH, ['openAIP', 'OurAirports'], 'g', ''],

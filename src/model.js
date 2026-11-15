@@ -10,13 +10,16 @@
   const LAST_SLOT = 98;                       // 99 ist der Notfrequenz vorbehalten
 
   // ICAO-Dienste (Doc 8400) und ihr Kürzel im 8-stelligen Kurznamen
-  const SERVICES = ['FIS', 'INFO', 'AFIS', 'RDO', 'APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET', 'RDR', 'ACC', 'MIL', 'GND', 'APN', 'DEL', 'GLD', 'CTAF', 'UCOM', 'OTH'];
+  const SERVICES = ['FIS', 'INFO', 'AD', 'AFIS', 'RDO', 'APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET', 'RDR', 'ACC', 'MIL', 'GND', 'APN', 'DEL', 'GLD', 'CTAF', 'UCOM', 'OTH'];
   const SVC_SHORT = { FIS: 'INFO', INFO: 'INFO', UCOM: 'UNIC', OTH: '' };      // für Klartext und Bezeichnungen
   const svcShort = s => (s in SVC_SHORT ? SVC_SHORT[s] : (s || ''));
   // Im Kurznamen werden häufige Dienste abgekürzt, damit der Ort mehr Platz hat (0.4.3)
   // 0.4.4: auch die übrigen Dienste kurz (VOL wie im Werksspeicher des Geräts: «GENF VOL»)
-  const SVC_KURZ = { INFO: 'I', FIS: 'F', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D',
+  // 0.6.1: AD = Frequenz eines Flugplatzes (Radio, Info, AFIS, CTAF, Unicom am Platz) – nicht mehr INFO
+  const SVC_KURZ = { INFO: 'I', FIS: 'F', AD: 'AD', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D',
     APP: 'A', GND: 'G', DEL: 'DL', APN: 'AP', ACC: 'AC', VOLMET: 'VOL', GLD: 'GL', CTAF: 'CT', MIL: 'M', UCOM: 'U', OTH: '' };
+  // 0.6.1: IFR-Dienste – kommen nicht in Vorschläge, solange «nur VFR» an ist (Vorgabe). Radar bleibt (einzelne Radarfrequenzen).
+  const IFR_SVC = ['ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET'];
   const svcKurzDefault = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
   // eigene Kürzel aus den Einstellungen (settings.svcKurz, nur Abweichungen); layout() setzt sie für die Konfiguration
   let kurzMap = {};
@@ -27,7 +30,8 @@
 
   function defaultBlocks() {
     return [
-      { id: 'b-info', name: 'INFO', on: true, svc: ['FIS', 'INFO', 'AFIS', 'RDO'], max: null, order: 'dist' },
+      { id: 'b-info', name: 'INFO', on: true, svc: ['FIS', 'INFO'], max: null, order: 'dist' },
+      { id: 'b-ad', name: 'AD', on: true, svc: ['AD', 'AFIS', 'RDO'], max: null, order: 'dist' },
       { id: 'b-apptwr', name: 'APP/TWR', on: true, svc: ['APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET'], max: null, order: 'ad' },
       { id: 'b-radar', name: 'RADAR', on: true, svc: ['RDR', 'ACC', 'MIL'], max: null, order: 'corridor' },
       { id: 'b-more', name: 'WEITERE', on: false, svc: ['GLD', 'CTAF', 'UCOM', 'OTH'], max: 10, order: 'dist' },
@@ -42,13 +46,13 @@
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
       settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice(),
-        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] } },
+        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-ad', 'b-radar'] }, vfr: true },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
         extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
-      prioListe: true, icaoDefault: true,
+      prioListe: true, icaoDefault: true, adKlasse: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -58,7 +62,7 @@
   function flugOf(cfg) {
     const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
     const ids = (cfg.bloecke || []).map(b => b.id);
-    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: Array.isArray(f.bloecke) ? f.bloecke.filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) : ['b-info', 'b-radar'] };
+    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: (Array.isArray(f.bloecke) ? f.bloecke : ['b-info', 'b-ad', 'b-radar']).filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) };
   }
 
   let counter = 0;
@@ -358,6 +362,32 @@
     return { byEntry: by, fixed: fixedIssues, count, canProgram: count.r === 0, layout: lay };
   }
 
+  // ---------- Umstellung 0.6.1: Flugplätze heissen AD ----------
+  // Dienst AD in die Liste; Block AD nach dem Block mit RDO/AFIS (dort fallen AFIS und RDO weg); Vorschläge an Flugplätzen
+  // (RDO, AFIS, CTAF, UCOM, INFO mit ICAO-Code des Platzes) werden zu AD. Eigene Einträge bleiben, wie sie sind. Liefert die
+  // Kennung des neuen Blocks oder null.
+  const AD_OLD = ['RDO', 'AFIS', 'CTAF', 'UCOM'];
+  function migrateAd(cfg) {
+    const sv = cfg.settings.services;
+    if (!sv.includes('AD')) { const i = sv.indexOf('INFO'); sv.splice(i >= 0 ? i + 1 : 0, 0, 'AD'); }
+    for (const e of cfg.eintraege) {
+      if ((e.quellen || []).includes('eigen')) continue;
+      if (AD_OLD.includes(e.dienst) || (e.dienst === 'INFO' && e.ort && e.ort.icao)) { e.dienst = 'AD'; if (e.kurzModus !== 'frei') e.kurz = entryShort(e); }
+    }
+    if (cfg.bloecke.some(b => b.svc.includes('AD'))) return null;
+    let i = cfg.bloecke.findIndex(b => b.svc.includes('RDO') || b.svc.includes('AFIS'));
+    const src = i >= 0 ? cfg.bloecke[i] : null;
+    if (src) src.svc = src.svc.filter(x => x !== 'RDO' && x !== 'AFIS');
+    else i = 0;
+    const id = cfg.bloecke.some(b => b.id === 'b-ad') ? uid('b') : 'b-ad';
+    cfg.bloecke.splice(i + 1, 0, { id, name: 'AD', on: true, svc: ['AD', 'AFIS', 'RDO'], max: null, order: 'dist' });
+    // Flugplatz-Einträge, die bisher im Quellblock standen, wandern in den Block AD (dort nach Distanz)
+    for (const e of cfg.eintraege) if (['AD', 'AFIS', 'RDO'].includes(e.dienst) && (src ? e.block === src.id : !e.block)) e.block = id;
+    if (src) renumber(cfg, src.id);
+    sortBlock(cfg, id);
+    return id;
+  }
+
   // ---------- Speichern / Laden ----------
   function toJSON(cfg) { return JSON.stringify(cfg, null, 1); }
   /** Konfiguration aus Datei/Speicher übernehmen; fehlende Felder mit Vorgaben ergänzen. */
@@ -374,8 +404,14 @@
     cfg.fixed = { p00: Object.assign(d.fixed.p00, ofx.p00 || {}), p99: Object.assign(defaultConfig().fixed.p99, ofx.p99 || {}),
       extra: (Array.isArray(ofx.extra) ? ofx.extra : []).map(x => ({ id: x.id || uid('fx'), nr: Number(x.nr), ch: String(x.ch || ''), kurz: String(x.kurz || ''), klar: String(x.klar || '') })) };
     cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
-    cfg.settings.flug = flugOf(cfg);
     cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
+    const adId = o.adKlasse ? null : migrateAd(cfg);                       // einmalig (0.6.1): Flugplätze als AD, eigener Block
+    cfg.settings.flug = flugOf(cfg);
+    if (adId) {
+      const was = ((o.settings || {}).flug || {}).bloecke, info = cfg.bloecke.find(b => b.svc.includes('FIS') || b.svc.includes('INFO'));
+      if (Array.isArray(was) && info && was.includes(info.id) && !cfg.settings.flug.bloecke.includes(adId)) cfg.settings.flug.bloecke.push(adId);
+    }
+    cfg.adKlasse = true;
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
     if (!o.icaoDefault) {                                                 // einmalig (0.4.3): ICAO-Code ist der Normalfall, wo es einen gibt
@@ -408,6 +444,6 @@
     SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf
+    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf, IFR_SVC
   };
 });

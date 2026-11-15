@@ -132,7 +132,10 @@
   const AD_SVC = new Set(['AFIS', 'RDO', 'CTAF', 'UCOM', 'INFO']);
   const RADAR_SVC = new Set(['RDR', 'ACC', 'MIL']);
   function mapSvc(s, services) { const x = SVC_MAP[s] || s || 'OTH'; return services.includes(x) ? x : 'OTH'; }
-  function svcLabel(s, atAd) { return atAd && AD_SVC.has(s) ? 'AD' : (M.svcShort(s) || s); }
+  function svcLabel(s, atAd) { return s === 'AD' || (atAd && AD_SVC.has(s)) ? 'AD' : (M.svcShort(s) || s); }
+  const IFR = new Set(M.IFR_SVC || []);
+  // Lufträume eines Flugplatzes (TMZ, RMZ, ATZ, MATZ, HTZ, TIZ, TIA): deren Info/AFIS-Frequenz ist der Platzfunk → AD (0.6.1)
+  const AD_ASP = new Set([5, 6, 13, 14, 20, 23, 24]);
   /** Rufname zerlegen: «ZUERICH RADAR EAST» → Ort ZUERICH, Zusatz E. */
   function splitCall(n) {
     const w = plainU(cleanName(n)).replace(/[()]/g, ' ').split(/[\s/\-]+/).filter(Boolean);
@@ -144,7 +147,7 @@
   }
   /** Zusatz für den Klartext: Wörter nach dem Ort ohne das Wort des Dienstes selbst («DEP-ATIS» → «DEP», «Approach (Final)» → «Final»). */
   function extraText(call, dienst) {
-    const same = s => s === dienst || (s === 'INFO' && dienst === 'FIS') || (s === 'FIS' && dienst === 'INFO');
+    const same = s => s === dienst || (s === 'INFO' && dienst === 'FIS') || (s === 'FIS' && dienst === 'INFO') || (dienst === 'AD' && AD_SVC.has(s));
     const w = (call.words || []).filter(x => { const s2 = svcFromName(x); return !(s2 && same(s2)); }).map(x => (svcFromName(x) ? (M.svcShort(svcFromName(x)) || x) : title(x)));
     return w.length && w.length <= 3 ? ' ' + w.join(' ') : '';
   }
@@ -169,7 +172,8 @@
     const byPlace = new Map();
     for (const d of data) for (const a of d.airports || []) if (a.iata) { const k = normPlace(a.name.split(/[\s\-/]/)[0]); if (k && !byPlace.has(k)) byPlace.set(k, { iata: a.iata, name: a.name, cc: String(d.cc || '').toUpperCase() }); }
     const out = [], byCh = new Map();
-    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, unconfirmed: 0, outsideBand: 0, svcOff: 0 };
+    const stats = { airports: 0, airspaces: 0, freqs: 0, invalid: 0, unconfirmed: 0, outsideBand: 0, svcOff: 0, ifr: 0 };
+    const vfr = opt.vfr !== false;   // 0.6.1: nur VFR-Frequenzen (Vorgabe); IFR-Dienste gezählt und weggelassen
     // Nur 8.33-Kanalnamen von openAIP vorschlagen (Entscheid 14.11.2026). openAIP führt Kanalnamen (125.255); OurAirports
     // dient nur noch zur Gegenprobe – dort steht oft die Trägerfrequenz (125.250 statt 125.255) oder ein gerundeter Wert.
     const chOk = f => !!f.ch && M.freqKey(f.ch) !== null;
@@ -178,6 +182,9 @@
     const layers = { airports: [], airspaces: [] };
     const srcName = s => (s === 'oa' ? 'OurAirports' : 'openAIP');
     const seenAd = new Set();
+    const adByIcao = new Map();
+    for (const d of data) for (const a of d.airports || []) if (a.icao && !adByIcao.has(a.icao)) adByIcao.set(a.icao, { a, cc: String(d.cc || '').toUpperCase() });
+    const icaoIn = name => { for (const w of plainU(name).split(/[^A-Z]+/)) if (w.length === 4 && adByIcao.has(w)) return adByIcao.get(w); return null; };
 
     for (const d of data) for (const a of d.airports || []) {
       if (a.t === 8 || a.t === 4 || a.t === 7 || a.lat == null || seenAd.has(a.icao || a.id)) continue;   // geschlossen, Heliports
@@ -195,11 +202,15 @@
       const adName = title(cleanName(a.name)), adKey = normPlace(cleanName(a.name).split(/[\s\-/]/)[0]);
       for (const f of valid) {
         let dienst = mapSvc(f.s, services);
-        if (dienst === 'OTH') { const s2 = svcFromName(f.n); if (s2) dienst = mapSvc(s2, services); }
-        if (off.has(dienst)) { stats.svcOff++; continue; }
+        const s2 = svcFromName(f.n);
+        if (dienst === 'OTH' && s2) dienst = mapSvc(s2, services);
+        else if (s2 === 'GLD' && AD_SVC.has(dienst)) dienst = mapSvc('GLD', services);   // «AUE SEGELFLUG» ist kein Platzfunk
         const call = splitCall(f.n);
         const pk = normPlace(call.place.split(' ')[0]);
         const foreign = REGIONAL.has(dienst) && pk && pk !== adKey;            // z. B. «Zurich Information» bei Birrfeld
+        if (!foreign && AD_SVC.has(dienst) && services.includes('AD')) dienst = 'AD';   // 0.6.1: Flugplätze heissen AD, nicht INFO
+        if (vfr && IFR.has(dienst)) { stats.ifr++; continue; }
+        if (off.has(dienst)) { stats.svcOff++; continue; }
         const hit = foreign ? byPlace.get(pk) : null;
         const CC = String(d.cc || '').toUpperCase();
         const ort = foreign ? { icao: '', iata: hit ? hit.iata : '', code: hit ? hit.iata : M.locCode(call.place), qual: call.qual, name: hit ? title(hit.name) : title(call.place), cc: hit ? hit.cc : CC }
@@ -210,7 +221,7 @@
         if (byCh.has(key)) { const e0 = byCh.get(key); for (const q of f.src.map(srcName)) if (!e0.quellen.includes(q)) e0.quellen.push(q); if (e0.quellen.length > 1) e0.vertrauen = 'g'; continue; }
         const rest = extraText(call, dienst);
         const e = { ch: f.ch, dienst, klar: ort.name + ' ' + svcLabel(dienst, !foreign) + rest, ort, quellen: f.src.map(srcName), vertrauen: f.src.length > 1 ? 'g' : 'y', note: notes.join(' · '),
-          dist: foreign ? 0 : sxy ? Math.round(hyp(x - sxy[0], y - sxy[1])) : null, along: foreign ? 0 : S.along(x, y), kurzModus: opt.adLoc === 'icao' && !foreign ? 'icao' : 'kurz' };
+          dist: foreign ? 0 : sxy ? Math.round(hyp(x - sxy[0], y - sxy[1])) : null, along: foreign ? 0 : S.along(x, y), kurzModus: opt.adLoc === 'icao' && !foreign && dienst !== 'FIS' && dienst !== 'INFO' ? 'icao' : 'kurz' };
         byCh.set(key, e); (byCh.get(f.ch) || byCh.set(f.ch, []).get(f.ch)).push(e); out.push(e); stats.freqs++;
       }
     }
@@ -224,7 +235,12 @@
       for (const f of s.f) {
         if (!chOk(f)) { stats.invalid++; continue; }
         if (!ok833(f)) { stats.unconfirmed++; continue; }
-        const dienst = mapSvc(f.s, services);
+        let dienst = mapSvc(f.s, services);
+        const s2 = svcFromName(f.n);
+        if (s2 === 'GLD' && (AD_SVC.has(dienst) || dienst === 'OTH')) dienst = mapSvc('GLD', services);   // «GLIDER INFO» ist kein FIS
+        const adHit = AD_SVC.has(dienst) ? icaoIn(s.name) : null;                                          // «RMZ EDTM» → Mengen
+        if (AD_SVC.has(dienst) && services.includes('AD') && (dienst === 'RDO' || adHit || AD_ASP.has(s.t))) dienst = 'AD';
+        if (vfr && IFR.has(dienst)) { stats.ifr++; continue; }
         if (off.has(dienst)) { stats.svcOff++; continue; }
         const radar = RADAR_SVC.has(dienst) && opt.radarNoLimit;
         if (!((lo == null || lo <= bandHi || radar) && (hi == null || hi >= bandLo))) { stats.outsideBand++; continue; }
@@ -241,9 +257,11 @@
         const inside = sxy && rings.some(r => inRing(sxy[0], sxy[1], r));
         const distKm = sxy ? (inside ? 0 : Math.round(Math.min(...rings.map(r => ringDist(sxy[0], sxy[1], r))))) : null;
         const alongs = rings.flatMap(r => r.filter(([x, y]) => S.inside(x, y)).map(([x, y]) => S.along(x, y))).filter(v => v != null);
-        const e = { ch: f.ch, dienst, klar: (placeName + ' ' + svcLabel(dienst, false) + extraText(call, dienst)).trim(),
-          ort: { icao: '', iata: hitAd ? hitAd.iata : '', code, qual: call.qual, name: placeName, cc: hitAd ? hitAd.cc : String(d.cc || '').toUpperCase() }, quellen: ['openAIP', 'Luftraum ' + s.name], vertrauen: 'y',
-          note: [f.note, f.n ? '' : 'Rufname fehlt, Dienst aus dem Luftraumtyp'].filter(Boolean).join(' · '), dist: distKm, along: alongs.length ? Math.min(...alongs) : null, kurzModus: 'kurz' };
+        const adA = dienst === 'AD' && adHit ? adHit.a : null, adName = adA ? title(cleanName(adA.name)) : '';
+        const e = { ch: f.ch, dienst, klar: ((adA ? adName : placeName) + ' ' + svcLabel(dienst, false) + extraText(call, dienst)).trim(),
+          ort: adA ? { icao: adA.icao, iata: adA.iata || '', code: adA.iata || M.locCode(cleanName(adA.name)), qual: call.qual, name: adName, cc: adHit.cc }
+            : { icao: '', iata: hitAd ? hitAd.iata : '', code, qual: call.qual, name: placeName, cc: hitAd ? hitAd.cc : String(d.cc || '').toUpperCase() }, quellen: ['openAIP', 'Luftraum ' + s.name], vertrauen: 'y',
+          note: [f.note, f.n ? '' : 'Rufname fehlt, Dienst aus dem Luftraumtyp'].filter(Boolean).join(' · '), dist: distKm, along: alongs.length ? Math.min(...alongs) : null, kurzModus: adA && opt.adLoc === 'icao' ? 'icao' : 'kurz' };
         byCh.set(f.ch, [e]); out.push(e); stats.freqs++;
       }
       if (used) { stats.airspaces++; layers.airspaces.push({ name: s.name, t: s.t, rings: polysOf(s.g).map(r => r.map(([lon, lat]) => [lat, lon])) }); }

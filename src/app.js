@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI;
   const t = I.t;
-  const VERSION = '0.6.0';
+  const VERSION = '0.6.1';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -683,16 +683,17 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <div class="row"><button type="button" class="sec" data-act="svc-sort">${t('sv_sort')}</button><button type="button" class="sec" data-act="svc-reset">${t('sv_reset')}</button><button type="button" class="sec" data-act="svk-reset" ${Object.keys(cfg.settings.svcKurz || {}).length ? '' : 'disabled'}>${t('svk_reset')}</button>
   <form class="row" data-form="svcadd"><label class="sr" for="svcnew">${t('sv_new')}</label><input id="svcnew" type="text" maxlength="6" placeholder="${esc(t('sv_new_ph'))}" style="width:110px;text-transform:uppercase" class="mono" required><button type="submit" class="sec">${t('sv_add')}</button></form></div></div>
   <div class="row" style="gap:6px">${M.servicesOf(cfg).map((s, i, a) => `<span class="tag" data-svc="${esc(s)}"><button type="button" data-act="svc-up" aria-label="${esc(s)} ${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>‹</button><b class="mono">${esc(s)}</b><label class="sr" for="svk-${esc(s)}">${esc(t('sv_kurz_lbl', { s }))}</label><input id="svk-${esc(s)}" type="text" class="mono svk${Object.prototype.hasOwnProperty.call(cfg.settings.svcKurz || {}, s) ? ' own' : ''}" data-svk="${esc(s)}" value="${esc(M.svcKurz(s))}" placeholder="${esc(M.svcKurzDefault(s) || '–')}" maxlength="4" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname title="${esc(t('sv_kurz_tip', { s, d: M.svcKurzDefault(s) || '–' }))}"><button type="button" data-act="svc-down" aria-label="${esc(s)} ${esc(t('ed_down'))}" ${i === a.length - 1 ? 'disabled' : ''}>›</button><button type="button" data-act="svc-del" aria-label="${esc(s)} ×">×</button></span>`).join('')}</div>
+  <label><input type="checkbox" data-st="vfr" ${st.vfr !== false ? 'checked' : ''}> ${t('st_vfr')} <span class="small muted">${t('st_vfr_note', { s: M.IFR_SVC.join(', ') })}</span></label>
   <p class="note">${t('sv_note')}</p></section>
 <div class="settings-3">
   <section class="card stack"><span class="label">${t('st_freeslots')}</span>
     <div class="row"><input type="text" class="mono" data-st="free.ch" value="${esc(st.free.ch)}" aria-label="${esc(t('col_f'))} ${esc(t('fixed_free'))}" style="width:100px"><input type="text" class="mono" data-st="free.kurz" value="${esc(st.free.kurz)}" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" data-kname aria-label="${esc(t('col_k'))} ${esc(t('fixed_free'))}" style="width:110px"></div>
     <p class="note">${t('st_free_note')}</p></section>
   <section class="card stack"><span class="label">${t('st_names')}</span>
-    <span>${t('st_names_rule')}</span><span class="mono small" style="font-weight:600">LSZF AF · LSZH T · LSZH AT · ZURICH I · ZRCH E R</span>
+    <span>${t('st_names_rule')}</span><span class="mono small" style="font-weight:600">LSZF AD · LSZH T · LSZH AT · ZURICH F · ZRCH E R</span>
     <span class="small">${t('st_adloc')}</span>
-    <label><input type="radio" name="adloc" data-st="adLoc" value="kurz" ${st.adLoc !== 'icao' ? 'checked' : ''}> ${t('st_adloc_short')} <span class="mono small muted">ZURICH T · BRFLD AF</span></label>
-    <label><input type="radio" name="adloc" data-st="adLoc" value="icao" ${st.adLoc === 'icao' ? 'checked' : ''}> ${t('st_adloc_icao')} <span class="mono small muted">LSZH T · LSZF AF</span></label>
+    <label><input type="radio" name="adloc" data-st="adLoc" value="kurz" ${st.adLoc !== 'icao' ? 'checked' : ''}> ${t('st_adloc_short')} <span class="mono small muted">ZURICH T · BRFLD AD</span></label>
+    <label><input type="radio" name="adloc" data-st="adLoc" value="icao" ${st.adLoc === 'icao' ? 'checked' : ''}> ${t('st_adloc_icao')} <span class="mono small muted">LSZH T · LSZF AD</span></label>
     <div><button type="button" class="sec" data-act="applyall">${t('st_apply_all')}</button></div>
     <p class="note">${t('st_names_note')}</p>
     <label><input type="checkbox" data-st="allowDigits" ${st.allowDigits ? 'checked' : ''}> ${t('st_digits')} <span class="small muted">${t('st_digits_note')}</span></label>

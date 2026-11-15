@@ -65,8 +65,29 @@ if (existsSync(file)) {
   // Höhenband tief: TMA-Teile oberhalb fallen weg
   const low = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 1000, marginKm: 5, services: M.SERVICES });
   ok(low.stats.outsideBand > 0, 'Höhenband filtert');
-  const noRdo = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 19500, marginKm: 5, services: M.SERVICES, svcOff: ['RDO'] });
-  ok(!noRdo.entries.some(e => e.dienst === 'RDO') && noRdo.stats.svcOff > 0, 'Dienst abgewählt');
+  const noAd = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 19500, marginKm: 5, services: M.SERVICES, svcOff: ['AD'] });
+  ok(!noAd.entries.some(e => e.dienst === 'AD') && noAd.stats.svcOff > 0, 'Dienst abgewählt');
+  // 0.6.1: Flugplätze als AD, regionale FIS bleibt; nur VFR (Vorgabe) ohne GND/DEL/APN/ARR/DEP/ACC/VOLMET
+  const bir = by('123.555'); ok(bir.dienst === 'AD' && M.entryShort(Object.assign({}, bir, { kurzModus: 'icao' })) === 'LSZF AD' && bir.klar === 'Birrfeld AD', 'Birrfeld ist AD: ' + bir.dienst + ' ' + bir.klar);
+  eq(by('124.700').dienst, 'FIS', 'Zurich Information bleibt FIS');
+  ok(!r.entries.some(e => e.dienst === 'RDO' && e.ort.icao), 'kein Flugplatz mehr als RDO');
+  ok(!r.entries.some(e => M.IFR_SVC.includes(e.dienst)) && r.stats.ifr > 0, 'IFR weggelassen: ' + r.stats.ifr);
+  const all = A.propose([ch], { area: { typ: 'kreis', lat: ZRH.lat, lon: ZRH.lon, r: 25 }, standort: ZRH, bandLo: 0, bandHi: 19500, marginKm: 5, services: M.SERVICES, vfr: false });
+  ok(all.entries.some(e => e.dienst === 'GND') && all.entries.some(e => e.dienst === 'DEL') && all.stats.ifr === 0, 'mit vfr:false auch IFR');
+  console.log('  IFR weggelassen: ' + r.stats.ifr + ' – ' + all.entries.filter(e => M.IFR_SVC.includes(e.dienst)).map(e => e.ch + ' ' + e.dienst).join(', '));
+}
+// 0.6.1 mit deutschen Daten (falls vorhanden): Platzfunk aus RMZ/ATZ ist AD, INFO bleibt FIS (Langen Information)
+const deFile = process.env.DE || '/tmp/fd/freq-de.json';
+if (existsSync(deFile)) {
+  const de = Object.assign(JSON.parse(readFileSync(deFile, 'utf8')), { cc: 'de' });
+  const pos = { lat: 48.05, lon: 9.37 };   // bei Mengen (EDTM)
+  const r = A.propose([de], { area: { typ: 'kreis', lat: pos.lat, lon: pos.lon, r: 40 }, standort: pos, bandLo: 0, bandHi: 19500, marginKm: 5, services: M.SERVICES, adLoc: 'icao' });
+  const mengen = r.entries.find(e => e.ch === '135.180');
+  ok(mengen && mengen.dienst === 'AD' && mengen.ort.icao === 'EDTM', 'Mengen Information ist AD: ' + (mengen && mengen.dienst + ' ' + mengen.ort.icao));
+  const info = r.entries.filter(e => e.dienst === 'INFO' || e.dienst === 'FIS');
+  ok(info.every(e => !e.ort.icao && !/ AD$/.test(e.klar)), 'INFO nur FIS, kein Flugplatz: ' + info.map(e => M.entryShort(e)).join(', '));
+  ok(!r.entries.some(e => e.dienst === 'RDO'), 'kein RADIO mehr als RDO');
+  console.log('  Mengen 40 km: ' + r.entries.filter(e => e.dienst === 'AD').length + ' AD, INFO ' + info.map(e => M.entryShort(e) + ' ' + e.ch).join(', '));
 }
 console.log(n + ' Gebietsprüfungen bestanden');
 // Länderwahl über Gitterzellen
