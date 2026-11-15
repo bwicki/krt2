@@ -19,7 +19,8 @@
   const SVC_KURZ = { INFO: 'I', FIS: 'F', AD: 'AD', TWR: 'T', RDR: 'R', RDO: 'RD', AFIS: 'AF', ATIS: 'AT', ARR: 'AR', DEP: 'D',
     APP: 'A', GND: 'G', DEL: 'DL', APN: 'AP', ACC: 'AC', VOLMET: 'VOL', GLD: 'GL', CTAF: 'CT', MIL: 'M', UCOM: 'U', OTH: '' };
   // 0.6.1: IFR-Dienste – kommen nicht in Vorschläge, solange «nur VFR» an ist (Vorgabe). Radar bleibt (einzelne Radarfrequenzen).
-  const IFR_SVC = ['ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET'];
+  // 0.6.2: auch APP («Ballone benützen keine Flugplätze»); ATIS bleibt.
+  const IFR_SVC = ['APP', 'ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET'];
   const svcKurzDefault = s => (s in SVC_KURZ ? SVC_KURZ[s] : (s || ''));
   // eigene Kürzel aus den Einstellungen (settings.svcKurz, nur Abweichungen); layout() setzt sie für die Konfiguration
   let kurzMap = {};
@@ -33,7 +34,7 @@
       { id: 'b-info', name: 'INFO', on: true, svc: ['FIS', 'INFO'], max: null, order: 'dist' },
       { id: 'b-ad', name: 'AD', on: true, svc: ['AD', 'AFIS', 'RDO'], max: null, order: 'dist' },
       { id: 'b-apptwr', name: 'APP/TWR', on: true, svc: ['APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET'], max: null, order: 'ad' },
-      { id: 'b-radar', name: 'RADAR', on: true, svc: ['RDR', 'ACC', 'MIL'], max: null, order: 'corridor' },
+      { id: 'b-radar', name: 'RADAR', on: true, svc: ['RDR', 'ACC', 'MIL'], max: 10, order: 'corridor' },
       { id: 'b-more', name: 'WEITERE', on: false, svc: ['GLD', 'CTAF', 'UCOM', 'OTH'], max: 10, order: 'dist' },
       { id: 'b-ground', name: 'GROUND', on: false, svc: ['GND', 'APN', 'DEL'], max: null, order: 'ad' }
     ];
@@ -52,7 +53,7 @@
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
         extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
-      prioListe: true, icaoDefault: true, adKlasse: true,
+      prioListe: true, icaoDefault: true, adKlasse: true, radar10: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -412,6 +413,11 @@
       if (Array.isArray(was) && info && was.includes(info.id) && !cfg.settings.flug.bloecke.includes(adId)) cfg.settings.flug.bloecke.push(adId);
     }
     cfg.adKlasse = true;
+    if (!o.radar10) {                                                      // einmalig (0.6.2): Radar höchstens 10 Plätze
+      const rb = cfg.bloecke.find(b => b.id === 'b-radar') || cfg.bloecke.find(b => b.name === 'RADAR');
+      if (rb && (rb.max == null || rb.max > 10)) rb.max = 10;
+    }
+    cfg.radar10 = true;
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
     if (!o.icaoDefault) {                                                 // einmalig (0.4.3): ICAO-Code ist der Normalfall, wo es einen gibt

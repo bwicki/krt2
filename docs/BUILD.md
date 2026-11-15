@@ -321,6 +321,17 @@ nicht mit INFO klassifizieren, sondern mit AD».
   im Flug kommt AD dazu, wo INFO gewählt war.
 - Kurzname von FIS/INFO immer mit dem Ort («ZURICH F»), nie mit einem ICAO-Code.
 
+**0.6.2 – Antworten 15.11.2026:**
+- APP gilt als IFR («Ballone benützen keine Flugplätze») und kommt mit «nur VFR» nicht mehr in Vorschläge; ATIS bleibt.
+  IFR-Liste: APP, ACC, ARR, DEP, DEL, GND, APN, VOLMET.
+- TWR und AD bleiben getrennt: TWR = besetzte Verkehrsregelstelle (Block APP/TWR), AD = Platzfunk bzw. Blindverkehr.
+- Block RADAR höchstens 10 Plätze (Vorgabe; einmalige Umstellung `radar10` setzt bestehende RADAR-Blöcke ohne oder mit
+  höherer Grenze auf 10, eine kleinere eigene Grenze bleibt).
+- Im Flug: Plätze ohne Ersatz werden FREE (118.000 «FREE» aus den Einstellungen) und bleiben im Block; schon freie
+  Plätze werden nicht neu geschrieben.
+- «Zurich Radar» (OurAirports M1–M6 usw.) nicht übernommen – nach Angabe Benutzer gibt es das nicht mehr; openAIP führt es
+  ohnehin nicht.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`

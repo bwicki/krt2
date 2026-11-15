@@ -184,11 +184,11 @@ console.log(n + ' Prüfungen bestanden');
 { // 0.6.1: Flugplätze heissen AD – Umstellung älterer Konfigurationen, VFR-Vorgabe
   let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.1: ' + m); k++; };
   okk(M.SERVICES.includes('AD') && M.svcKurz('AD') === 'AD', 'Dienst AD, Kürzel AD');
-  okk(JSON.stringify(M.IFR_SVC) === JSON.stringify(['ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET']), 'IFR-Dienste');
+  okk(JSON.stringify(M.IFR_SVC) === JSON.stringify(['APP', 'ACC', 'ARR', 'DEP', 'DEL', 'GND', 'APN', 'VOLMET']) && !M.IFR_SVC.includes('ATIS') && !M.IFR_SVC.includes('TWR'), 'IFR-Dienste (0.6.2 mit APP, ohne ATIS/TWR)');
   okk(M.defaultConfig().settings.vfr === true, 'nur VFR ist Vorgabe');
   // Konfiguration im Stand 0.6.0 nachbauen: INFO-Block mit AFIS/RDO, Flugplätze als RDO bzw. INFO mit ICAO
   const c = S.sampleConfig(), o = JSON.parse(M.toJSON(c));
-  delete o.adKlasse; o.settings.services = o.settings.services.filter(x => x !== 'AD');
+  delete o.adKlasse; delete o.radar10; o.bloecke.find(b => b.id === 'b-radar').max = null; o.settings.services = o.settings.services.filter(x => x !== 'AD');
   o.bloecke = o.bloecke.filter(b => b.id !== 'b-ad'); o.bloecke[0].svc = ['FIS', 'INFO', 'AFIS', 'RDO'];
   o.settings.flug = { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-radar'] };
   for (const e of o.eintraege) if (e.dienst === 'AD') { e.dienst = 'RDO'; e.block = 'b-info'; e.kurz = e.kurz.replace(/ AD$/, ' RD'); }
@@ -205,6 +205,8 @@ console.log(n + ' Prüfungen bestanden');
   okk(n.eintraege.find(e => e.ch === '124.700').dienst === 'FIS' && n.eintraege.find(e => e.ch === '134.680').dienst === 'INFO', 'FIS und regionale INFO bleiben INFO');
   okk(JSON.stringify(n.settings.flug.bloecke) === JSON.stringify(['b-info', 'b-radar', 'b-ad']), 'im Flug: AD dazu, wo INFO gewählt war');
   okk(M.check(n).count.r === 0, 'keine roten Befunde');
+  okk(n.bloecke.find(b => b.id === 'b-radar').max === 10 && M.defaultConfig().bloecke.find(b => b.id === 'b-radar').max === 10, '0.6.2: RADAR höchstens 10');
+  const own5 = JSON.parse(M.toJSON(n)); own5.bloecke.find(b => b.id === 'b-radar').max = 5; okk(M.fromJSON(own5).bloecke.find(b => b.id === 'b-radar').max === 5, 'eigene kleinere Grenze bleibt');
   const again = M.fromJSON(M.toJSON(n)); okk(again.bloecke.length === n.bloecke.length && again.adKlasse, 'nur einmal');
   console.log('0.6.1: Flugplätze als AD – ' + k + ' Prüfungen bestanden');
 }

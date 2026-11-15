@@ -88,6 +88,13 @@
     const todo = chosen.filter(e => !placed.has(key(e.ch)));
     const free = nrs.filter(nr => !keep.includes(nr));
     const changes = todo.slice(0, free.length).map((e, i) => ({ nr: free[i], old: dev[free[i]] || null, neu: e, name: nameOf(cfg, e) }));
+    // 0.6.2: Plätze ohne Ersatz werden FREE (Entscheid Benutzer) – sofern nicht schon FREE
+    const fr = Object.assign({ ch: '118.000', kurz: 'FREE' }, (cfg.settings && cfg.settings.free) || {});
+    for (const nr of free.slice(todo.length)) {
+      const p = dev[nr];
+      if (p && key(p.ch) === key(fr.ch) && String(p.name || '').trim() === fr.kurz) continue;
+      changes.push({ nr, old: p || null, neu: { ch: fr.ch, dienst: '', klar: '', dist: null, ort: {}, frei: true }, name: fr.kurz });
+    }
     return { nrs, keep, changes, cand: cand.length, chosen: chosen.length };
   }
 
@@ -99,6 +106,7 @@
     const out = plaetze.map(p => (p ? Object.assign({}, p) : p));
     for (const c of plan.changes) {
       if (!res[c.nr] || res[c.nr].kind !== 'ACK') continue;
+      if (c.neu.frei) { out[c.nr] = { nr: c.nr, ch: c.neu.ch, name: c.name, klar: '', dienst: '', block: block.name, kind: 'free' }; continue; }
       out[c.nr] = { nr: c.nr, ch: c.neu.ch, name: c.name, klar: c.neu.klar || '', dienst: c.neu.dienst, block: block.name, kind: 'entry', cc: c.neu.ort && c.neu.ort.cc ? c.neu.ort.cc : '' };
     }
     return out;

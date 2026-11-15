@@ -59,6 +59,23 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   ok(rows.length === 2 && rows[0].ok && !rows[1].ok && rows[0].lat === 47.41235, 'Fluglog');
   ok(/Platz/.test(F.logCsv(rows)) && F.logCsv(rows).split('\r\n').length === 3, 'Fluglog als CSV');
 }
+// 3b. 0.6.2: Plätze ohne Ersatz werden FREE; schon freie bleiben unberührt
+{
+  const cfg = M.defaultConfig(), ad = cfg.bloecke.find(b => b.id === 'b-ad');
+  const dev = Array.from({ length: 100 }, (_, i) => ({ nr: i, ch: '118.000', name: 'FREE' }));
+  dev[1] = { nr: 1, ch: '134.980', name: 'WNTRT AD', block: 'AD' };
+  dev[2] = { nr: 2, ch: '122.155', name: 'GRNCH AD', block: 'AD' };
+  dev[3] = { nr: 3, ch: '118.000', name: 'FREE', block: 'AD', kind: 'free' };
+  const e = (ch, dist, name) => ({ ch, dienst: 'AD', dist, klar: name, kurzModus: 'frei', kurz: name, ort: { cc: 'CH' } });
+  const plan = F.planBlock({ cfg, block: ad, entries: [e('134.980', 8, 'WNTRT AD')], device: dev });
+  ok(plan.keep.join() === '1' && plan.changes.length === 1 && plan.changes[0].nr === 2 && plan.changes[0].neu.frei && plan.changes[0].name === 'FREE' && plan.changes[0].neu.ch === '118.000',
+    'Platz 02 ohne Ersatz → FREE, Platz 03 schon frei: ' + plan.changes.map(c => c.nr + '←' + c.name).join(', '));
+  const neu = F.applyPlan(dev, plan, ad, { 2: { kind: 'ACK' } });
+  ok(neu[2].name === 'FREE' && neu[2].block === 'AD' && neu[2].kind === 'free', 'FREE bleibt im Block');
+  const again = F.planBlock({ cfg, block: ad, entries: [e('134.980', 8, 'WNTRT AD')], device: neu });
+  ok(again.nrs.join() === '1,2,3' && again.changes.length === 0, 'danach nichts mehr zu tun');
+}
+
 // 4. Echte Daten: Sektor ab Zürich nach Osten
 const file = process.argv[2] || '/tmp/freq-ch.json';
 if (fs.existsSync(file)) {
@@ -70,7 +87,7 @@ if (fs.existsSync(file)) {
   const dev = Array.from({ length: 100 }, (_, i) => ({ nr: i, ch: '118.000', name: 'FREE', block: i >= 1 && i <= 3 ? 'INFO' : i >= 4 && i <= 10 ? 'AD' : i >= 11 && i <= 16 ? 'RADAR' : undefined }));
   const pi = F.planBlock({ cfg, block: info, entries: r.entries, device: dev }), pa = F.planBlock({ cfg, block: ad, entries: r.entries, device: dev }), pr = F.planBlock({ cfg, block: radar, entries: r.entries, device: dev });
   ok(pi.changes.every(c => info.svc.includes(c.neu.dienst)), 'echte Daten: INFO-Vorschlag ' + pi.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
-  ok(pa.changes.length > 0 && pa.changes.every(c => c.neu.dienst === 'AD' && / AD$/.test(c.name)), 'echte Daten: AD-Vorschlag ' + pa.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
+  ok(pa.changes.length > 0 && pa.changes.every(c => (c.neu.dienst === 'AD' && / AD$/.test(c.name)) || c.neu.frei), 'echte Daten: AD-Vorschlag ' + pa.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
   ok(!r.entries.some(e => M.IFR_SVC.includes(e.dienst)), 'keine IFR-Frequenzen');
   ok(pr.changes.every(c => radar.svc.includes(c.neu.dienst)), 'echte Daten: RADAR-Vorschlag ' + pr.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
   ok(r.entries.every(e => e.quellen.includes('openAIP')), 'nur openAIP');
