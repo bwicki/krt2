@@ -314,7 +314,7 @@ nicht mit INFO klassifizieren, sondern mit AD».
 - Blöcke (Vorgabe): INFO = FIS, INFO; neu AD = AD, AFIS, RDO (nach Distanz), direkt nach INFO. Im Flug: INFO, AD, RADAR.
 - Nur VFR (Einstellung «Nur VFR-Frequenzen vorschlagen», Vorgabe an): ACC, ARR, DEP, DEL, GND, APN und VOLMET kommen
   nicht in Vorschläge (Gebiet und im Flug), werden aber gezählt. Radar (RDR, MIL), APP, TWR und ATIS bleiben. Auf der
-  Seite «Gebiet» sind die IFR-Dienste durchgestrichen.
+  Seite «Gebiet» sind die IFR-Dienste ausgegraut mit Hinweis «(IFR)».
 - Einmalige Umstellung bestehender Konfigurationen (`adKlasse`): Dienst AD in die Liste; Block AD nach dem Block, der
   RDO/AFIS enthielt (dort fallen RDO und AFIS weg); Vorschläge mit RDO, AFIS, CTAF, UCOM oder INFO mit ICAO-Code des
   Platzes werden AD und wandern in den Block AD; Kurznamen neu (ausser von Hand gesetzte); eigene Einträge bleiben;

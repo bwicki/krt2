@@ -79,8 +79,8 @@ ${hasStart() ? `<div class="ge-leg"><div class="row nowrap" style="gap:6px"><b c
 <label class="row nowrap">${t('ge_margin')} <input type="number" min="0" max="100" data-gh="marginKm" value="${esc(h.marginKm)}" style="width:70px"> km</label>
 <span class="small">${t('ge_countries')}: <b>${ccs.length ? ccs.map(cc2).join(', ') : '–'}</b> <span class="muted">${t('ge_countries_note')}</span></span>
 <div class="label" style="margin-top:8px">4 · ${t('ge_svc')}</div>
-${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small"><b>${esc(b.name)}</b></span><div class="row" style="gap:4px">${b.svc.length ? b.svc.map(s => vfr && M().IFR_SVC.includes(s) ? `<label class="chip ge-chip" title="${esc(t('ge_ifr_tip'))}"><input type="checkbox" disabled> <s>${esc(s)}</s></label>` : `<label class="chip ge-chip"><input type="checkbox" data-gs="${esc(s)}" ${g.svcOff.includes(s) ? '' : 'checked'}> ${esc(s)}</label>`).join('') : `<span class="small muted">–</span>`}</div></div>`).join('')}
-<span class="small muted">${t('ge_svc_note')} <a href="#einstellungen">${t('ge_change')}</a></span>
+${c.bloecke.filter(b => b.on).map(b => `<div class="ge-svc"><span class="small"><b>${esc(b.name)}</b></span><div class="row" style="gap:4px">${b.svc.length ? b.svc.map(s => vfr && M().IFR_SVC.includes(s) ? `<label class="chip ge-chip"><input type="checkbox" disabled> ${esc(s)} <span class="small muted">${t('ge_ifr')}</span></label>` : `<label class="chip ge-chip"><input type="checkbox" data-gs="${esc(s)}" ${g.svcOff.includes(s) ? '' : 'checked'}> ${esc(s)}</label>`).join('') : `<span class="small muted">–</span>`}</div></div>`).join('')}
+<span class="small muted">${t('ge_svc_note')}${vfr ? ' ' + t('ge_ifr_tip') : ''} <a href="#einstellungen">${t('ge_change')}</a></span>
 <button type="button" data-ge="propose" ${areaOf() ? '' : 'disabled'}>${t('ge_propose')}</button>
 <div id="gestats">${statsHtml()}</div>
 <p class="note" style="margin:0">${t('ge_data', { d: st.index ? X.fmtDate(st.index.generated) : '…' })} · <a href="#editor">${t('ge_to_editor')}</a></p>`;
