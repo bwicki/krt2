@@ -117,6 +117,31 @@ const ev = (id, kind, min, extra) => Object.assign({ id, kind, wall: Date.UTC(20
     err = null; try { await V.flush({ cfg, fetch: deny, queue: [] }); } catch (e) { err = e; }
     ok(err && err.auth, 'Token abgelehnt → auth');
   }
+  {
+    // Datei vorhanden, aber nicht lesbar → nichts schreiben (sonst wären alle anderen Zeilen weg)
+    const broken = '[{"id":"rep-1","type":"Ballast", KAPUTT';
+    const files = { 'data/_setup.json': setup, 'data/GB27-Test.json': broken };
+    const gh = fakeGitHub(files);
+    let err = null; try { await V.flush({ cfg, fetch: gh, queue: [ev('u1', 'tx', 40)] }); } catch (e) { err = e; }
+    ok(err && err.unread && err.hold && gh.puts() === 0 && files['data/GB27-Test.json'].text === broken, 'kaputtes JSON: kein Schreiben, Fehler unread');
+    err = null; try { await V.readTable(cfg, 'GB27 Test', gh); } catch (e) { err = e; }
+    ok(err && err.unread, 'Protokoll aus kaputter Tabelle: Fehler statt leerer Liste');
+    // grosse Datei, rohe Antwort kommt leer zurück
+    const big = JSON.stringify(Array.from({ length: 2600 }, (_, i) => ({ id: 'r' + i, type: 'POS', ts_utc: '2026-11-16T08:00:00.000Z', note: 'x'.repeat(380) })));
+    const f2 = { 'data/_setup.json': setup, 'data/GB27-Test.json': big };
+    const gh2 = fakeGitHub(f2);
+    const emptyRaw = async (u, init) => (init && init.headers && init.headers.Accept === 'application/vnd.github.raw' && /GB27-Test\.json/.test(u))
+      ? { status: 200, ok: true, headers: { get: () => null }, text: async () => '' } : gh2(u, init);
+    err = null; try { await V.flush({ cfg, fetch: emptyRaw, queue: [ev('u2', 'tx', 41)] }); } catch (e) { err = e; }
+    ok(err && err.unread && gh2.puts() === 0, 'grosse Datei, leere rohe Antwort: kein Schreiben');
+    // leere Liste und fehlende Datei bleiben gültig
+    const f3 = { 'data/_setup.json': setup, 'data/GB27-Test.json': '[]' };
+    const r3 = await V.flush({ cfg, fetch: fakeGitHub(f3), queue: [ev('u3', 'tx', 42)] });
+    ok(r3.added === 1 && JSON.parse(f3['data/GB27-Test.json'].text).length === 1, 'leere Liste [] wird ergänzt');
+    const f4 = { 'data/_setup.json': setup };
+    const r4 = await V.flush({ cfg, fetch: fakeGitHub(f4), queue: [ev('u4', 'tx', 43)] });
+    ok(r4.added === 1 && JSON.parse(f4['data/GB27-Test.json'].text).length === 1, 'fehlende Datei wird angelegt');
+  }
   // 5. Protokoll: VHF und ATC nach Zeit, CSV
   {
     const rows = [{ type: 'Ballast', ts_utc: '3' }, { type: 'VHF', ts_utc: '2', note: 'Tx 2.0 sec', atc_freq: '127.800', source: 'krt2' }, { type: 'ATC', ts_utc: '1', atc_dir: 'RX', atc_station: 'Zurich Info', atc_msg: 'QNH 1013', reporter: 'Balthasar' }];

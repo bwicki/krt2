@@ -54,8 +54,9 @@
       if (r.size > 900000 && !(S.lastWarn && Date.now() - S.lastWarn < 3600000)) { S.lastWarn = Date.now(); ctx.msg(t('vh_m_big', { k: Math.round(r.size / 1024) }), 'warn'); }
     } catch (e) {
       if (e.hold) holdUntil = Date.now() + (e.retry || 60) * 1000;
+      const first = !(S.last && S.last.err === e.message);   // unlesbare Tabelle: einmal melden, nicht jede Minute
       S.last = Object.assign({}, S.last || {}, { err: e.message, errAt: Date.now() });
-      if (manual || e.auth) ctx.msg(t('vh_m_err', { e: e.message }), 'err');
+      if (manual || e.auth || (e.unread && first)) ctx.msg(t('vh_m_err', { e: e.message }), 'err');
     }
     write(LS.last, S.last);
     busy = false; if (here()) paint();

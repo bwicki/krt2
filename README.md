@@ -82,8 +82,11 @@ eingetragen, trägt diese App sie nach.
 **Grösse.** Ab einem Megabyte liefert die GitHub-Contents-API den Inhalt nicht mehr in der eigenen
 Antwort mit (`encoding: "none"`, `content` leer). `ghGet()` in `src/vhflog.js` holt den Rumpf dann
 roh nach. Die Reporting-App tut das seit **v261116-01** ebenso und schreibt eine Tabelle
-ausserdem gar nicht erst zurück, wenn das Lesen zu kurz ausgefallen ist. Eine Fahrt mit mehreren
-hundert Funkzeilen ist damit auf beiden Seiten unbedenklich.
+ausserdem gar nicht erst zurück, wenn das Lesen zu kurz ausgefallen ist. Diese App hält es seit
+**0.7.1** gleich: Gibt es die Datei, ergibt das Lesen aber keine Liste (kaputtes JSON, leere rohe
+Antwort), schreibt sie nichts und meldet es einmal; die Einträge warten in der Warteschlange. Eine
+Fahrt mit mehreren hundert Funkzeilen ist damit auf beiden Seiten unbedenklich. Das Zusammenspiel
+prüft `tests/reporting_cross.js` gegen die echte `index.html` der Reporting-App.
 
 **Drin lesen.** Die Reporting-App zeigt VHF als eigene Kategorie: eigenes Kürzel im Log, ein Chip
 «ohne VHF», um die Funkzeilen beiseitezulegen, eigener Ordner in der KML-Ausgabe. Im Ausdruck

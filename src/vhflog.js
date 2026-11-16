@@ -118,10 +118,23 @@
     let s = {}; try { s = g.text ? JSON.parse(g.text) : {}; } catch (e) { s = {}; }
     return { flight: s.flight || cfg.flight || '', call: s.call || cfg.call || '' };
   }
+  /**
+   * Inhalt der Fahrtabelle als Liste. Gibt es die Datei, ergibt das Lesen aber keine Liste (kaputtes JSON, leere Antwort
+   * trotz Grösse), wird abgebrochen statt mit [] weitergearbeitet – sonst würde das Zurückschreiben alle anderen Zeilen
+   * löschen (gleiche Sperre wie in der Reporting-App ab v261116-01).
+   */
+  function tableOf(g, p) {
+    if (!g.sha) return [];                                   // Datei gibt es (noch) nicht
+    const t = String(g.text || '');
+    let v = null;
+    try { v = t.trim() ? JSON.parse(t) : ((g.size || 0) > 2 ? null : []); } catch (e) { v = null; }
+    if (Array.isArray(v)) return v;
+    throw Object.assign(new Error('Fahrtabelle ' + p + ' nicht lesbar (' + (g.size || t.length) + ' B) – nichts geschrieben'), { unread: true, hold: true, retry: 60 });
+  }
   /** Ganze Fahrtabelle lesen (für das Protokoll). */
   async function readTable(cfg, flight, fetchFn) {
-    const g = await ghGet(cfg, dirOf(cfg) + '/' + safeName(flight) + '.json', fetchFn);
-    return parseArr(g.text);
+    const p = dirOf(cfg) + '/' + safeName(flight) + '.json';
+    return tableOf(await ghGet(cfg, p, fetchFn), p);
   }
 
   /**
@@ -138,7 +151,7 @@
     const base = dirOf(cfg) + '/' + safeName(st.flight);
     for (let attempt = 0; ; attempt++) {
       const g = await ghGet(cfg, base + '.json', f);
-      const rows = parseArr(g.text);
+      const rows = tableOf(g, base + '.json');
       let tomb = new Set();
       try { const d = await ghGet(cfg, base + '.deleted.json', f); tomb = new Set(parseArr(d.text).map(x => x && x.id).filter(Boolean)); } catch (e) { if (e.auth || e.hold) throw e; }
       const have = new Set(rows.map(r => r && r.id));

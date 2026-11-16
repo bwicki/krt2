@@ -382,9 +382,21 @@ nicht mit INFO klassifizieren, sondern mit AD».
 - Offen: Reporting-App liest Tabellen über 1 MB heute nicht (Contents-API liefert dann keinen Inhalt) – Anpassung in
   gb_notion_frontend vorgeschlagen; Beitrittscode gegen den echten Dienst nicht getestet (CORS für krt2.wicki.aero?).
 
+**0.7.1 – Sperre gegen unlesbare Fahrtabelle; Zusammenspiel mit Reporting v261116-01 geprüft:**
+- `flush` und `readTable` arbeiten nicht mehr mit einer leeren Liste weiter, wenn die Datei existiert, aber nicht als Liste
+  lesbar ist (kaputtes JSON, leere rohe Antwort trotz Grösse über 2 Byte): Fehler `unread` (zugleich `hold`, 60 s), nichts
+  geschrieben, Warteschlange bleibt. Vorher hätte krt2 in diesem Fall die Tabelle durch die eigenen Zeilen ersetzt. Gleiche
+  Regel wie die Reporting-App ab v261116-01. Meldung einmal je Störung, Zustandszeile zeigt den Fehler.
+- `tests/vhflog.test.js` 29 Prüfungen (+5). `tests/reporting_cross.js` (nicht in CI): krt2 und die echte Reporting-App
+  (index.html in jsdom) auf einem nachgebildeten GitHub mit 409/ETag/1-MB-Verhalten – VHF-Zeilen bleiben Feld für Feld
+  erhalten, 409 in beide Richtungen, Tombstone respektiert, Nachtragen ohne Tombstone, Tabelle über 1 MB, unlesbare
+  Tabelle (beide schreiben nicht). 16 Prüfungen bestanden.
+- Reporting-App: Tabellen über 1 MB, Kategorie VHF (Filter «ohne VHF», Archiv, KML, nicht änderbar) erledigt in v261116-01.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/reporting_cross.js <gb_notion_frontend/index.html> src/vhflog.js` (Zusammenspiel mit der Reporting-App, braucht jsdom)
 - `node tests/area.test.mjs [freq-ch.json]` (Formen, Höhenband, Rufnamen; mit Datendatei Vorschlag um Zürich)
 - `node tests/worker.test.mjs` gegen einen lokalen Worker mit leerer Datenbank (SETUP.md, Abschnitt 5)
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus
