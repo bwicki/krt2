@@ -171,7 +171,7 @@ console.log(n + ' Prüfungen bestanden');
 { // 0.6.0: Vorausschau im Flug in den Einstellungen
   let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.0: ' + m); k++; };
   const c = S.sampleConfig();
-  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, von: 75, bis: 95 }), 'Vorgabe ±40° · 100 km · rollender Bereich 75–95');
+  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, von: 75, bis: 95, frei: false }), 'Vorgabe ±40° · 100 km · rollender Bereich 75–95, belegt');
   c.settings.flug = { winkel: 120, distKm: 5, von: 0, bis: 99 };
   const f = M.flugOf(c); okk(f.winkel === 90 && f.distKm === 10, 'Grenzen 5–90° und 10–300 km');
   okk(f.von === 1 && f.bis === 98, 'rollender Bereich innerhalb 01–98');

@@ -57,35 +57,51 @@ const devOf = () => { const d = Array.from({ length: 100 }, (_, i) => FREE(i)); 
   ok(c.prio.map(x => x.ch).join(',') === '128.050,125.950', 'INFO/FIS zuerst nach Distanz, ohne die schon gespeicherte: ' + c.prio.map(x => x.ch).join(','));
   ok(c.rest.map(x => x.ch).join(',') === '120.505,132.350,133.255', 'übrige nach Distanz: ' + c.rest.map(x => x.ch).join(','));
   ok(c.prio[0].dist === 35 && c.prio[0].name === 'ZURICH I', 'je Frequenz die nächstgelegene Station');
-  ok(c.inDevice === 1 && c.relevant.has(M.freqKey('124.700')) && c.relevant.size === 6, 'zählt Frequenzen im Gerät; relevant = alle gültigen der Vorausschau');
+  ok(c.inDevice === 1, 'zählt Frequenzen, die schon im Gerät stehen');
   ok(!c.prio.concat(c.rest).some(x => x.ch === '999.000'), 'ungültige Frequenz fällt weg');
-  // Zielplätze
+  // Zielplätze der Reihe nach (Entscheid 16.11.2026), nach dem letzten Platz wieder vorne
   const nrs = F.rollSlots(cfg, d);
   const d2 = devOf();
-  d2[75] = { nr: 75, ch: '124.700', name: 'GENEVA F', block: 'ROLL' };      // noch in der Vorausschau
-  d2[76] = { nr: 76, ch: '119.175', name: 'ALT I', block: 'ROLL' };         // nicht mehr
-  d2[77] = { nr: 77, ch: '119.900', name: 'ALT2 I', block: 'ROLL' };        // nicht mehr, aber jünger
-  for (let n = 78; n <= 95; n++) d2[n] = { nr: n, ch: (118 + n / 100).toFixed(3).replace(/\d$/, '5'), name: 'X' + n, block: 'ROLL' };
+  for (let n = 75; n <= 95; n++) d2[n] = { nr: n, ch: (118 + n / 100).toFixed(3).replace(/\d$/, '5'), name: 'X' + n, block: 'ROLL' };
   d2[81] = FREE(81); d2[88] = FREE(88);
-  const ages = { 76: 2000, 77: 3000 };
-  const tg = F.rollTargets(cfg, nrs, d2, 5, c.relevant, ages);
-  ok(tg[0] === 81 && tg[1] === 88, 'zuerst freie Plätze: ' + tg.join(','));
-  ok(tg[2] !== 75 && !tg.includes(75), 'Platz mit noch gültiger Frequenz wird nicht überschrieben');
-  ok(tg.indexOf(76) > tg.indexOf(78) || !tg.includes(76), 'nie beschriebene (Alter 0) vor älter beschriebenen: ' + tg.join(','));
-  const tgAll = F.rollTargets(cfg, nrs, d2, 21, c.relevant, ages);
-  ok(tgAll.length === 21 && tgAll[tgAll.length - 1] === 75 && tgAll.indexOf(76) < tgAll.indexOf(77), 'noch gültige zuletzt; älter vor jünger: …' + tgAll.slice(-4).join(','));
-  ok(F.rollTargets(cfg, nrs, d2, 0, c.relevant, ages).length === 0, 'ohne Auswahl keine Zielplätze');
+  ok(F.rollStart(cfg, nrs, d2, null) === 81, 'ohne Zeiger: erster freier Platz');
+  ok(F.rollStart(cfg, nrs, devOf().map((p, i) => (i >= 75 && i <= 95 ? { nr: i, ch: '119.005', name: 'X' } : p)), null) === 75, 'ohne Zeiger und ohne freien Platz: Anfang des Bereichs');
+  ok(F.rollStart(cfg, nrs, d2, 90) === 90, 'gespeicherter Zeiger gilt');
+  ok(F.rollStart(cfg, nrs, d2, 97) === 81 && F.rollStart(cfg, nrs, d2, 60) === 75, 'Zeiger ausserhalb des Bereichs: nächster Platz danach, sonst wie ohne Zeiger');
+  const tg = F.rollTargets(nrs, 94, 4);
+  ok(tg.join(',') === '94,95,75,76', 'der Reihe nach, nach 95 wieder 75: ' + tg.join(','));
+  ok(F.rollTargets(nrs, 81, 0).length === 0 && F.rollTargets(nrs, 81, 30).length === 21, 'ohne Auswahl keine Zielplätze; höchstens so viele wie der Bereich');
+  ok(F.rollAfter(nrs, 95) === 75 && F.rollAfter(nrs, 80) === 81, 'Zeiger nach dem Schreiben');
   // Schreibliste, neuer Gerätestand, Fluglog
   const picks = c.prio.slice(0, 2);
-  const list = F.rollWriteList(picks, tg);
+  const list = F.rollWriteList(picks, F.rollTargets(nrs, 81, 2));
   ok(list.length === 2 && list[0].nr === 81 && list[0].ch === '128.050' && list[0].name === 'ZURICH I', 'Schreibliste: Auswahl in Reihenfolge auf die Zielplätze');
-  const res = { 81: { kind: 'ACK', ms: 30 }, 88: { kind: 'TIMEOUT' } };
+  const res = { 81: { kind: 'ACK', ms: 30 }, 82: { kind: 'TIMEOUT' } };
   const after = F.rollApply(d2, list, res);
-  ok(after[81].ch === '128.050' && after[81].block === M.ROLL_BLOCK && after[81].klar === 'ZURICH I klar' && after[88].name === 'FREE', 'nur quittierte Plätze übernommen, Blockname ROLL');
-  ok(after[75].ch === '124.700' && after[12].name === 'FREE' && after[90].name === 'X90', 'übrige Plätze unverändert');
+  ok(after[81].ch === '128.050' && after[81].block === M.ROLL_BLOCK && after[81].klar === 'ZURICH I klar' && after[82].name === 'X82', 'nur quittierte Plätze übernommen, Blockname ROLL');
+  ok(after[75].name === 'X75' && after[12].name === 'FREE' && after[90].name === 'X90', 'übrige Plätze unverändert');
   const rows = F.logRows(list, d2, res, { lat: 47.123456, lon: 8.5 });
-  ok(rows.length === 2 && rows[0].ok && !rows[1].ok && rows[0].alt.name === 'FREE' && rows[0].block === 'ROLL' && rows[0].lat === 47.12346, 'Fluglog: alt, neu, quittiert, Position');
+  ok(rows.length === 2 && rows[0].ok && !rows[1].ok && rows[0].alt.name === 'FREE' && rows[1].alt.name === 'X82' && rows[0].block === 'ROLL' && rows[0].lat === 47.12346, 'Fluglog: alt, neu, quittiert, Position');
   ok(F.logCsv(rows).split('\r\n').length === 3, 'Fluglog als CSV');
+}
+
+// 3b. Bereich im Entwurf freihalten (0.8.2): Blöcke laufen darum herum, dort steht FREE mit Blockname ROLL
+{
+  const cfg = M.defaultConfig();
+  for (let i = 0; i < 90; i++) M.addEntry(cfg, { ch: (118 + i * 0.025).toFixed(3), kurz: 'S' + i, klar: 'S' + i, dienst: 'INFO', aktiv: true, block: 'b-info' });
+  let L = M.layout(cfg);
+  ok(L.slots[80].kind === 'entry' && L.roll.length === 0, 'Vorgabe: Bereich wird belegt (Schalter aus)');
+  cfg.settings.flug.frei = true; cfg.settings.flug = M.flugOf(cfg);
+  L = M.layout(cfg);
+  ok(L.roll.length === 21 && L.slots.slice(75, 96).every(x => x.kind === 'roll' && x.kurz === 'FREE'), 'Schalter an: 75–95 freigehalten');
+  ok(L.slots[74].kind === 'entry' && L.slots[96].kind === 'entry' && L.slots[96].block === 'b-info', 'Blöcke laufen um den Bereich herum');
+  const D = M.deviceSlots(cfg, L);
+  ok(D[80].block === M.ROLL_BLOCK && D[80].ch === '118.000', 'Gerätestand: Blockname ROLL, Platzhalter');
+  ok(/;rollend\r?\n/.test(M.toCSV(cfg)), 'CSV nennt den Bereich');
+  cfg.fixed.extra.push({ id: 'x1', nr: 80, ch: '123.455', kurz: 'CREW', klar: 'Crew' });
+  L = M.layout(cfg);
+  ok(L.slots[80].kind === 'fixed' && L.roll.length === 20, 'fester Platz im Bereich bleibt fest');
+  const back = M.fromJSON(M.toJSON(cfg)); ok(back.settings.flug.frei === true, 'Schalter wird gespeichert');
 }
 
 // 4. Echte Daten: Sektor ab Zürich nach Osten

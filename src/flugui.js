@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
   const DATA = 'https://raw.githubusercontent.com/bwicki/krt2/data/';
-  const LS_LOG = 'krt2.fluglog', LS_OFF = 'krt2.offline', LS_AGE = 'krt2.roll.age', LOG_MAX = 1000, HIST_MS = 20 * 60000, REST_MAX = 12;
+  const LS_LOG = 'krt2.fluglog', LS_OFF = 'krt2.offline', LS_NEXT = 'krt2.roll.next', LOG_MAX = 1000, HIST_MS = 20 * 60000, REST_MAX = 12;
   const F = root.KRT2FLUG, A = root.KRT2AREA, M = root.KRT2MODEL, L = root.KRT2LINK.link;
   const S = { gps: { on: false, id: null, hist: [], err: '', acc: null, at: null }, manual: '', index: null, files: {}, prep: false,
     roll: { list: null, picks: [], busy: false, write: null, more: false } };
@@ -66,19 +66,16 @@
 
   // ---------- Rollender Bereich: Vorschlag, Auswahl, Schreiben ----------
   const R = S.roll;
-  // Zeitpunkt, zu dem ein Platz des Bereichs zuletzt im Flug beschrieben wurde – je Gerät, nur in diesem Browser
-  function ages() { const all = readJSON(LS_AGE, {}); return all[ctx.GR.devKey()] || {}; }
-  function setAges(nrs) {
-    const all = readJSON(LS_AGE, {}), k = ctx.GR.devKey(), a = Object.assign({}, all[k] || {}), now = Date.now();
-    nrs.forEach(n => { a[n] = now; }); all[k] = a;
-    try { localStorage.setItem(LS_AGE, JSON.stringify(all)); } catch (e) { /* Speicher voll */ }
+  // Zeiger auf den nächsten Platz des Bereichs – je Gerät, nur in diesem Browser (der Reihe nach, Entscheid 16.11.2026)
+  function storedNext() { const all = readJSON(LS_NEXT, {}); const v = all[ctx.GR.devKey()]; return v == null ? null : +v; }
+  function setNext(nr) {
+    const all = readJSON(LS_NEXT, {}); all[ctx.GR.devKey()] = nr;
+    try { localStorage.setItem(LS_NEXT, JSON.stringify(all)); } catch (e) { /* Speicher voll */ }
   }
   const device = () => { const a = ctx.GR.aktuell(); return a && Array.isArray(a.plaetze) ? a.plaetze : null; };
   const slots = () => F.rollSlots(cfg(), device());
-  function targets() {
-    const d = device(); if (!d) return [];
-    return F.rollTargets(cfg(), slots(), d, R.picks.length, R.list ? R.list.relevant : null, ages());
-  }
+  const start = () => F.rollStart(cfg(), slots(), device(), storedNext());
+  function targets() { return device() ? F.rollTargets(slots(), start(), R.picks.length) : []; }
   async function propose() {
     const c = cfg();
     const p = pos(); if (!p) { ctx.msg(t('fl_need_pos'), 'warn'); return; }
@@ -142,7 +139,7 @@
     const log = readJSON(LS_LOG, []).concat(rows).slice(-LOG_MAX);
     try { localStorage.setItem(LS_LOG, JSON.stringify(log)); } catch (e) { /* Speicher voll */ }
     if (okL.length) {
-      setAges(okL.map(w => w.nr));
+      setNext(F.rollAfter(slots(), okL[okL.length - 1].nr));
       const done = new Set(okL.map(w => w.pick.k));
       R.picks = R.picks.filter(x => !done.has(x.k));       // Geschriebenes verschwindet aus der Auswahl, Fehlgeschlagenes bleibt
       const a = ctx.GR.aktuell();
@@ -222,7 +219,7 @@ ${p ? `<div class="row fl-row"><span class="label">${t('fl_pos')}</span><span cl
     const range = pad2(st.von) + '–' + pad2(st.bis);
     const dist = x => (x.dist == null ? '' : x.dist + ' km');
     const res = nr => (W && W.res[nr]) || null;
-    const head = `<div class="spread"><div class="stack" style="gap:2px"><span class="label">${t('fl_roll', { r: range })}</span><span class="small muted">${t('fl_roll_slots', { n: nrs.length })} · <a href="#einstellungen">${t('fl_ahead_set')}</a></span></div>
+    const head = `<div class="spread"><div class="stack" style="gap:2px"><span class="label">${t('fl_roll', { r: range })}</span><span class="small muted">${t('fl_roll_slots', { n: nrs.length })}${nrs.length ? ' · ' + t('fl_roll_next', { s: pad2(start()) }) : ''} · <a href="#einstellungen">${t('fl_ahead_set')}</a></span></div>
   <button type="button" class="sec" data-fl="propose" ${R.busy || running ? 'disabled' : ''}>${R.busy ? t('fl_loading') : t(Lst ? 'fl_plan_again' : 'fl_plan')}</button></div>`;
     if (!d) { el.innerHTML = head + `<p class="note gr-warn">${t('fl_need_state')}</p>`; return; }
     // Auswahl mit Zielplatz; antippen nimmt sie wieder heraus

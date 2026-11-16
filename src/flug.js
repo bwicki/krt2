@@ -1,6 +1,6 @@
 /* krt2.wicki.aero – Im Flug (0.6.0, Konzept Bluetooth-Brücke, Phase 3; rollender Bereich ab 0.8.0).
    Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor (Vorgabe ±40°, 100 km), Vorschlagsliste (INFO und FIS zuerst, nach
-   Distanz) und Zielplätze im rollenden Bereich (Vorgabe 75–95, ohne Blöcke). Plätze ausserhalb des Bereichs bleiben
+   Distanz) und Zielplätze im rollenden Bereich (Vorgabe 75–95, ohne Blöcke, der Reihe nach). Plätze ausserhalb bleiben
    unberührt. Reine Logik ohne DOM (Browser: window.KRT2FLUG). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./model.js'), require('./area.js'), require('./krt2codec.js'));
@@ -64,17 +64,14 @@
    * Plätze der Konfiguration oder im Gerät als fest markierte). Im Flug wird nur hier geschrieben, ohne Blöcke.
    */
   function rollSlots(cfg, device) {
-    const f = M.flugOf(cfg), fx = M.fixedExtra(cfg), out = [];
     const devFixed = new Set((device || []).filter(p => p && p.kind === 'fixed').map(p => p.nr));
-    for (let n = f.von; n <= f.bis; n++) if (n >= 1 && n <= M.LAST_SLOT && !fx[n] && !devFixed.has(n)) out.push(n);
-    return out;
+    return M.rollRange(cfg).filter(n => !devFixed.has(n));
   }
 
   /**
    * Vorschlagsliste aus A.propose (Einträge mit .dist ab der Position): je Frequenz die nächstgelegene Station, ohne
-   * Frequenzen, die schon irgendwo im Gerät stehen; INFO und FIS zuerst, beide Gruppen nach zunehmender Distanz.
-   * Ergebnis { prio:[item], rest:[item], inDevice, relevant:Set(freqKey aller Frequenzen der Vorausschau) };
-   * item = { k, ch, name, klar, dienst, dist, cc }.
+   * Frequenzen, die schon irgendwo im Gerät stehen; INFO und FIS zuerst, dann alle übrigen, beide nach zunehmender Distanz.
+   * Ergebnis { prio:[item], rest:[item], inDevice }; item = { k, ch, name, klar, dienst, dist, cc }.
    */
   function rollCands(cfg, entries, device) {
     const key = M.freqKey, best = new Map();
@@ -82,19 +79,28 @@
     const all = Array.from(best.values()).sort(byDist);
     const inDev = new Set((device || []).filter(Boolean).map(p => key(p.ch)).filter(Boolean));
     const items = all.filter(e => !inDev.has(key(e.ch))).map(e => ({ k: key(e.ch), ch: e.ch, name: nameOf(cfg, e), klar: e.klar || '', dienst: e.dienst || '', dist: e.dist == null ? null : e.dist, cc: e.ort && e.ort.cc ? e.ort.cc : '' }));
-    return { prio: items.filter(x => PRIO.includes(x.dienst)), rest: items.filter(x => !PRIO.includes(x.dienst)), inDevice: all.length - items.length, relevant: new Set(all.map(e => key(e.ch))) };
+    return { prio: items.filter(x => PRIO.includes(x.dienst)), rest: items.filter(x => !PRIO.includes(x.dienst)), inDevice: all.length - items.length };
   }
 
   /**
-   * Zielplätze für n neue Frequenzen im rollenden Bereich, in dieser Reihenfolge: freie Plätze, dann Plätze, deren Frequenz
-   * nicht mehr in der Vorausschau liegt, zuletzt noch gültige – innerhalb jeder Stufe der am längsten nicht beschriebene
-   * Platz zuerst (ages = { nr: ms }, unbekannt = 0), bei Gleichstand der tiefere Platz.
+   * Nächster Platz im rollenden Bereich (Entscheid 16.11.2026: der Reihe nach). next = gespeicherter Zeiger; fehlt er oder
+   * liegt er nicht mehr im Bereich, der erste freie Platz, sonst der erste Platz des Bereichs.
    */
-  function rollTargets(cfg, nrs, device, n, relevant, ages) {
-    const isFree = freeOf(cfg), rel = relevant || new Set(), age = ages || {};
-    const rank = nr => { const p = (device || [])[nr]; if (isFree(p)) return 0; return rel.has(M.freqKey(p.ch)) ? 2 : 1; };
-    return nrs.slice().sort((a, b) => rank(a) - rank(b) || (age[a] || 0) - (age[b] || 0) || a - b).slice(0, Math.max(0, n));
+  function rollStart(cfg, nrs, device, next) {
+    if (!nrs.length) return null;
+    if (next != null && nrs.includes(next)) return next;
+    if (next != null) { const later = nrs.find(n => n > next); if (later != null) return later; }
+    const isFree = freeOf(cfg), f = nrs.find(n => isFree((device || [])[n]));
+    return f != null ? f : nrs[0];
   }
+  /** Zielplätze für n neue Frequenzen: der Reihe nach ab dem Startplatz, nach dem letzten Platz wieder vorne. */
+  function rollTargets(nrs, start, n) {
+    if (!nrs.length || !(n > 0)) return [];
+    const i0 = Math.max(0, nrs.indexOf(start));
+    return nrs.slice(i0).concat(nrs.slice(0, i0)).slice(0, n);
+  }
+  /** Platz nach nr im Bereich (rundherum). */
+  const rollAfter = (nrs, nr) => { if (!nrs.length) return null; const i = nrs.indexOf(nr); return nrs[(i + 1) % nrs.length]; };
 
   /** Schreibliste: Auswahl in Reihenfolge auf die Zielplätze. */
   const rollWriteList = (picks, targets) => picks.slice(0, targets.length).map((p, i) => ({ nr: targets[i], ch: p.ch, name: p.name, pick: p }));
@@ -132,5 +138,5 @@
     return n[Math.round(((b % 360) + 360) % 360 / 22.5) % 16];
   }
 
-  return { distKm, bearing, track, sectorArea, rollSlots, rollCands, rollTargets, rollWriteList, rollApply, logRows, logCsv, compass, PRIO };
+  return { distKm, bearing, track, sectorArea, rollSlots, rollCands, rollStart, rollTargets, rollAfter, rollWriteList, rollApply, logRows, logCsv, compass, PRIO };
 });

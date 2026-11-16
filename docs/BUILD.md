@@ -414,6 +414,18 @@ nicht mit INFO klassifizieren, sondern mit AD».
 verschoben: Klartext in der schmalen Nummernspalte, «Abwählen» gequetscht, Eingaben über den Rand. Jetzt je Platz Nr. |
 Frequenz | Kurzname, darunter Klartext und Knopf über die zwei rechten Spalten; Eingaben passen sich der Spalte an.
 
+**0.8.2 – Antworten 16.11.2026 (Abend):**
+- Rollender Bereich der Reihe nach (ersetzt «frei → nicht mehr in der Vorausschau → noch gültig» aus 0.8.0): `rollStart`
+  (gespeicherter Zeiger je Gerät `krt2.roll.next`, sonst erster freier Platz, sonst Anfang), `rollTargets` (ab dem Start,
+  nach dem letzten Platz wieder vorne), `rollAfter` (Zeiger nach dem letzten quittierten Platz). Karte zeigt «nächster nn».
+- Editor: Kopfzeile «Rollend (im Flug)» mit Schalter «für den Flug freihalten (lange Fahrten)» je Konfiguration
+  (`settings.flug.frei`, Vorgabe aus = Blöcke dürfen den Bereich belegen, für regionale Fahrten). Ein: `layout` setzt die
+  Plätze als `kind: 'roll'` (Platzhalter FREE, im Gerätestand Blockname ROLL), die Blöcke laufen darum herum wie um feste
+  Plätze; `rollRange`, `layout().roll`, `layout().frees`. Freie Plätze im Editor und auf «Aktuell» als Läufe (15–74, 96–98).
+- Belegungsstreifen: Name und Plätze getrennt, unter 600 px untereinander; Abschnitt «rollend»; nichts mehr abgeschnitten.
+- Vorschlagsliste zeigt nach INFO und FIS alle übrigen Frequenzen (Entscheid bestätigt).
+- Tests: `tests/flug.test.js` 41 Prüfungen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

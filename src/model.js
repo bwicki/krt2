@@ -48,7 +48,7 @@
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
       settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice(),
-        flug: { winkel: 40, distKm: 100, von: 75, bis: 95 }, vfr: true },
+        flug: { winkel: 40, distKm: 100, von: 75, bis: 95, frei: false }, vfr: true },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
@@ -66,7 +66,13 @@
     const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return v === '' || v == null || isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
     let von = num(f.von, 1, LAST_SLOT, 75), bis = num(f.bis, 1, LAST_SLOT, 95);
     if (von > bis) { const x = von; von = bis; bis = x; }
-    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), von, bis };
+    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), von, bis, frei: f.frei === true };
+  }
+  /** Plätze des rollenden Bereichs ohne feste Plätze der Konfiguration (0.8.2). */
+  function rollRange(cfg) {
+    const f = flugOf(cfg), fx = fixedExtra(cfg), out = [];
+    for (let n = f.von; n <= f.bis; n++) if (n >= 1 && n <= LAST_SLOT && !fx[n]) out.push(n);
+    return out;
   }
 
   let counter = 0;
@@ -235,7 +241,10 @@
     let next = 0;
     if (fx.p00.on) { slots[0] = { nr: 0, kind: 'fixed', fixed: 'p00', ch: fx.p00.ch, kurz: fx.p00.kurz, klar: fx.p00.klar, dienst: '', block: null }; next = 1; }
     for (const n of Object.keys(fxAt)) { const x = fxAt[n]; slots[n] = { nr: Number(n), kind: 'fixed', fixed: x.id, ch: x.ch, kurz: x.kurz, klar: x.klar || '', dienst: '', block: null }; }
-    const skip = () => { while (next <= LAST_SLOT && fxAt[next]) next++; };   // feste Plätze überspringen
+    // rollender Bereich freigehalten (0.8.2, Schalter im Editor): Blöcke laufen darum herum, dort steht der Platzhalter
+    const roll = flugOf(cfg).frei ? new Set(rollRange(cfg)) : new Set();
+    roll.forEach(n => { if (!slots[n]) slots[n] = { nr: n, kind: 'roll', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null }; });
+    const skip = () => { while (next <= LAST_SLOT && (fxAt[next] || roll.has(next))) next++; };   // feste und rollende Plätze überspringen
     skip();
     const ranges = [], notPlaced = [], slotOf = {};
     for (const b of cfg.bloecke) {
@@ -259,8 +268,8 @@
       : { nr: 99, kind: 'free', ch: free.ch, kurz: free.kurz, klar: '', dienst: '', block: null };
     const frees = slots.filter(x => x.kind === 'free' && x.nr <= LAST_SLOT).map(x => x.nr);
     const prio = notPlaced.filter(x => x.why === 'voll' || x.why === 'max').map(x => x.e.id);
-    return { slots, ranges, notPlaced, slotOf, prio, freeFrom: frees.length ? frees[0] : LAST_SLOT + 1, freeTo: frees.length ? frees[frees.length - 1] : null,
-      used: slots.filter(x => x.nr <= LAST_SLOT && x.kind !== 'free').length };
+    return { slots, ranges, notPlaced, slotOf, prio, freeFrom: frees.length ? frees[0] : LAST_SLOT + 1, freeTo: frees.length ? frees[frees.length - 1] : null, frees,
+      roll: Array.from(roll).sort((a, b) => a - b), used: slots.filter(x => x.nr <= LAST_SLOT && x.kind !== 'free' && x.kind !== 'roll').length };
   }
 
   /** Prio-Liste: gewählte Einträge, für die im Block kein Platz mehr frei ist. Sie rücken als erste nach, wenn vorne
@@ -277,7 +286,7 @@
     return L.slots.map(s => {
       const n = C.normalizeName(s.kurz, cfg.settings.allowDigits, cfg.settings.allowLower !== false);
       const blk = s.block ? blockById(cfg, s.block) : null;
-      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, block: blk ? blk.name : '', ok: n.ok && C.encodeFreq(s.ch).ok };
+      return { nr: s.nr, ch: s.ch, name: n.ok ? n.name : (String(s.kurz || '') + '        ').slice(0, 8), klar: s.klar || '', dienst: s.dienst || '', cc: s.cc || '', kind: s.kind, block: s.kind === 'roll' ? ROLL_BLOCK : blk ? blk.name : '', ok: n.ok && C.encodeFreq(s.ch).ok };
     });
   }
 
@@ -332,7 +341,7 @@
     const by = {};
     const add = (id, lvl, code, arg) => { (by[id] = by[id] || []).push({ lvl, code, arg }); };
     const placedCh = {};
-    lay.slots.forEach(s => { const k = s.kind !== 'free' && freqKey(s.ch); if (k) (placedCh[k] = placedCh[k] || []).push(s.nr); });
+    lay.slots.forEach(s => { const k = s.kind !== 'free' && s.kind !== 'roll' && freqKey(s.ch); if (k) (placedCh[k] = placedCh[k] || []).push(s.nr); });
     for (const e of cfg.eintraege) {
       const f = C.encodeFreq(e.ch);
       if (!f.ok) add(e.id, 'r', 'freq', e.ch);
@@ -460,7 +469,7 @@
     const name = id => (blockById(cfg, id) || {}).name || '';
     const q = v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
     return ['Platz;Frequenz;Kurzname;Klartext;Dienst;Block']
-      .concat(lay.slots.map(s => [String(s.nr).padStart(2, '0'), s.ch, s.kurz, s.klar, s.dienst, s.kind === 'fixed' ? 'fest' : s.kind === 'free' ? 'frei' : name(s.block)].map(q).join(';')))
+      .concat(lay.slots.map(s => [String(s.nr).padStart(2, '0'), s.ch, s.kurz, s.klar, s.dienst, s.kind === 'fixed' ? 'fest' : s.kind === 'free' ? 'frei' : s.kind === 'roll' ? 'rollend' : name(s.block)].map(q).join(';')))
       .join('\r\n') + '\r\n';
   }
 
@@ -476,6 +485,6 @@
     SCHEMA, LAST_SLOT, ROLL_BLOCK, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
-    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf, IFR_SVC
+    layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf, rollRange, IFR_SVC
   };
 });

@@ -1,6 +1,6 @@
 # TQ KRT2-S2 Memory Manager — krt2.wicki.aero
 
-**App 0.8.1 · README Dok. 261116-04**
+**App 0.8.2 · README Dok. 261116-05**
 
 Programmiert die 100 Speicherplätze des Flugfunkgeräts TQ KRT2 über die RS-232-Fernsteuerschnittstelle:
 Frequenzen für ein auf der Karte markiertes Gebiet (Kreis, Rechteck, Vieleck, Korridor) aus öffentlichen
@@ -14,7 +14,7 @@ Zweisprachig DE/EN.
 Web Serial (Chrome/Edge am Laptop, Bluetooth-Brücke am Handy), Leaflet/OSM, Cloudflare Worker mit D1,
 IBM Plex. Gestaltung wie analyze.wicki.aero.
 
-Stand: **App 0.8.1**. Gebaut und am Gerät erprobt: Gebiet und Vorschlag, Editor, Einstellungen, A4-Blatt mit
+Stand: **App 0.8.2**. Gebaut und am Gerät erprobt: Gebiet und Vorschlag, Editor, Einstellungen, A4-Blatt mit
 zwei A6-Karten, Konten, Konfigurationen, Gerät verbinden und programmieren, Vorschläge im Flug (rollender Bereich) und das
 Funkprotokoll in die Fahrtabelle der Reporting-App. Dazu der Machbarkeitstest `test.html` (test 0.3.3) und das
 Adaptergehäuse unter `hardware/`.
@@ -36,7 +36,7 @@ Einrichtung des Workers: `SETUP.md`. Konzept: Dropbox «046 WebAPP krt2\01_Konze
 | `#konten` | nur Supermaster: Konten anlegen, Kennwort zurücksetzen, sperren | 0.2.1 |
 | `#gebiet` | Startort (Ortssuche mit Auswahlliste), Kreis/Rechteck/Vieleck/Korridor auf der OSM-Karte, Höhenband, Länder, Dienste je Block, Vorschlag aus den Frequenzdaten — nur VFR und nur eindeutige 8,33-Kanäle | 0.6.2 |
 | `#geraet` | Gerät verbinden (Web Serial, am Handy über Bluetooth), sichern (von Hand, aus Datei oder aus dem Verlauf), programmieren mit Quittung je Platz, Stichprobe; nie während einer Aussendung, Verbindung wird selbst wieder aufgenommen | 0.6.3 ✓ |
-| `#flug` | fürs Handy: Funkgerät und GPS, Richtung und Vorausschau; Vorschlagsliste (INFO und FIS zuerst, nach Distanz), antippen wählt aus, geschrieben wird nur in den **rollenden Bereich** (Einstellungen, Vorgabe 75–95, ohne Blöcke) — und das **Funkprotokoll** in die Fahrtabelle der Reporting-App (siehe unten) | 0.8.0 |
+| `#flug` | fürs Handy: Funkgerät und GPS, Richtung und Vorausschau; Vorschlagsliste (INFO und FIS zuerst, nach Distanz), antippen wählt aus, geschrieben wird nur in den **rollenden Bereich** (Einstellungen, Vorgabe 75–95, ohne Blöcke, der Reihe nach; im Editor wahlweise für den Flug freigehalten) — und das **Funkprotokoll** in die Fahrtabelle der Reporting-App (siehe unten) | 0.8.0 |
 
 Belegung: 00 = BALLOON 122.255 (fest, freigebbar), Blöcke ab 01 lückenlos, freie Plätze (118.000 FREE) nur am
 Ende, 99 = EMERGENC 121.500. Kurzname = Ortskürzel (IATA, sonst drei Buchstaben) + ICAO-Dienstkürzel, höchstens

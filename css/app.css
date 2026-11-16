@@ -141,8 +141,13 @@ td select.svc{min-width:84px}
 
 /* Einstellungen */
 .alloc{display:flex;height:38px;border-radius:8px;overflow:hidden;border:1px solid var(--border);font-size:12px}
-.alloc div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 6px;min-width:max-content}
-.alloc div.gap{min-width:40px}
+.alloc div{display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;overflow:hidden;padding:0 6px;min-width:max-content}
+.alloc div.gap{min-width:max-content}
+.alloc .gap.roll{background:repeating-linear-gradient(45deg,var(--sel) 0 6px,#fff 6px 12px);color:var(--primary)}
+@media (max-width:600px){   /* Name und Plätze untereinander, damit auch schmale Abschnitte lesbar bleiben */
+  .alloc{height:auto;min-height:38px;font-size:11px;overflow-x:auto}   /* viele Blöcke: wischen statt abschneiden */
+  .alloc div{flex-direction:column;gap:0;padding:4px 4px;line-height:1.2}
+}
 .alloc .gap{background:repeating-linear-gradient(45deg,#eef1f5 0 6px,#fff 6px 12px);color:var(--muted)}
 .fixedgrid{display:grid;grid-template-columns:60px 110px 130px minmax(160px,1fr) auto;gap:8px 10px;align-items:center}
 .fixedgrid input[data-fxe$='.nr']{width:60px!important}

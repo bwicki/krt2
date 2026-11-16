@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI, VH = window.KRT2VHFUI;
   const t = I.t;
-  const VERSION = '0.8.1';
+  const VERSION = '0.8.2';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -15,6 +15,8 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const pad2 = n => String(n).padStart(2, '0');
   const range = (a, b) => (a === b ? pad2(a) : pad2(a) + '–' + pad2(b));
+  /** Platznummern als Läufe: [31…74, 96…98] → «31–74, 96–98». */
+  const runs = nrs => { const out = []; let a = null, b = null; for (const n of nrs.concat([null])) { if (a != null && n === b + 1) { b = n; continue; } if (a != null) out.push(range(a, b)); a = b = n; } return out.join(', '); };
   const fmtDate = iso => { if (!iso) return '–'; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString(I.lang === 'de' ? 'de-CH' : 'en-GB'); };
   const fmtDT = d => d.toLocaleString(I.lang === 'de' ? 'de-CH' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const stamp = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()); };
@@ -141,8 +143,10 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     const fx = L.slots.filter(x => x.kind === 'fixed' && x.nr !== 99);   // 00 und weitere feste Plätze
     if (fx.length) g.push({ name: t('blk_fixed'), rg: fx.map(x => pad2(x.nr)).join(', '), rows: fx });
     for (const r of L.ranges) g.push({ name: r.name, rg: range(r.from, r.to), rows: (r.nrs || []).map(n => L.slots[n]) });
+    const rolls = L.slots.filter(x => x.kind === 'roll');
+    if (rolls.length) g.push({ name: t('blk_roll'), rg: runs(rolls.map(x => x.nr)), rows: rolls, free: true });
     const frees = L.slots.filter(x => x.kind === 'free' && x.nr < 99);
-    if (frees.length) g.push({ name: t('blk_free'), rg: range(frees[0].nr, frees[frees.length - 1].nr), rows: frees, free: true });
+    if (frees.length) g.push({ name: t('blk_free'), rg: runs(frees.map(x => x.nr)), rows: frees, free: true });
     if (L.slots[99].kind === 'fixed') g.push({ name: t('blk_emerg'), rg: '99', rows: [L.slots[99]] });
     else g.push({ name: t('blk_free'), rg: '99', rows: [L.slots[99]], free: true });
     return g;
@@ -363,7 +367,10 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       for (const e of vis) h += entryRow(e, L, R);
     }
     if (showFixed) {
-      if (L.freeTo != null) h += `<tr class="head" data-block="__free"><td colspan="10"><b>${t('blk_free')}</b> <span class="small muted">${range(L.freeFrom, L.freeTo)}: ${esc(cfg.settings.free.ch)} ${esc(cfg.settings.free.kurz)}</span></td></tr>`;
+      const fl = M.flugOf(cfg), rr = M.rollRange(cfg);
+      h += `<tr class="head" data-block="__roll"><td colspan="10"><div class="row" style="gap:8px"><b>${t('blk_roll')}</b><span class="small muted">${t('blk_roll_hint')} · ${rr.length ? runs(rr) : '–'}</span>` +
+        `<label class="small"><input type="checkbox" data-act="rollfrei" ${fl.frei ? 'checked' : ''}> ${t('ed_roll_free')}</label><a class="small" href="#einstellungen">${t('ed_fixed_edit')}</a></div></td></tr>`;
+      if (L.frees.length) h += `<tr class="head" data-block="__free"><td colspan="10"><b>${t('blk_free')}</b> <span class="small muted">${runs(L.frees)}: ${esc(cfg.settings.free.ch)} ${esc(cfg.settings.free.kurz)}</span></td></tr>`;
       h += `<tr class="head"><td colspan="10"><b>${t('blk_emerg')}</b> <span class="small muted">99</span></td></tr>` + fixedRow('p99', 99);
     }
     // Prio-Liste: gewählt, aber im Block kein Platz mehr – rückt als erste nach, wenn vorne abgewählt wird
@@ -525,6 +532,10 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       msg(t('st_applied', { n, m: b.dataset.v === 'icao' ? t('st_adloc_icao') : t('st_adloc_short') }), 'ok'); afterChange(edRefresh); return;
     }
     if (act === 'e99') { ev.preventDefault(); await toggle99(); edRefresh(); return; }
+    if (act === 'rollfrei') {
+      const fl = cfg.settings.flug = M.flugOf(cfg); fl.frei = !!b.checked;
+      msg(t(fl.frei ? 'm_roll_free' : 'm_roll_used', { r: runs(M.rollRange(cfg)) }), 'ok'); afterChange(edRefresh); return;
+    }
     if (act === 'new') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = M.defaultConfig(); saveDraft(true); msg(t('m_new'), 'ok'); render(); } return; }
     if (act === 'sample') { if (await ask(t('m_ask_new'), '', t('yes'))) { cfg = S.sampleConfig(); saveDraft(true); msg(t('m_sample'), 'ok'); render(); } return; }
     if (act === 'srvsave') { srvSave(); return; }
@@ -629,7 +640,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     const fl = st.flug = M.flugOf(cfg);
     // Belegungsstreifen: Platz für Platz, gleiche Nachbarn zusammengefasst (feste Plätze können mitten in einem Block liegen)
     const segs = [], shades = ['#1f5fbf', '#174a95', '#3b4a5c', '#2f6f8f', '#5b6b7f', '#255a3c'];
-    const kindAt = n => { const x = L.slots[n]; if (x.kind === 'fixed') return n === 99 ? 'e' : 'f:' + n; if (x.kind === 'free') return 'free'; return 'b:' + x.block; };
+    const kindAt = n => { const x = L.slots[n]; if (x.kind === 'fixed') return n === 99 ? 'e' : 'f:' + n; if (x.kind === 'free') return 'free'; if (x.kind === 'roll') return 'roll'; return 'b:' + x.block; };
     for (let n = 0; n <= 99; n++) {
       const k = kindAt(n), last = segs[segs.length - 1];
       if (last && last.k === k && !k.startsWith('f:')) { last.n++; last.to = n; continue; }
@@ -637,9 +648,10 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       segs.push(k === 'e' ? { k, n: 1, from: n, to: n, label: '99', bg: '#c0392b', fg: '#fff', tip: 'EMERGENC 121.500' }
         : k.startsWith('f:') ? { k, n: 1, from: n, to: n, label: pad2(n), bg: '#14202e', fg: '#fff', tip: t('blk_fixed') + ': ' + x.kurz + ' ' + x.ch }
         : k === 'free' ? { k, n: 1, from: n, to: n, cls: 'gap', name: t('blk_free').toLowerCase(), tip: cfg.settings.free.ch + ' ' + cfg.settings.free.kurz }
+        : k === 'roll' ? { k, n: 1, from: n, to: n, cls: 'gap roll', name: t('blk_roll_short'), tip: t('blk_roll') }
         : { k, n: 1, from: n, to: n, bg: shades[bi % shades.length], fg: '#fff', name: (cfg.bloecke[bi] || {}).name || '–' });
     }
-    segs.forEach(sg => { if (sg.name) { sg.label = sg.name + ' ' + range(sg.from, sg.to); sg.tip = sg.tip || sg.label; } });
+    segs.forEach(sg => { if (sg.name) { sg.rg = range(sg.from, sg.to); sg.label = sg.name + ' ' + sg.rg; sg.tip = sg.tip === sg.name || !sg.tip ? sg.label : sg.tip + ' ' + sg.rg; } });
     if (!cfg.fixed.p99.on) segs[segs.length - 1].tip = t('st_off99');
     const blockRow = (b, i) => {
       const rest = M.servicesOf(cfg).filter(s => !b.svc.includes(s));
@@ -657,7 +669,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
     $('#page').innerHTML = `
 <h1>${t('st_title')}</h1>
 <section class="card stack"><span class="label">${t('st_alloc')}</span>
-  <div class="alloc">${segs.map(s => `<div class="${s.cls || ''}" title="${esc(s.tip)}" style="flex:${s.n} 1 0;${s.bg ? `background:${s.bg};color:${s.fg}` : ''}">${esc(s.label)}</div>`).join('')}</div>
+  <div class="alloc">${segs.map(s => `<div class="${s.cls || ''}" title="${esc(s.tip)}" style="flex:${s.n} 1 0;${s.bg ? `background:${s.bg};color:${s.fg}` : ''}">${s.name ? `<span>${esc(s.name)}</span><span>${esc(s.rg)}</span>` : esc(s.label)}</div>`).join('')}</div>
   <p class="note">${t('st_alloc_note')}</p></section>
 <section class="card stack"><span class="label">${t('st_fixed')}</span>
   <div class="fixedgrid">
@@ -813,7 +825,7 @@ ${footerNote()}`;
       const L = M.layout(cfg);
       D = M.deviceSlots(cfg, L);
       groupsFromLayout(L).forEach(g => starts.add(g.rows[0].nr));
-      L.slots.forEach(x => { if (x.kind === 'free') freeSet.add(x.nr); });
+      L.slots.forEach(x => { if (x.kind === 'free' || x.kind === 'roll') freeSet.add(x.nr); });
       title = '«' + (cfg.name || '–') + '»' + (cfg.server ? ' v' + cfg.server.version : '');
       sub = t('a6_draft') + ' · ' + fmtDT(new Date());
     }
