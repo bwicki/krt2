@@ -218,7 +218,12 @@ dialog .row{justify-content:flex-end;margin-top:16px}
 }
 @media (max-width:900px){
   header.top,main,.bar-actions{padding-left:14px;padding-right:14px}
-  .fixedgrid{grid-template-columns:60px 1fr 1fr}
+  /* je Platz fünf Felder: Nr. | Frequenz | Kurzname, darunter Klartext und Knopf über die zwei rechten Spalten */
+  .fixedgrid{grid-template-columns:64px minmax(0,1fr) minmax(0,1fr);gap:6px 10px}
+  .fixedgrid>:nth-child(5n+1){grid-column:1}
+  .fixedgrid>:nth-child(5n+4),.fixedgrid>:nth-child(5n+5){grid-column:2 / -1}
+  .fixedgrid>:nth-child(5n+5){justify-self:start;margin-bottom:10px}
+  .fixedgrid input{width:100%;min-width:0;box-sizing:border-box}
 }
 @media print{
   @page{size:A4 portrait;margin:0}

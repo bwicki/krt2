@@ -410,6 +410,10 @@ nicht mit INFO klassifizieren, sondern mit AD».
 - Fusszeile ohne Warnung («Hilfsmittel ohne Gewähr …»), nur noch die Quellen (openAIP verlangt die Nennung, CC BY-NC 4.0).
 - Tests: `tests/flug.test.js` 32 Prüfungen (rollender Bereich statt Blockplan), `tests/model.test.js` angepasst.
 
+**0.8.1 – Feste Plätze am Handy:** Unter 900 px Breite stand das Raster der festen Plätze (5 Felder je Platz in 3 Spalten)
+verschoben: Klartext in der schmalen Nummernspalte, «Abwählen» gequetscht, Eingaben über den Rand. Jetzt je Platz Nr. |
+Frequenz | Kurzname, darunter Klartext und Knopf über die zwei rechten Spalten; Eingaben passen sich der Spalte an.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
