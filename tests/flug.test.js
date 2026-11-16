@@ -1,5 +1,5 @@
-// Prüft src/flug.js: Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor, Plan je Block (behalten, ersetzen, feste Plätze
-// und Frequenzen ausserhalb des Blocks unberührt), neuer Gerätestand und Fluglog. Mit /tmp/freq-ch.json auch mit echten Daten.
+// Prüft src/flug.js: Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor, rollender Bereich (Plätze, Vorschlagsliste,
+// Zielplätze), neuer Gerätestand und Fluglog. Mit /tmp/freq-ch.json auch mit echten Daten.
 'use strict';
 const assert = require('assert');
 const fs = require('fs');
@@ -27,108 +27,65 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   ok(!S.inside(...P.to(48.1, 8.6)), 'nördlich (ausserhalb ±40°) nicht im Sektor');
   ok(F.sectorArea(pos, null, 40, 100).typ === 'kreis', 'ohne Richtung ein Kreis');
 }
-// 3. Plan: behalten, was passt; frei werdende Plätze mit den nächsten neuen Stationen; ausserhalb und fest unberührt
-//    (0.6.4: Flugplätze und Türme im Block AD/TWR)
-const E = (ch, dienst, dist, name) => ({ ch, dienst, dist, klar: name, kurzModus: 'frei', kurz: name, ort: { cc: 'CH' } });
+// 3. Rollender Bereich (0.8.0): Plätze von–bis ohne feste; Vorschlagsliste INFO/FIS zuerst, nach Distanz, ohne Frequenzen
+//    im Gerät; Zielplätze frei → nicht mehr in der Vorausschau → noch gültig, je ältester zuerst; Gerätestand und Fluglog
+const E = (ch, dienst, dist, name) => ({ ch, dienst, dist, klar: name + ' klar', kurzModus: 'frei', kurz: name, ort: { cc: 'CH' } });
 const FREE = nr => ({ nr, ch: '118.000', name: 'FREE' });
+const devOf = () => { const d = Array.from({ length: 100 }, (_, i) => FREE(i)); d[0] = { nr: 0, ch: '122.255', name: 'BALLOON', kind: 'fixed' }; d[99] = { nr: 99, ch: '121.500', name: 'EMERGENC', kind: 'fixed' }; return d; };
 {
   const cfg = M.defaultConfig();
-  const ad = cfg.bloecke.find(b => b.id === 'b-apptwr');
-  const dev = Array.from({ length: 100 }, (_, i) => FREE(i));
-  dev[0] = { nr: 0, ch: '122.255', name: 'BALLOON', kind: 'fixed' };
-  dev[99] = { nr: 99, ch: '121.500', name: 'EMERGENC', kind: 'fixed' };
-  dev[1] = { nr: 1, ch: '134.980', name: 'WNTRT AD', block: 'AD/TWR' };
-  dev[2] = { nr: 2, ch: '122.155', name: 'GRNCH AD', block: 'AD/TWR' };
-  dev[3] = { nr: 3, ch: '123.555', name: 'BRFLD AD', block: 'AD/TWR' };
-  dev[4] = { nr: 4, ch: '120.355', name: 'SPECK AD', block: 'RADAR' };   // ausserhalb des Blocks
-  const entries = [E('124.700', 'FIS', 0, 'ZURICH F'), E('120.355', 'AD', 5, 'SPECK AD'), E('134.980', 'AD', 8, 'WNTRT AD'), E('121.055', 'AD', 20, 'SCHFH AD'),
-    E('130.755', 'AD', 25, 'HASNA AD'), E('118.100', 'TWR', 30, 'ZURICH T')];
-  const plan = F.planBlock({ cfg, block: ad, entries, device: dev });
-  ok(plan.mode === 'block' && plan.nrs.join() === '1,2,3', 'Plätze des Blocks aus dem Gerätestand: ' + plan.nrs);
-  ok(plan.keep.join() === '1', '134.980 bleibt auf Platz 01');
-  ok(plan.changes.length === 2 && plan.changes[0].nr === 2 && plan.changes[0].neu.ch === '121.055' && plan.changes[1].nr === 3 && plan.changes[1].neu.ch === '130.755',
-    'Plätze 02/03 bekommen die nächsten neuen: ' + plan.changes.map(c => c.nr + '←' + c.neu.ch).join(', '));
-  ok(!plan.changes.some(c => c.neu.ch === '120.355'), '120.355 steht schon ausserhalb des Blocks → nicht doppelt');
-  ok(!plan.changes.some(c => c.neu.dienst === 'FIS' || c.neu.ch === '118.100'), 'nur Dienste des Blocks, nur die nächsten');
-  ok(!plan.changes.some(c => c.nr === 0 || c.nr === 99 || c.nr === 4), 'feste Plätze und andere Blöcke unberührt');
-  const list = F.writeList(plan);
-  ok(list[0].nr === 2 && list[0].name === 'SCHFH AD', 'Schreibliste');
-  const res = { 2: { kind: 'ACK' }, 3: { kind: 'keine Antwort' } };
-  const neu = F.applyPlan(dev, plan, ad, res);
-  ok(neu[2].ch === '121.055' && neu[2].block === 'AD/TWR' && neu[3].ch === '123.555', 'nur Quittiertes übernommen');
-  const rows = F.logRows(plan, ad, res, { lat: 47.41234567, lon: 8.5 });
-  ok(rows.length === 2 && rows[0].ok && !rows[1].ok && rows[0].lat === 47.41235, 'Fluglog');
-  ok(/Platz/.test(F.logCsv(rows)) && F.logCsv(rows).split('\r\n').length === 3, 'Fluglog als CSV');
-  // Gerätestand mit den alten Blocknamen (vor 0.6.4: «AD» und «APP/TWR») passt über den Alias
-  const old = dev.map(p => (p.block === 'AD/TWR' ? Object.assign({}, p, { block: p.nr < 3 ? 'AD' : 'APP/TWR' }) : p));
-  const adA = Object.assign({}, ad, { alias: ['APP/TWR', 'AD'] });
-  const pOld = F.planBlock({ cfg, block: adA, entries, device: old });
-  ok(pOld.nrs.join() === '1,2,3' && pOld.changes.length === 2 && F.applyPlan(old, pOld, adA, { 2: { kind: 'ACK' }, 3: { kind: 'ACK' } }).slice(1, 4).every(p => p.block === 'AD/TWR'), 'alte Blocknamen über den Alias, danach «AD/TWR»');
+  ok(JSON.stringify(F.rollSlots(cfg, devOf())) === JSON.stringify(Array.from({ length: 21 }, (_, i) => 75 + i)), 'Vorgabe 75–95: 21 Plätze');
+  cfg.fixed.extra.push({ id: 'x1', nr: 80, ch: '123.455', kurz: 'CREW', klar: 'Crew' });
+  const d0 = devOf(); d0[90] = { nr: 90, ch: '123.500', name: 'FEST', kind: 'fixed' };
+  const ns = F.rollSlots(cfg, d0);
+  ok(ns.length === 19 && !ns.includes(80) && !ns.includes(90), 'feste Plätze (Konfiguration und Gerät) bleiben ausgenommen');
+  cfg.fixed.extra = [];
+  cfg.settings.flug = { winkel: 40, distKm: 100, von: 97, bis: 90 };
+  ok(JSON.stringify(F.rollSlots(cfg, devOf())) === JSON.stringify([90, 91, 92, 93, 94, 95, 96, 97]), 'von/bis vertauscht → 90–97');
+  cfg.settings.flug = { winkel: 40, distKm: 100, von: 0, bis: 120 };
+  const all = F.rollSlots(cfg, devOf());
+  ok(all[0] === 1 && all[all.length - 1] === 98, 'Grenzen 01–98 (00 und 99 nie)');
 }
-// 3b. 0.6.5: Block schrumpft auf die gefundenen Frequenzen (keine FREE dazwischen), die folgenden rücken nach; und wächst wieder
 {
-  const cfg = M.defaultConfig(), ad = cfg.bloecke.find(b => b.id === 'b-apptwr'), radar = cfg.bloecke.find(b => b.id === 'b-radar');
-  const dev = Array.from({ length: 100 }, (_, i) => FREE(i));
-  dev[1] = { nr: 1, ch: '134.980', name: 'WNTRT AD', block: 'AD/TWR' };
-  dev[2] = { nr: 2, ch: '122.155', name: 'GRNCH AD', block: 'AD/TWR' };
-  dev[3] = { nr: 3, ch: '123.555', name: 'BRFLD AD', block: 'AD/TWR' };
-  dev[4] = { nr: 4, ch: '119.225', name: 'ALPS R', block: 'RADAR' };
-  const plan = F.planBlock({ cfg, block: ad, entries: [E('134.980', 'AD', 8, 'WNTRT AD')], device: dev });
-  ok(plan.mode === 'resize' && plan.before === 3 && plan.nrs.join() === '1' && plan.keep.join() === '1', 'nur noch eine Frequenz → Block auf 1 Platz: ' + plan.nrs);
-  ok(plan.after[2].ch === '119.225' && plan.after[2].block === 'RADAR' && plan.after[3].name === 'FREE' && plan.after[4].name === 'FREE',
-    'RADAR rückt auf 02, kein FREE im Block: ' + [2, 3, 4].map(n => plan.after[n].name).join(', '));
-  ok(plan.changes.map(c => c.nr).join() === '2,3,4' && !plan.changes.some(c => c.neu.frei && c.block === 'AD/TWR'), 'geschrieben werden 02–04');
-  const neu = F.applyPlan(dev, plan, ad, Object.fromEntries(plan.changes.map(c => [c.nr, { kind: 'ACK' }])));
-  ok(F.slotsOf(neu, ad).map(p => p.nr).join() === '1' && F.slotsOf(neu, radar).map(p => p.nr).join() === '2', 'Gerätestand: AD/TWR 01, RADAR 02');
-  ok(F.planBlock({ cfg, block: ad, entries: [E('134.980', 'AD', 8, 'WNTRT AD')], device: neu }).changes.length === 0, 'danach nichts mehr zu tun');
-  // wieder mehr Frequenzen: der Block wächst (bis zur Grösse im Gerät bzw. im Entwurf), RADAR rückt nach hinten
-  const cfg2 = M.defaultConfig();
-  for (const [ch, k] of [['134.980', 'LSPH AD'], ['120.355', 'LSZK AD'], ['122.155', 'LSZG AD']]) M.addEntry(cfg2, { ch, kurz: k, klar: k, dienst: 'AD', aktiv: true, block: 'b-apptwr' });
-  const ad2 = cfg2.bloecke.find(b => b.id === 'b-apptwr');
-  const grow = F.planBlock({ cfg: cfg2, block: ad2, entries: [E('134.980', 'AD', 8, 'WNTRT AD'), E('121.055', 'AD', 20, 'SCHFH AD'), E('130.755', 'AD', 25, 'HASNA AD'), E('118.100', 'TWR', 30, 'ZURICH T')], device: neu });
-  ok(grow.mode === 'resize' && grow.nrs.join() === '1,2,3' && grow.after[1].ch === '134.980' && grow.after[4].ch === '119.225' && grow.after[4].block === 'RADAR',
-    'wächst auf 3 Plätze (Entwurf: 3), RADAR auf 04: ' + grow.nrs + ' / ' + grow.after[4].name);
-}
-// 3c. 0.6.4: Block ohne Frequenz fällt weg, der nächste Block beginnt dort; mit Frequenzen kommt er an seiner Stelle wieder
-{
-  const cfg = M.defaultConfig(), ad = cfg.bloecke.find(b => b.id === 'b-apptwr'), info = cfg.bloecke.find(b => b.id === 'b-info');
-  const dev = Array.from({ length: 100 }, (_, i) => FREE(i));
-  dev[0] = { nr: 0, ch: '122.255', name: 'BALLOON', kind: 'fixed' };
-  dev[99] = { nr: 99, ch: '121.500', name: 'EMERGENC', kind: 'fixed' };
-  dev[1] = { nr: 1, ch: '124.700', name: 'ZURICH F', block: 'INFO' };
-  dev[2] = { nr: 2, ch: '128.950', name: 'LANGEN F', block: 'INFO' };
-  dev[3] = { nr: 3, ch: '134.980', name: 'LSPH AD', block: 'AD/TWR' };
-  dev[4] = { nr: 4, ch: '120.355', name: 'LSZK AD', block: 'AD/TWR' };
-  dev[5] = { nr: 5, ch: '118.000', name: 'FREE', block: 'AD/TWR', kind: 'free' };
-  dev[6] = { nr: 6, ch: '119.225', name: 'ALPS R', block: 'RADAR' };
-  dev[7] = { nr: 7, ch: '135.480', name: 'MIL R', block: 'RADAR' };
-  const drop = F.planBlock({ cfg, block: ad, entries: [E('124.700', 'FIS', 3, 'ZURICH F')], device: dev });
-  ok(drop.mode === 'drop' && drop.nrs.length === 0, 'keine Frequenz für AD/TWR → Block fällt weg');
-  ok(drop.after[3].block === 'RADAR' && drop.after[3].ch === '119.225' && drop.after[4].ch === '135.480' && drop.after[5].name === 'FREE' && drop.after[5].block === null,
-    'RADAR beginnt auf Platz 03: ' + [3, 4, 5].map(n => drop.after[n].ch + ' ' + drop.after[n].name).join(', '));
-  ok(drop.changes.map(c => c.nr).join() === '3,4,6,7' && drop.changes[0].neu.moved && drop.changes[0].neu.from === 6 && drop.changes[2].neu.frei,
-    'geschrieben werden 03, 04 (RADAR nachgerückt) und 06, 07 (FREE): ' + drop.changes.map(c => c.nr + '←' + c.name).join(', '));
-  ok(!drop.changes.some(c => c.nr < 3 || c.nr === 99), 'INFO und feste Plätze unberührt');
-  const res = {}; drop.changes.forEach(c => { res[c.nr] = { kind: 'ACK' }; });
-  const d2 = F.applyPlan(dev, drop, ad, res);
-  ok(F.slotsOf(d2, ad).length === 0 && F.slotsOf(d2, cfg.bloecke.find(b => b.id === 'b-radar')).map(p => p.nr).join() === '3,4', 'Gerätestand: RADAR auf 03–04');
-  ok(F.planBlock({ cfg, block: info, entries: [E('124.700', 'FIS', 3, 'ZURICH F'), E('128.950', 'FIS', 9, 'LANGEN F')], device: d2 }).changes.length === 0, 'INFO bleibt, wie es ist');
-  const back = F.planBlock({ cfg, block: ad, entries: [E('122.155', 'AD', 4, 'LSZG AD'), E('118.100', 'TWR', 12, 'ZURICH T')], device: d2 });
-  ok(back.mode === 'insert' && back.nrs.join() === '3,4', 'AD/TWR kommt wieder, an seiner Stelle vor RADAR: ' + back.nrs);
-  ok(back.after[3].ch === '122.155' && back.after[4].ch === '118.100' && back.after[5].ch === '119.225' && back.after[5].block === 'RADAR' && back.after[6].ch === '135.480',
-    'RADAR rückt nach hinten: ' + [3, 4, 5, 6].map(n => back.after[n].name).join(', '));
-  ok(back.changes.map(c => c.nr).join() === '3,4,5,6', 'geschrieben werden 03–06');
-  const rows = F.logRows(back, ad, Object.fromEntries(back.changes.map(c => [c.nr, { kind: 'ACK' }])), null);
-  ok(rows.find(r => r.nr === 5).block === 'RADAR' && rows.find(r => r.nr === 3).block === 'AD/TWR', 'Fluglog nennt den Block jedes Platzes');
-  // Grösse beim Wiedereinfügen aus der Konfiguration (Plätze des Blocks im Entwurf), Rest FREE
-  const cfg2 = M.defaultConfig();
-  for (const [ch, k] of [['134.980', 'LSPH AD'], ['120.355', 'LSZK AD'], ['122.155', 'LSZG AD'], ['123.555', 'LSZF AD']]) M.addEntry(cfg2, { ch, kurz: k, klar: k, dienst: 'AD', aktiv: true, block: 'b-apptwr' });
-  const ad2 = cfg2.bloecke.find(b => b.id === 'b-apptwr'), planned = M.layout(cfg2).ranges.find(r => r.block === 'b-apptwr').nrs.length;
-  const back2 = F.planBlock({ cfg: cfg2, block: ad2, entries: [E('130.755', 'AD', 4, 'HASNA AD')], device: d2 });
-  ok(planned === 4 && back2.nrs.length === 1 && back2.after[back2.nrs[0] + 1].block === 'RADAR', 'kommt mit 1 Platz zurück, kein FREE, RADAR direkt danach');
-  const many = ['121.055', '130.755', '122.155', '120.355', '123.555', '119.305'].map((ch, i) => E(ch, 'AD', 4 + i, 'AD' + i));
-  const back3 = F.planBlock({ cfg: cfg2, block: ad2, entries: many, device: d2 });
-  ok(back3.nrs.length === 4, 'höchstens so viele Plätze wie im Entwurf (' + planned + '): ' + back3.nrs.length);
+  const cfg = M.defaultConfig(), d = devOf();
+  d[12] = { nr: 12, ch: '124.700', name: 'GENEVA F', block: 'INFO' };            // steht schon im Gerät
+  const entries = [
+    E('132.350', 'TWR', 8, 'LSZR T'), E('124.700', 'FIS', 20, 'GENEVA F'), E('125.950', 'FIS', 60, 'MUNCHEN I'),
+    E('128.050', 'INFO', 35, 'ZURICH I'), E('128.050', 'INFO', 90, 'ZURICH I2'), E('120.505', 'AD', 4, 'LSZK AD'), E('133.255', 'RDR', 50, 'ZRCH R'), E('999.000', 'AD', 1, 'KAPUTT')
+  ];
+  const c = F.rollCands(cfg, entries, d);
+  ok(c.prio.map(x => x.ch).join(',') === '128.050,125.950', 'INFO/FIS zuerst nach Distanz, ohne die schon gespeicherte: ' + c.prio.map(x => x.ch).join(','));
+  ok(c.rest.map(x => x.ch).join(',') === '120.505,132.350,133.255', 'übrige nach Distanz: ' + c.rest.map(x => x.ch).join(','));
+  ok(c.prio[0].dist === 35 && c.prio[0].name === 'ZURICH I', 'je Frequenz die nächstgelegene Station');
+  ok(c.inDevice === 1 && c.relevant.has(M.freqKey('124.700')) && c.relevant.size === 6, 'zählt Frequenzen im Gerät; relevant = alle gültigen der Vorausschau');
+  ok(!c.prio.concat(c.rest).some(x => x.ch === '999.000'), 'ungültige Frequenz fällt weg');
+  // Zielplätze
+  const nrs = F.rollSlots(cfg, d);
+  const d2 = devOf();
+  d2[75] = { nr: 75, ch: '124.700', name: 'GENEVA F', block: 'ROLL' };      // noch in der Vorausschau
+  d2[76] = { nr: 76, ch: '119.175', name: 'ALT I', block: 'ROLL' };         // nicht mehr
+  d2[77] = { nr: 77, ch: '119.900', name: 'ALT2 I', block: 'ROLL' };        // nicht mehr, aber jünger
+  for (let n = 78; n <= 95; n++) d2[n] = { nr: n, ch: (118 + n / 100).toFixed(3).replace(/\d$/, '5'), name: 'X' + n, block: 'ROLL' };
+  d2[81] = FREE(81); d2[88] = FREE(88);
+  const ages = { 76: 2000, 77: 3000 };
+  const tg = F.rollTargets(cfg, nrs, d2, 5, c.relevant, ages);
+  ok(tg[0] === 81 && tg[1] === 88, 'zuerst freie Plätze: ' + tg.join(','));
+  ok(tg[2] !== 75 && !tg.includes(75), 'Platz mit noch gültiger Frequenz wird nicht überschrieben');
+  ok(tg.indexOf(76) > tg.indexOf(78) || !tg.includes(76), 'nie beschriebene (Alter 0) vor älter beschriebenen: ' + tg.join(','));
+  const tgAll = F.rollTargets(cfg, nrs, d2, 21, c.relevant, ages);
+  ok(tgAll.length === 21 && tgAll[tgAll.length - 1] === 75 && tgAll.indexOf(76) < tgAll.indexOf(77), 'noch gültige zuletzt; älter vor jünger: …' + tgAll.slice(-4).join(','));
+  ok(F.rollTargets(cfg, nrs, d2, 0, c.relevant, ages).length === 0, 'ohne Auswahl keine Zielplätze');
+  // Schreibliste, neuer Gerätestand, Fluglog
+  const picks = c.prio.slice(0, 2);
+  const list = F.rollWriteList(picks, tg);
+  ok(list.length === 2 && list[0].nr === 81 && list[0].ch === '128.050' && list[0].name === 'ZURICH I', 'Schreibliste: Auswahl in Reihenfolge auf die Zielplätze');
+  const res = { 81: { kind: 'ACK', ms: 30 }, 88: { kind: 'TIMEOUT' } };
+  const after = F.rollApply(d2, list, res);
+  ok(after[81].ch === '128.050' && after[81].block === M.ROLL_BLOCK && after[81].klar === 'ZURICH I klar' && after[88].name === 'FREE', 'nur quittierte Plätze übernommen, Blockname ROLL');
+  ok(after[75].ch === '124.700' && after[12].name === 'FREE' && after[90].name === 'X90', 'übrige Plätze unverändert');
+  const rows = F.logRows(list, d2, res, { lat: 47.123456, lon: 8.5 });
+  ok(rows.length === 2 && rows[0].ok && !rows[1].ok && rows[0].alt.name === 'FREE' && rows[0].block === 'ROLL' && rows[0].lat === 47.12346, 'Fluglog: alt, neu, quittiert, Position');
+  ok(F.logCsv(rows).split('\r\n').length === 3, 'Fluglog als CSV');
 }
 
 // 4. Echte Daten: Sektor ab Zürich nach Osten
@@ -137,15 +94,14 @@ if (fs.existsSync(file)) {
   const ch = JSON.parse(fs.readFileSync(file, 'utf8'));
   const cfg = M.defaultConfig(), pos = { lat: 47.458, lon: 8.548 };
   const area = F.sectorArea(pos, 80, 40, 100);
-  const r = A.propose([ch], { area, standort: pos, bandLo: 0, bandHi: 19500, radarNoLimit: false, marginKm: 5, services: M.servicesOf(cfg), adLoc: 'icao' });
-  const info = cfg.bloecke.find(b => b.id === 'b-info'), ad = cfg.bloecke.find(b => b.id === 'b-apptwr'), radar = cfg.bloecke.find(b => b.id === 'b-radar');
-  const dev = Array.from({ length: 100 }, (_, i) => ({ nr: i, ch: '118.000', name: 'FREE', block: i >= 1 && i <= 3 ? 'INFO' : i >= 4 && i <= 10 ? 'AD/TWR' : i >= 11 && i <= 16 ? 'RADAR' : undefined }));
-  const pi = F.planBlock({ cfg, block: info, entries: r.entries, device: dev }), pa = F.planBlock({ cfg, block: ad, entries: r.entries, device: dev }), pr = F.planBlock({ cfg, block: radar, entries: r.entries, device: dev });
-  ok(pi.changes.every(c => info.svc.includes(c.neu.dienst)), 'echte Daten: INFO-Vorschlag ' + pi.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
-  ok(pa.changes.length > 0 && pa.changes.every(c => (ad.svc.includes(c.neu.dienst) && / (AD|T|AT)$/.test(c.name)) || c.neu.frei), 'echte Daten: AD/TWR-Vorschlag ' + pa.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
+  const r = A.propose([ch], { area, standort: pos, bandLo: 0, bandHi: 19500, radarNoLimit: false, marginKm: 5, services: M.servicesOf(cfg), adLoc: 'icao', vfr: true });
+  const c = F.rollCands(cfg, r.entries, devOf());
+  const ds = c.prio.map(x => x.dist);
+  ok(c.prio.every(x => F.PRIO.includes(x.dienst)) && ds.every((v, i) => i === 0 || v >= ds[i - 1]), 'echte Daten: INFO/FIS nach Distanz ' + c.prio.map(x => x.name + ' ' + x.ch + ' ' + x.dist + ' km').join(', '));
   ok(!r.entries.some(e => M.IFR_SVC.includes(e.dienst)), 'keine IFR-Frequenzen');
-  ok(pr.changes.every(c => radar.svc.includes(c.neu.dienst)), 'echte Daten: RADAR-Vorschlag ' + pr.changes.map(c => c.name + ' ' + c.neu.ch).join(', '));
   ok(r.entries.every(e => e.quellen.includes('openAIP')), 'nur openAIP');
-  console.log('  Sektor Zürich → 080°: ' + r.entries.length + ' Kandidaten; INFO ' + pi.changes.length + ', AD ' + pa.changes.length + ', RADAR ' + pr.changes.length + ' Änderungen: ' + pi.changes.concat(pa.changes, pr.changes).map(c => c.name).join(', '));
+  const keys = c.prio.concat(c.rest).map(x => x.k);
+  ok(new Set(keys).size === keys.length, 'jede Frequenz nur einmal');
+  console.log('  Sektor Zürich → 080°: ' + r.entries.length + ' Einträge; INFO/FIS ' + c.prio.length + ', weitere ' + c.rest.length + ': ' + c.rest.slice(0, 8).map(x => x.name).join(', '));
 }
 console.log('flug: ' + n + ' Prüfungen bestanden');

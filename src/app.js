@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI, VH = window.KRT2VHFUI;
   const t = I.t;
-  const VERSION = '0.7.1';
+  const VERSION = '0.8.0';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -131,7 +131,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   }
 
   function footerNote() {
-    return `<p class="note">${t('disclaimer')} · <a href="./LICENSE">Legal Mambojumbo</a> · <a href="./test.html">${t('testlink')}</a></p>`;
+    return `<p class="note">${t('sources')} · <a href="./LICENSE">Legal Mambojumbo</a> · <a href="./test.html">${t('testlink')}</a></p>`;
   }
 
   // ---------- Aktuell ----------
@@ -155,7 +155,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     const fx = rows.filter(isFixed);
     if (fx.length) g.push({ name: t('blk_fixed'), rows: fx, rg: fx.map(x => pad2(x.nr)).join(', ') });
     for (const r of rows.filter(x => !isFixed(x))) {
-      const name = r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : (r.block || '–');
+      const name = r.nr === 99 && r.ch === '121.500' ? t('blk_emerg') : freeOf(r) ? t('blk_free') : r.block === M.ROLL_BLOCK ? t('blk_roll') : (r.block || '–');
       const last = g[g.length - 1];
       if (last && last.name === name && !last.rg) last.rows.push(r); else g.push({ name, rows: [r], free: freeOf(r) });
     }
@@ -705,11 +705,12 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <section class="card stack"><span class="label">${t('st_flug')}</span>
     <div class="row"><label for="flw">${t('st_flug_w')}</label><input id="flw" type="number" min="5" max="90" step="5" inputmode="numeric" data-st="flug.winkel" value="${esc(fl.winkel)}" style="width:80px"><span class="small muted">${t('st_flug_w_note', { w: fl.winkel, g: 2 * fl.winkel })}</span></div>
     <div class="row"><label for="fld">${t('st_flug_d')}</label><input id="fld" type="number" min="10" max="300" step="10" inputmode="numeric" data-st="flug.distKm" value="${esc(fl.distKm)}" style="width:80px"><span class="small muted">km</span></div>
-    <span class="small">${t('st_flug_b')}</span>
-    <div class="row">${cfg.bloecke.map(b => `<label><input type="checkbox" data-stfb="${esc(b.id)}" ${fl.bloecke.includes(b.id) ? 'checked' : ''} ${b.on ? '' : 'disabled'}> ${esc(b.name)}${b.on ? '' : ` <span class="small muted">${t('st_flug_off')}</span>`}</label>`).join('')}</div>
+    <div class="row"><label for="flv">${t('st_flug_roll')}</label><input id="flv" type="number" min="1" max="98" inputmode="numeric" class="mono" data-st="flug.von" value="${esc(pad2(fl.von))}" style="width:70px"><span>–</span><input type="number" min="1" max="98" inputmode="numeric" class="mono" data-st="flug.bis" value="${esc(pad2(fl.bis))}" aria-label="${esc(t('st_flug_roll'))} ${esc(t('ge_to'))}" style="width:70px"><span class="small muted">${t('st_flug_roll_n', { n: fl.bis - fl.von + 1 })}</span></div>
     <p class="note">${t('st_flug_note')}</p></section>
+  <section class="card stack" id="st-vhf"></section>
 </div>
 ${footerNote()}`;
+    if (VH) VH.paint();
   }
 
   async function onEinstClick(ev) {
@@ -782,10 +783,7 @@ ${footerNote()}`;
       if (el.dataset.st === 'free.kurz') v = kname(v);
       if (el.dataset.st === 'area.marginKm') v = Math.max(0, Number(v) || 0);
       set(cfg.settings, el.dataset.st, v);
-      if (el.dataset.st.startsWith('flug.')) { cfg.settings.flug = M.flugOf(cfg); el.value = cfg.settings.flug[el.dataset.st.slice(5)]; }
-    } else if (el.dataset.stfb) {
-      const fl = cfg.settings.flug = M.flugOf(cfg), id = el.dataset.stfb;
-      fl.bloecke = el.checked ? fl.bloecke.filter(x => x !== id).concat([id]) : fl.bloecke.filter(x => x !== id);
+      if (el.dataset.st.startsWith('flug.')) { cfg.settings.flug = M.flugOf(cfg); const k = el.dataset.st.slice(5); el.value = k === 'von' || k === 'bis' ? pad2(cfg.settings.flug[k]) : cfg.settings.flug[k]; }
     } else if (el.dataset.b) {
       const blk = M.blockById(cfg, el.closest('tr[data-bid]').dataset.bid);
       const k = el.dataset.b;
@@ -1059,7 +1057,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (ev.target.closest('[data-act=printcard]')) { ev.preventDefault(); const go = () => setTimeout(() => window.print(), 350); if (route() === 'karte') go(); else { location.hash = '#karte'; go(); } return; }
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     if (route() === 'geraet' && ev.target.closest('[data-gr]')) { GR.onClick(ev); return; }
-    if (route() === 'flug' && ev.target.closest('[data-vh]')) { VH.onClick(ev); return; }
+    if ((route() === 'flug' || route() === 'einstellungen') && ev.target.closest('[data-vh]')) { VH.onClick(ev); return; }
     if (route() === 'flug' && ev.target.closest('[data-fl]')) { FL.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }

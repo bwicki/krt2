@@ -512,6 +512,7 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     get busy() { return !!(S.prog && S.prog.running); },
     // für die Seite «Im Flug» (0.6.0)
     async ensure() { if (ctx) await initDevice(); },
+    devKey() { return S.devId || 'lokal'; },   // fester Schlüssel des gewählten Geräts (0.8.0, rollender Bereich)
     aktuell: () => aktuell(), devLabel: () => devLabel(), storeAktuell: a => storeAktuell(a),
     _state: S   // für Tests
   };

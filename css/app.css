@@ -55,7 +55,7 @@ button.ghost{background:transparent;border-color:transparent;color:var(--muted);
 button.ghost:hover{background:var(--hair);color:var(--text)}
 button.danger{background:var(--surface);color:var(--red);border-color:var(--red)}
 button:disabled,.btn[aria-disabled=true]{opacity:.45;cursor:default;pointer-events:none}
-input[type=text],input[type=number],input[type=search],select{font:inherit;font-size:14px;padding:6px 9px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;color:var(--text);min-height:34px}
+input[type=text],input[type=number],input[type=search],input[type=password],select{font:inherit;font-size:14px;padding:6px 9px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;color:var(--text);min-height:34px}
 input.mono{font-family:var(--mono)}
 input.bad{border-color:var(--red);background:#fff8f7}
 label{display:inline-flex;align-items:center;gap:6px}
@@ -295,8 +295,16 @@ dialog.wide{max-width:min(880px,94vw)}
 /* Im Flug (0.6.0): Schlüssel/Wert-Zeilen wie .row mit .label als Schlüssel; Schreiben am Handy gross wie «Programmieren» */
 .fl-row{gap:6px 12px}
 .fl-row>.label{flex:0 0 130px}
+/* Rollender Bereich (0.8.0): Vorschlag und Auswahl als antippbare Zeilen über die ganze Breite */
+.fl-picks{display:flex;flex-direction:column;gap:6px}
+.fl-pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);color:var(--text);border:1px solid var(--border);min-height:48px}
+.fl-pick:hover{background:var(--surface);color:var(--text)}
+@media (hover:hover){.fl-pick:hover{background:var(--hair)}}   /* am Handy bleibt kein Hover an der nachgerückten Zeile */
+.fl-pick.on,.fl-pick.on:hover{border-color:#c8d6ef;background:var(--sel)}
+.fl-pick .fl-nr{flex:0 0 auto;min-width:44px;color:var(--muted)}
+.fl-pick.on .fl-nr{color:var(--primary);font-weight:600}
+.fl-pick .fl-txt{flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0}
 @media (max-width:600px){
   .fl-row>.label{flex-basis:96px}
   .fl-big{flex:1 1 100%;justify-content:center;min-height:52px;font-size:17px}
-  table.fl-plan th:nth-child(2),table.fl-plan td:nth-child(2){display:none}
 }

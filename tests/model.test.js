@@ -171,12 +171,12 @@ console.log(n + ' Prüfungen bestanden');
 { // 0.6.0: Vorausschau im Flug in den Einstellungen
   let k = 0; const okk = (cond, m) => { if (!cond) throw new Error('0.6.0: ' + m); k++; };
   const c = S.sampleConfig();
-  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, bloecke: ['b-info', 'b-apptwr', 'b-radar'] }), 'Vorgabe ±40° · 100 km · INFO, AD/TWR und RADAR');
-  c.settings.flug = { winkel: 120, distKm: 5, bloecke: ['b-info', 'gibtsnicht', 7] };
+  okk(JSON.stringify(M.flugOf(c)) === JSON.stringify({ winkel: 40, distKm: 100, von: 75, bis: 95 }), 'Vorgabe ±40° · 100 km · rollender Bereich 75–95');
+  c.settings.flug = { winkel: 120, distKm: 5, von: 0, bis: 99 };
   const f = M.flugOf(c); okk(f.winkel === 90 && f.distKm === 10, 'Grenzen 5–90° und 10–300 km');
-  okk(f.bloecke.length === 1 && f.bloecke[0] === 'b-info', 'nur bestehende Blöcke');
-  c.settings.flug = { winkel: '35', distKm: '150', bloecke: [] };
-  const back = M.fromJSON(M.toJSON(c)); okk(back.settings.flug.winkel === 35 && back.settings.flug.distKm === 150 && back.settings.flug.bloecke.length === 0, 'gespeichert, leere Auswahl bleibt leer');
+  okk(f.von === 1 && f.bis === 98, 'rollender Bereich innerhalb 01–98');
+  c.settings.flug = { winkel: '35', distKm: '150', von: '60', bis: '50', bloecke: ['b-info'] };
+  const back = M.fromJSON(M.toJSON(c)); okk(back.settings.flug.winkel === 35 && back.settings.flug.distKm === 150 && back.settings.flug.von === 50 && back.settings.flug.bis === 60 && !('bloecke' in back.settings.flug), 'gespeichert, von/bis geordnet, alte Blockauswahl entfällt');
   const old = JSON.parse(M.toJSON(c)); delete old.settings.flug; okk(M.fromJSON(old).settings.flug.winkel === 40, 'ältere Entwürfe ohne Vorausschau');
   console.log('0.6.0: Vorausschau im Flug – ' + k + ' Prüfungen bestanden');
 }
@@ -206,7 +206,7 @@ console.log(n + ' Prüfungen bestanden');
   okk(n.eintraege.filter(e => e.ort && e.ort.icao && /^LS/.test(e.ort.icao) && e.klar.endsWith(' AD')).every(e => e.dienst === 'AD' && e.block === 'b-apptwr'), 'Schweizer Flugplätze AD');
   okk(byId('e-own').dienst === 'RDO' && byId('e-own').kurz === 'MEIN RD', 'eigene Einträge bleiben');
   okk(n.eintraege.find(e => e.ch === '124.700').dienst === 'FIS' && n.eintraege.find(e => e.ch === '134.680').dienst === 'INFO', 'FIS und regionale INFO bleiben INFO');
-  okk(JSON.stringify(n.settings.flug.bloecke) === JSON.stringify(['b-info', 'b-radar', 'b-apptwr']), 'im Flug: AD/TWR dazu, wo INFO gewählt war: ' + n.settings.flug.bloecke);
+  okk(!('bloecke' in n.settings.flug) && n.settings.flug.von === 75, 'im Flug: alte Blockauswahl entfällt (0.8.0), rollender Bereich 75–95');
   okk(M.check(n).count.r === 0, 'keine roten Befunde');
   okk(n.bloecke.find(b => b.id === 'b-radar').max === 10 && M.defaultConfig().bloecke.find(b => b.id === 'b-radar').max === 10, '0.6.2: RADAR höchstens 10');
   const own5 = JSON.parse(M.toJSON(n)); own5.bloecke.find(b => b.id === 'b-radar').max = 5; okk(M.fromJSON(own5).bloecke.find(b => b.id === 'b-radar').max === 5, 'eigene kleinere Grenze bleibt');

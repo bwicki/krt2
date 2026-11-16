@@ -8,6 +8,7 @@
 
   const SCHEMA = 1;
   const LAST_SLOT = 98;                       // 99 ist der Notfrequenz vorbehalten
+  const ROLL_BLOCK = 'ROLL';                  // Blockname der Plätze, die im Flug im rollenden Bereich geschrieben werden (0.8.0)
 
   // ICAO-Dienste (Doc 8400) und ihr Kürzel im 8-stelligen Kurznamen
   const SERVICES = ['FIS', 'INFO', 'AD', 'AFIS', 'RDO', 'APP', 'ARR', 'DEP', 'TWR', 'ATIS', 'VOLMET', 'RDR', 'ACC', 'MIL', 'GND', 'APN', 'DEL', 'GLD', 'CTAF', 'UCOM', 'OTH'];
@@ -47,7 +48,7 @@
       standort: { name: '', lat: null, lon: null },
       gebiet: null, hoehe: { von: 'GND', bis: 'FL195', radarOhneGrenze: false }, datenStand: null,
       settings: { svcKurz: {}, adLoc: 'icao', allowDigits: true, allowLower: true, free: { ch: '118.000', kurz: 'FREE' }, services: SERVICES.slice(),
-        flug: { winkel: 40, distKm: 100, bloecke: ['b-info', 'b-apptwr', 'b-radar'] }, vfr: true },
+        flug: { winkel: 40, distKm: 100, von: 75, bis: 95 }, vfr: true },
       fixed: {
         p00: { on: true, ch: '122.255', kurz: 'BALLOON', klar: 'Balloon Air-Air' },
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
@@ -59,11 +60,13 @@
     };
   }
 
-  // Vorausschau im Flug (0.6.0): halber Öffnungswinkel 5–90°, Distanz 10–300 km, Blöcke für Vorschläge
+  // Im Flug: Vorausschau (0.6.0, halber Öffnungswinkel 5–90°, Distanz 10–300 km) und rollender Bereich (0.8.0, Plätze
+  // von–bis innerhalb 01–98, Vorgabe 75–95). Die Blockauswahl für Vorschläge (0.6.0–0.7.1) gibt es nicht mehr.
   function flugOf(cfg) {
-    const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
-    const ids = (cfg.bloecke || []).map(b => b.id);
-    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), bloecke: (Array.isArray(f.bloecke) ? f.bloecke : ['b-info', 'b-apptwr', 'b-radar']).filter(x => typeof x === 'string' && (!ids.length || ids.includes(x))) };
+    const f = (cfg.settings && cfg.settings.flug) || {}, num = (v, lo, hi, d) => { const n = Math.round(Number(v)); return v === '' || v == null || isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
+    let von = num(f.von, 1, LAST_SLOT, 75), bis = num(f.bis, 1, LAST_SLOT, 95);
+    if (von > bis) { const x = von; von = bis; bis = x; }
+    return { winkel: num(f.winkel, 5, 90, 40), distKm: num(f.distKm, 10, 300, 100), von, bis };
   }
 
   let counter = 0;
@@ -429,11 +432,8 @@
     cfg.bloecke = o.bloecke.map(b => Object.assign({ id: uid('b'), name: 'BLOCK', on: true, svc: [], max: null, order: 'manual' }, b));
     cfg.eintraege = o.eintraege.map(e => Object.assign({ id: uid('e'), ch: '', kurz: '', klar: '', dienst: 'OTH', aktiv: true, quellen: [], vertrauen: 's', note: '', ort: {}, kurzModus: 'frei', dist: null, along: null, bestaetigt: false, pos: 0 }, e));
     const adId = o.adKlasse ? null : migrateAd(cfg);                       // einmalig (0.6.1): Flugplätze als AD, eigener Block
-    cfg.settings.flug = flugOf(cfg);
-    if (adId) {
-      const was = ((o.settings || {}).flug || {}).bloecke, info = cfg.bloecke.find(b => b.svc.includes('FIS') || b.svc.includes('INFO'));
-      if (Array.isArray(was) && info && was.includes(info.id) && !cfg.settings.flug.bloecke.includes(adId)) cfg.settings.flug.bloecke.push(adId);
-    }
+    cfg.settings.flug = flugOf(cfg);                                      // ab 0.8.0 ohne Blockauswahl (rollender Bereich)
+    void adId;
     cfg.adKlasse = true;
     if (!o.radar10) {                                                      // einmalig (0.6.2): Radar höchstens 10 Plätze
       const rb = cfg.bloecke.find(b => b.id === 'b-radar') || cfg.bloecke.find(b => b.name === 'RADAR');
@@ -441,8 +441,7 @@
     }
     cfg.radar10 = true;
     if (!o.adTwr) {                                                        // einmalig (0.6.4): AD in «AD/TWR»
-      const m = migrateAdTwr(cfg);
-      if (m && m.from) cfg.settings.flug.bloecke = cfg.settings.flug.bloecke.map(x => (x === m.from ? m.to : x)).filter((x, i, a) => a.indexOf(x) === i);
+      migrateAdTwr(cfg);
     }
     cfg.adTwr = true;
     cfg.schema = SCHEMA;
@@ -474,7 +473,7 @@
   }
 
   return {
-    SCHEMA, LAST_SLOT, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
+    SCHEMA, LAST_SLOT, ROLL_BLOCK, SERVICES, SVC_RE, ORDERS, servicesOf, svcShort, svcKurz, svcKurzDefault, setSvcKurz, defaultBlocks, defaultConfig, uid,
     locCode, shortName, entryParts, entryShort, kurzLoc, hasIcao, ccOf,
     blockById, blockForService, entriesOf, addEntry, moveEntry, moveTo, sortBlock, renumber,
     layout, fixedExtra, deselectOverflow, deviceSlots, freqKey, ambiguous833, dupGroups, dupSuggest, check, toJSON, fromJSON, toCSV, distKm, flugOf, IFR_SVC

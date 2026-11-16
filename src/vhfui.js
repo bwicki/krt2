@@ -1,5 +1,6 @@
-/* krt2.wicki.aero – Funkprotokoll, Bedienung (0.7.0): Schalter, Zugang zu gb_flight_data (Beitrittscode der Reporting-App
-   oder Token), Übertragung jede Minute, Anzeige auf «Im Flug», Protokoll als CSV und A4-Seite. Logik in src/vhflog.js. */
+/* krt2.wicki.aero – Funkprotokoll, Bedienung (0.7.0): Schalter, Übertragung jede Minute, Anzeige auf «Im Flug», Protokoll
+   als CSV und A4-Seite. Zugang zu gb_flight_data (Beitrittscode der Reporting-App oder Token) ab 0.8.0 in den Einstellungen;
+   nach dem Beitrittscode verschwindet die Eingabe. Logik in src/vhflog.js. */
 (function (root) {
   'use strict';
   const V = root.KRT2VHF, L = root.KRT2LINK.link;
@@ -7,10 +8,10 @@
   const FLUSH_MS = 60000, SENT_MAX = 4000, JOIN_URL = 'https://basket-join.balthasar.workers.dev';
   const read = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
   const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* Speicher voll */ } };
-  let ctx = null, logger = new V.VhfLogger(), busy = false, holdUntil = 0, joinBusy = false, protoBusy = false;
+  let ctx = null, logger = new V.VhfLogger(), busy = false, holdUntil = 0, joinBusy = false, protoBusy = false, setupTried = 0;
   const S = { on: read(LS.on, false), cfg: read(LS.cfg, null), queue: read(LS.queue, []), sent: read(LS.sent, []), last: read(LS.last, null), setup: null };
   const t = (k, o) => ctx.t(k, o), esc = s => ctx.esc(s), $ = s => document.querySelector(s);
-  const here = () => ctx && ctx.route() === 'flug';
+  const here = () => ctx && (ctx.route() === 'flug' || ctx.route() === 'einstellungen');
   const configured = () => !!(S.cfg && S.cfg.repo && S.cfg.token);
   const pad2 = n => String(n).padStart(2, '0');
   const hhmmss = ms => { const d = new Date(ms); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()); };
@@ -85,7 +86,7 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const o = await openSetup(code, (await r.json()).payload);
       if (o.role === 'viewer' || !o.token) throw new Error(t('vh_m_viewer'));
-      await takeAccess({ repo: o.repo || 'bwicki/gb_flight_data', branch: o.branch || 'main', dir: o.dir || 'data', token: o.token });
+      await takeAccess({ repo: o.repo || 'bwicki/gb_flight_data', branch: o.branch || 'main', dir: o.dir || 'data', token: o.token, via: 'code' });
     } catch (e) {
       ctx.msg(t('vh_m_join_err', { e: /decrypt|operation/i.test(e.message || '') ? t('vh_m_badcode') : e.message }), 'err');
     }
@@ -101,7 +102,7 @@
     const tok = ($('#vh-token') || {}).value || '', repo = (($('#vh-repo') || {}).value || 'bwicki/gb_flight_data').trim();
     if (!tok.trim()) { ctx.msg(t('vh_m_notoken'), 'warn'); return; }
     joinBusy = true; paint();
-    try { await takeAccess({ repo, branch: 'main', dir: 'data', token: tok.trim() }); }
+    try { await takeAccess({ repo, branch: 'main', dir: 'data', token: tok.trim(), via: 'token' }); }
     catch (e) { ctx.msg(t('vh_m_join_err', { e: e.message }), 'err'); }
     joinBusy = false; paint();
   }
@@ -149,7 +150,9 @@ th{font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#5a6672}t
   }
 
   // ---------- Anzeige ----------
-  function paint() {
+  function paint() { paintFlight(); paintAccess(); }
+  /** Karte auf «Im Flug»: Schalter, Zustand, letzte Einträge, Protokoll. Ohne Zugang nur der Hinweis auf die Einstellungen. */
+  function paintFlight() {
     const el = $('#fl-vhf'); if (!el || !ctx) return;
     const last = S.last, st = S.setup, rec = S.sent.slice(-8).map(r => ({ sent: true, row: r })).concat(S.queue).slice(-8).reverse();
     const status = !S.on ? `<span class="badge">${t('vh_off')}</span>`
@@ -161,20 +164,27 @@ th{font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#5a6672}t
       if (x.sent) return `<span class="small"><span class="mono">${esc(String(x.row.ts_local || '').slice(11, 19))}</span> ${esc(x.row.note)} <span class="badge g">${t('vh_sent')}</span></span>`;
       return `<span class="small"><span class="mono">${hhmmss(x.wall)}</span> ${esc(V.noteOf(x))} <span class="badge y">${t('vh_pending')}</span></span>`;
     }).join('')}</div>` : `<p class="small muted" style="margin:0">${t('vh_none')}</p>`;
-    const access = configured()
-      ? `<div class="row fl-row"><span class="label">${t('vh_access')}</span><span class="small">${esc(S.cfg.repo)} · ${t('vh_flight')} <b>${esc((st && st.flight) || '–')}</b> · ${esc((st && st.call) || '')}</span><button type="button" class="ghost" data-vh="forget">${t('vh_forget')}</button></div>`
-      : `<span class="small">${t('vh_access')}</span>
-<div class="row"><label for="vh-code">${t('vh_code')}</label><input id="vh-code" class="mono" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="XXXXXX" style="width:110px;text-transform:uppercase"><button type="button" data-vh="code" ${joinBusy ? 'disabled' : ''}>${t(joinBusy ? 'fl_loading' : 'vh_code_go')}</button></div>
-<span class="small">${t('vh_token_alt')}</span>
-<div class="row"><label for="vh-repo">${t('vh_repo')}</label><input id="vh-repo" type="text" value="bwicki/gb_flight_data" style="width:200px"></div>
-<div class="row"><label for="vh-token">${t('vh_token')}</label><input id="vh-token" type="password" autocomplete="off" style="width:200px"><button type="button" class="sec" data-vh="token" ${joinBusy ? 'disabled' : ''}>${t('vh_token_go')}</button></div>`;
     el.innerHTML = `<span class="label">${t('vh_title')}</span>
 <div class="row fl-row"><span class="label">${t('vh_status')}</span><span>${status}</span><button type="button" class="sec" data-vh="toggle" aria-pressed="${S.on ? 'true' : 'false'}">${t(S.on ? 'vh_stop' : 'vh_start')}</button>${line}${S.on && configured() ? `<button type="button" class="sec" data-vh="flush" ${busy ? 'disabled' : ''}>${t('vh_flush')}</button>` : ''}</div>
+${configured() ? '' : `<p class="note gr-warn">${t('vh_noaccess_set')} <a href="#einstellungen">${t('nav_einst')}</a></p>`}
 ${recList}
-${access}
 ${configured() ? `<span class="small">${t('vh_proto')}</span>
 <div class="row"><label for="vh-flight">${t('vh_flight')}</label><input id="vh-flight" type="text" value="${esc((st && st.flight) || '')}" style="width:140px"><label><input type="checkbox" id="vh-atc" checked> ${t('vh_with_atc')}</label><button type="button" class="sec" data-vh="proto" ${protoBusy ? 'disabled' : ''}>${t(protoBusy ? 'fl_loading' : 'vh_proto_go')}</button></div>` : ''}
 <p class="note">${t('vh_note')}</p>`;
+  }
+  /** Karte in den Einstellungen: Zugang. Ist er eingerichtet (Beitrittscode oder Token), verschwinden die Eingaben. */
+  function paintAccess() {
+    const el = $('#st-vhf'); if (!el || !ctx) return;
+    const st = S.setup;
+    el.innerHTML = `<span class="label">${t('vh_set_title')}</span>
+${configured()
+  ? `<div class="row"><span>${t('vh_access_ok', { r: esc(S.cfg.repo), v: t(S.cfg.via === 'token' ? 'vh_via_token' : 'vh_via_code') })} · ${t('vh_flight')} <b>${esc((st && st.flight) || '–')}</b>${st && st.call ? ' · ' + esc(st.call) : ''}</span><button type="button" class="ghost" data-vh="forget">${t('vh_forget')}</button></div>`
+  : `<div class="row"><label for="vh-code">${t('vh_code')}</label><input id="vh-code" class="mono" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="XXXXXX" style="width:110px;text-transform:uppercase"><button type="button" data-vh="code" ${joinBusy ? 'disabled' : ''}>${t(joinBusy ? 'fl_loading' : 'vh_code_go')}</button></div>
+<span class="small">${t('vh_token_alt')}</span>
+<div class="row"><label for="vh-repo">${t('vh_repo')}</label><input id="vh-repo" type="text" value="bwicki/gb_flight_data" style="width:200px"></div>
+<div class="row"><label for="vh-token">${t('vh_token')}</label><input id="vh-token" type="password" autocomplete="off" style="width:200px"><button type="button" class="sec" data-vh="token" ${joinBusy ? 'disabled' : ''}>${t('vh_token_go')}</button></div>`}
+<p class="note">${t('vh_set_note')}</p>`;
+    if (configured() && !st && Date.now() - setupTried > 60000) { setupTried = Date.now(); refreshSetup(); }   // Fahrt nachlesen, höchstens einmal je Minute
   }
 
   // ---------- Ereignisse der Seite ----------

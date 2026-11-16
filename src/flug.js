@@ -1,7 +1,6 @@
-/* krt2.wicki.aero – Im Flug (0.6.0, Konzept Bluetooth-Brücke, Phase 3).
-   Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor (Vorgabe ±40°, 100 km), Vorschlag je Block (INFO, AD/TWR, RADAR) und
-   Plan der zu schreibenden Plätze: was im Block schon passt, bleibt auf seinem Platz; frei werdende Plätze bekommen die
-   nächstgelegenen neuen Stationen. Feste Plätze und Frequenzen, die ausserhalb des Blocks schon im Gerät stehen, bleiben
+/* krt2.wicki.aero – Im Flug (0.6.0, Konzept Bluetooth-Brücke, Phase 3; rollender Bereich ab 0.8.0).
+   Fahrtrichtung aus der GPS-Spur, Vorausschau-Sektor (Vorgabe ±40°, 100 km), Vorschlagsliste (INFO und FIS zuerst, nach
+   Distanz) und Zielplätze im rollenden Bereich (Vorgabe 75–95, ohne Blöcke). Plätze ausserhalb des Bereichs bleiben
    unberührt. Reine Logik ohne DOM (Browser: window.KRT2FLUG). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./model.js'), require('./area.js'), require('./krt2codec.js'));
@@ -56,128 +55,69 @@
 
   const nameOf = (cfg, e) => C.normalizeName(M.entryShort(e), cfg.settings.allowDigits, cfg.settings.allowLower !== false).trimmed;
 
-  /** Namen, unter denen ein Block im Gerätestand stehen kann (aktueller Name und frühere, z. B. «APP/TWR» → «AD/TWR»). */
-  const blockNames = b => new Set([b.name].concat(b.alias || []));
-  /** Plätze eines Blocks im Gerätestand, aufsteigend. */
-  const slotsOf = (device, b) => { const n = blockNames(b); return (device || []).filter(p => p && p.kind !== 'fixed' && n.has(p.block)).sort((x, y) => x.nr - y.nr); };
+  const PRIO = ['INFO', 'FIS'];
+  const byDist = (a, b) => (a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist);
+  const freeOf = cfg => { const fr = Object.assign({ ch: '118.000', kurz: 'FREE' }, (cfg.settings && cfg.settings.free) || {}); return p => !p || (M.freqKey(p.ch) === M.freqKey(fr.ch) && String(p.name || '').trim() === fr.kurz); };
 
   /**
-   * Plan für einen Block. device = Gerätestand (100 Plätze, mit .block beim Programmieren aus der App), entries = Vorschlag
-   * aus A.propose (mit .dist ab der Position).
-   * - Was schon passt, bleibt auf seinem Platz; Plätze, deren Station wegfällt, bekommen die nächstgelegenen neuen.
-   * - Der Block hat genau so viele Plätze wie gefundene Frequenzen (0.6.5), höchstens so viele wie im Entwurf: er
-   *   schrumpft, wenn weniger da sind, und wächst wieder; die folgenden Plätze rücken entsprechend nach.
-   * - Findet sich keine Frequenz für den Block, fällt er weg (0.6.4); gibt es wieder Frequenzen, kommt er an seiner Stelle
-   *   zurück (vor dem nächsten Block der Konfiguration).
-   * Feste Plätze und Frequenzen, die ausserhalb des Blocks schon im Gerät stehen, bleiben unberührt.
-   * Ergebnis { nrs, keep, changes:[{ nr, old, neu, name }], after, seq, cand, chosen, mode, dropped }.
+   * Rollender Bereich (0.8.0): Plätze von–bis aus den Einstellungen (Vorgabe 75–95), ohne feste Plätze (weitere feste
+   * Plätze der Konfiguration oder im Gerät als fest markierte). Im Flug wird nur hier geschrieben, ohne Blöcke.
    */
-  function planBlock(o) {
-    const { cfg, block, entries } = o;
-    const L = o.layout || M.layout(cfg);
-    const LAST = M.LAST_SLOT || 98;
-    const key = ch => M.freqKey(ch);
-    const fr = Object.assign({ ch: '118.000', kurz: 'FREE' }, (cfg.settings && cfg.settings.free) || {});
-    const isFree = p => !p || (key(p.ch) === key(fr.ch) && String(p.name || '').trim() === fr.kurz);
-    const nameById = id => { const b = cfg.bloecke.find(x => x.id === id); return b ? b.name : ''; };
-    let dev = (o.device || []).slice();
-    // Gerätestand ohne Blocknamen (z. B. ausgelesen): Blöcke aus der Konfiguration übernehmen, wo der Inhalt passt
-    if (!dev.some(p => p && p.block)) dev = dev.map(p => { const s = p && L.slots[p.nr]; return s && s.block && key(s.ch) === key(p.ch) ? Object.assign({}, p, { block: nameById(s.block) }) : p; });
-    const fixed = new Set(dev.filter(p => p && p.kind === 'fixed').map(p => p.nr).concat(L.slots.filter(x => x && x.kind === 'fixed').map(x => x.nr)));
-    const seq = []; for (let n = 0; n <= LAST; n++) if (!fixed.has(n)) seq.push(n);
-    const cur = slotsOf(dev, block).filter(p => p.nr <= LAST);
-    const curNr = new Set(cur.map(p => p.nr));
-    const outside = new Set(dev.filter(p => p && !curNr.has(p.nr)).map(p => key(p.ch)).filter(Boolean));
-    const svc = new Set(block.svc || []);
-    const cand = entries.filter(e => svc.has(e.dienst)).sort((a, b) => (a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist));
-    const planned = ((L.ranges || []).find(r => r.block === block.id) || { nrs: [] }).nrs.length;
-    // Höchstgrösse: Plätze des Blocks im Entwurf, sonst heutige Grösse im Gerät, sonst Grenze bzw. höchstens 10
-    let size = planned || cur.length || block.max || Math.min(10, cand.length);
-    if (block.max) size = Math.min(size, block.max);
-    const chosen = [], seen = new Set();
-    for (const e of cand) {
-      const k = key(e.ch);
-      if (!k || outside.has(k) || seen.has(k)) continue;
-      seen.add(k); chosen.push(e);
-      if (chosen.length >= size) break;
-    }
-    const slotOf = (e) => ({ ch: e.ch, name: nameOf(cfg, e), klar: e.klar || '', dienst: e.dienst, block: block.name, kind: 'entry', cc: e.ort && e.ort.cc ? e.ort.cc : '', _e: e });
-    const freeSlot = (blk) => ({ ch: fr.ch, name: fr.kurz, klar: '', dienst: '', block: blk || null, kind: 'free', _free: true });
-    // neuer Inhalt des Blocks (0.6.5): genau die gefundenen Frequenzen, ohne FREE dazwischen. Was passt, bleibt auf seinem
-    // Platz; ein Platz, dessen Station wegfällt, bekommt die nächste neue; gibt es keine mehr, fällt der Platz weg (der Block
-    // schrumpft); weitere neue kommen ans Ende (der Block wächst bis zur Höchstgrösse).
-    const want = new Set(chosen.map(e => key(e.ch)));
-    const placed = new Set();
-    cur.forEach(p => { const k = key(p.ch); if (k && want.has(k) && !placed.has(k)) placed.add(k); });
-    const todo = chosen.filter(e => !placed.has(key(e.ch)));
-    const content = [], kept = new Set();
-    for (const p of cur) {
-      const k = key(p.ch);
-      if (k && want.has(k) && !kept.has(k)) { content.push({ keep: p }); kept.add(k); }
-      else if (todo.length) content.push(slotOf(todo.shift()));
-    }
-    while (todo.length) content.push(slotOf(todo.shift()));
-    const after = dev.map(p => (p ? Object.assign({}, p) : p));
-    let mode = 'block', dropped = [];
-    if (cur.length && content.length === cur.length) {
-      cur.forEach((p, i) => { const c = content[i]; after[p.nr] = c.keep ? Object.assign({}, p, { block: block.name }) : Object.assign({ nr: p.nr }, c); });
-    } else if (cur.length || content.length) {
-      // Block fällt weg, kommt wieder oder ändert seine Grösse: ab seiner Stelle rücken die folgenden Plätze nach
-      mode = !content.length ? 'drop' : !cur.length ? 'insert' : 'resize';
-      let p0;
-      if (cur.length) p0 = seq.indexOf(cur[0].nr);
-      else {
-        const later = new Set(); let past = false;
-        for (const b of cfg.bloecke) { if (b.id === block.id) { past = true; continue; } if (past && b.on) blockNames(b).forEach(n => later.add(n)); }
-        p0 = seq.findIndex(n => dev[n] && later.has(dev[n].block));
-        if (p0 < 0) { let lastUsed = -1; seq.forEach((n, i) => { if (dev[n] && (dev[n].block || !isFree(dev[n]))) lastUsed = i; }); p0 = lastUsed + 1; }
-      }
-      let tail = seq.slice(p0).map(n => dev[n]).filter(p => p && !curNr.has(p.nr));
-      while (tail.length && !tail[tail.length - 1].block && isFree(tail[tail.length - 1])) tail.pop();   // Füller am Ende
-      const items = content.map(c => (c.keep ? Object.assign({}, c.keep, { block: block.name }) : c)).concat(tail.map(p => Object.assign({}, p, { _from: p.nr })));
-      const room = seq.length - p0;
-      dropped = items.slice(room).filter(x => !x._free);
-      for (let i = 0; i < room; i++) { const n = seq[p0 + i], it = items[i]; after[n] = Object.assign({}, it || freeSlot(null), { nr: n }); }
-    }
-    const changes = [];
-    for (const n of seq) {
-      const a = after[n], d = dev[n];
-      if (!a) continue;
-      if (d && key(d.ch) === key(a.ch) && String(d.name || '').trim() === String(a.name || '').trim()) continue;
-      const neu = a._e ? a._e : a._free ? { ch: a.ch, dienst: '', klar: '', dist: null, ort: {}, frei: true }
-        : { ch: a.ch, dienst: a.dienst || '', klar: a.klar || '', dist: null, ort: { cc: a.cc || '' }, moved: true, from: a._from, block: a.block || '' };
-      changes.push({ nr: n, old: d || null, neu, name: String(a.name || '').trim(), block: a.block || '' });
-    }
-    for (const n of seq) if (after[n]) { delete after[n]._e; delete after[n]._free; delete after[n]._from; }
-    const nrs = seq.filter(n => after[n] && after[n].block === block.name);
-    const keep = nrs.filter(n => !changes.some(c => c.nr === n) && !isFree(after[n]));   // Frequenzen, die auf ihrem Platz bleiben
-    return { nrs, keep, changes, after, seq, cand: cand.length, chosen: chosen.length, mode, dropped, before: cur.length };
+  function rollSlots(cfg, device) {
+    const f = M.flugOf(cfg), fx = M.fixedExtra(cfg), out = [];
+    const devFixed = new Set((device || []).filter(p => p && p.kind === 'fixed').map(p => p.nr));
+    for (let n = f.von; n <= f.bis; n++) if (n >= 1 && n <= M.LAST_SLOT && !fx[n] && !devFixed.has(n)) out.push(n);
+    return out;
   }
 
-  /** Schreibliste für Link.program. */
-  const writeList = plan => plan.changes.map(c => ({ nr: c.nr, ch: c.neu.ch, name: c.name }));
+  /**
+   * Vorschlagsliste aus A.propose (Einträge mit .dist ab der Position): je Frequenz die nächstgelegene Station, ohne
+   * Frequenzen, die schon irgendwo im Gerät stehen; INFO und FIS zuerst, beide Gruppen nach zunehmender Distanz.
+   * Ergebnis { prio:[item], rest:[item], inDevice, relevant:Set(freqKey aller Frequenzen der Vorausschau) };
+   * item = { k, ch, name, klar, dienst, dist, cc }.
+   */
+  function rollCands(cfg, entries, device) {
+    const key = M.freqKey, best = new Map();
+    for (const e of entries || []) { const k = key(e.ch); if (!k) continue; const b = best.get(k); if (!b || byDist(e, b) < 0) best.set(k, e); }
+    const all = Array.from(best.values()).sort(byDist);
+    const inDev = new Set((device || []).filter(Boolean).map(p => key(p.ch)).filter(Boolean));
+    const items = all.filter(e => !inDev.has(key(e.ch))).map(e => ({ k: key(e.ch), ch: e.ch, name: nameOf(cfg, e), klar: e.klar || '', dienst: e.dienst || '', dist: e.dist == null ? null : e.dist, cc: e.ort && e.ort.cc ? e.ort.cc : '' }));
+    return { prio: items.filter(x => PRIO.includes(x.dienst)), rest: items.filter(x => !PRIO.includes(x.dienst)), inDevice: all.length - items.length, relevant: new Set(all.map(e => key(e.ch))) };
+  }
 
-  /** Neuer Gerätestand: quittierte Änderungen übernehmen, Blocknamen nachführen. res = { nr: { kind } }. */
-  function applyPlan(plaetze, plan, block, res) {
+  /**
+   * Zielplätze für n neue Frequenzen im rollenden Bereich, in dieser Reihenfolge: freie Plätze, dann Plätze, deren Frequenz
+   * nicht mehr in der Vorausschau liegt, zuletzt noch gültige – innerhalb jeder Stufe der am längsten nicht beschriebene
+   * Platz zuerst (ages = { nr: ms }, unbekannt = 0), bei Gleichstand der tiefere Platz.
+   */
+  function rollTargets(cfg, nrs, device, n, relevant, ages) {
+    const isFree = freeOf(cfg), rel = relevant || new Set(), age = ages || {};
+    const rank = nr => { const p = (device || [])[nr]; if (isFree(p)) return 0; return rel.has(M.freqKey(p.ch)) ? 2 : 1; };
+    return nrs.slice().sort((a, b) => rank(a) - rank(b) || (age[a] || 0) - (age[b] || 0) || a - b).slice(0, Math.max(0, n));
+  }
+
+  /** Schreibliste: Auswahl in Reihenfolge auf die Zielplätze. */
+  const rollWriteList = (picks, targets) => picks.slice(0, targets.length).map((p, i) => ({ nr: targets[i], ch: p.ch, name: p.name, pick: p }));
+
+  /** Neuer Gerätestand: quittierte Plätze übernehmen (Blockname ROLL). res = { nr: { kind } }. */
+  function rollApply(plaetze, list, res) {
     const out = plaetze.map(p => (p ? Object.assign({}, p) : p));
-    const changed = new Map(plan.changes.map(c => [c.nr, c]));
-    for (const n of plan.seq || []) {
-      const a = plan.after && plan.after[n];
-      if (!a) continue;
-      if (changed.has(n)) { if (res[n] && res[n].kind === 'ACK') out[n] = Object.assign({}, a, { nr: n }); }
-      else if (out[n]) out[n].block = a.block === undefined ? out[n].block : a.block;
+    for (const w of list) {
+      if (!(res[w.nr] && res[w.nr].kind === 'ACK')) continue;
+      const p = w.pick || {};
+      out[w.nr] = { nr: w.nr, ch: w.ch, name: w.name, klar: p.klar || '', dienst: p.dienst || '', cc: p.cc || '', block: M.ROLL_BLOCK, kind: 'entry' };
     }
     return out;
   }
 
-  /** Fluglog-Zeilen für eine geschriebene Änderung. */
-  function logRows(plan, block, res, pos, when) {
+  /** Fluglog-Zeilen für geschriebene Plätze. */
+  function logRows(list, device, res, pos, when) {
     const z = (when || new Date()).toISOString();
-    return plan.changes.map(c => ({
-      zeit: z, lat: pos ? Math.round(pos.lat * 1e5) / 1e5 : null, lon: pos ? Math.round(pos.lon * 1e5) / 1e5 : null, block: c.block || block.name, nr: c.nr,
-      alt: c.old ? { ch: c.old.ch, name: c.old.name || '' } : null, neu: { ch: c.neu.ch, name: c.name, klar: c.neu.klar || '' },
-      ok: !!(res[c.nr] && res[c.nr].kind === 'ACK')
-    }));
+    return list.map(w => {
+      const d = (device || [])[w.nr];
+      return { zeit: z, lat: pos ? Math.round(pos.lat * 1e5) / 1e5 : null, lon: pos ? Math.round(pos.lon * 1e5) / 1e5 : null, block: M.ROLL_BLOCK, nr: w.nr,
+        alt: d ? { ch: d.ch, name: d.name || '' } : null, neu: { ch: w.ch, name: w.name, klar: (w.pick && w.pick.klar) || '' }, ok: !!(res[w.nr] && res[w.nr].kind === 'ACK') };
+    });
   }
   function logCsv(rows) {
     const q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
@@ -192,5 +132,5 @@
     return n[Math.round(((b % 360) + 360) % 360 / 22.5) % 16];
   }
 
-  return { distKm, bearing, track, sectorArea, planBlock, writeList, applyPlan, logRows, logCsv, compass, blockNames, slotsOf };
+  return { distKm, bearing, track, sectorArea, rollSlots, rollCands, rollTargets, rollWriteList, rollApply, logRows, logCsv, compass, PRIO };
 });

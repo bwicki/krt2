@@ -1,12 +1,14 @@
-/* krt2.wicki.aero – Seite «Im Flug» (0.6.0): Funkgerät, GPS, Vorausschau-Sektor, Vorschlag und Schreiben je Block,
+/* krt2.wicki.aero – Seite «Im Flug» (0.6.0; rollender Bereich ab 0.8.0): Funkgerät, GPS, Vorausschau-Sektor,
+   Vorschlagsliste (INFO und FIS zuerst, nach Distanz; antippen = auswählen) und Schreiben in den rollenden Bereich,
    Fluglog, Vorbereitung für den Flug ohne Netz. Logik in src/flug.js, Verbindung in src/link.js, Gerätestand über
    src/geraet.js. Für das Handy gebaut (Seite hochkant, grosse Knöpfe). */
 (function (root) {
   'use strict';
   const DATA = 'https://raw.githubusercontent.com/bwicki/krt2/data/';
-  const LS_LOG = 'krt2.fluglog', LS_OFF = 'krt2.offline', LOG_MAX = 1000, HIST_MS = 20 * 60000;
+  const LS_LOG = 'krt2.fluglog', LS_OFF = 'krt2.offline', LS_AGE = 'krt2.roll.age', LOG_MAX = 1000, HIST_MS = 20 * 60000, REST_MAX = 12;
   const F = root.KRT2FLUG, A = root.KRT2AREA, M = root.KRT2MODEL, L = root.KRT2LINK.link;
-  const S = { gps: { on: false, id: null, hist: [], err: '', acc: null, at: null }, manual: '', index: null, files: {}, plans: {}, write: {}, busy: {}, prep: false };
+  const S = { gps: { on: false, id: null, hist: [], err: '', acc: null, at: null }, manual: '', index: null, files: {}, prep: false,
+    roll: { list: null, picks: [], busy: false, write: null, more: false } };
   let ctx = null;
   const t = (k, o) => ctx.t(k, o), esc = s => ctx.esc(s), $ = s => document.querySelector(s);
   const here = () => ctx && ctx.route() === 'flug';
@@ -62,19 +64,29 @@
     return [p.lon - km / (111.32 * c), p.lat - km / 110.574, p.lon + km / (111.32 * c), p.lat + km / 110.574];
   }
 
-  // ---------- Vorschlag und Schreiben ----------
-  function flightBlocks() {
-    const ids = fst().bloecke || [];
-    return cfg().bloecke.filter(b => b.on && ids.includes(b.id));
+  // ---------- Rollender Bereich: Vorschlag, Auswahl, Schreiben ----------
+  const R = S.roll;
+  // Zeitpunkt, zu dem ein Platz des Bereichs zuletzt im Flug beschrieben wurde – je Gerät, nur in diesem Browser
+  function ages() { const all = readJSON(LS_AGE, {}); return all[ctx.GR.devKey()] || {}; }
+  function setAges(nrs) {
+    const all = readJSON(LS_AGE, {}), k = ctx.GR.devKey(), a = Object.assign({}, all[k] || {}), now = Date.now();
+    nrs.forEach(n => { a[n] = now; }); all[k] = a;
+    try { localStorage.setItem(LS_AGE, JSON.stringify(all)); } catch (e) { /* Speicher voll */ }
   }
-  async function plan(bid) {
-    const c = cfg(), blk = c.bloecke.find(b => b.id === bid); if (!blk) return;
+  const device = () => { const a = ctx.GR.aktuell(); return a && Array.isArray(a.plaetze) ? a.plaetze : null; };
+  const slots = () => F.rollSlots(cfg(), device());
+  function targets() {
+    const d = device(); if (!d) return [];
+    return F.rollTargets(cfg(), slots(), d, R.picks.length, R.list ? R.list.relevant : null, ages());
+  }
+  async function propose() {
+    const c = cfg();
     const p = pos(); if (!p) { ctx.msg(t('fl_need_pos'), 'warn'); return; }
     await ctx.GR.ensure();
-    const a = ctx.GR.aktuell(); if (!a || !Array.isArray(a.plaetze)) { ctx.msg(t('fl_need_state'), 'warn'); return; }
+    const d = device(); if (!d) { ctx.msg(t('fl_need_state'), 'warn'); return; }
     const st = fst(), dir = direction();
     const area = F.sectorArea(p, dir.bearing, +st.winkel, +st.distKm);
-    S.busy[bid] = true; paintBlock(bid);
+    R.busy = true; paintRoll();
     try {
       const ix = await index();
       const P = A.projector(p.lat, p.lon);
@@ -84,43 +96,64 @@
       if (!data.length) throw new Error(got[0] && got[0].reason ? got[0].reason.message : t('fl_no_data'));
       const lo = A.parseAlt(c.hoehe.von), hi = A.parseAlt(c.hoehe.bis);
       const res = A.propose(data, { area, standort: { lat: p.lat, lon: p.lon }, bandLo: isNaN(lo) ? 0 : lo, bandHi: isNaN(hi) ? 19500 : hi, radarNoLimit: !!c.hoehe.radarOhneGrenze, marginKm: (c.hoehe && c.hoehe.marginKm) || 0, services: M.servicesOf(c), adLoc: c.settings.adLoc, svcOff: [], vfr: c.settings.vfr !== false });
-      const pl = F.planBlock({ cfg: c, block: blk, entries: res.entries, device: a.plaetze });
-      S.plans[bid] = { plan: pl, at: new Date(), pos: { lat: p.lat, lon: p.lon }, dir, n: res.entries.length };
-      S.write[bid] = null;
+      const L2 = F.rollCands(c, res.entries, d);
+      // bereits Ausgewähltes bleibt ausgewählt und erscheint nicht nochmals in der Liste
+      const chosen = new Set(R.picks.map(x => x.k));
+      L2.prio = L2.prio.filter(x => !chosen.has(x.k)); L2.rest = L2.rest.filter(x => !chosen.has(x.k));
+      R.list = Object.assign(L2, { at: new Date(), pos: { lat: p.lat, lon: p.lon }, dir, n: res.entries.length });
+      R.write = null; R.more = false;
     } catch (e) { ctx.msg(t('fl_data_err', { e: e.message }), 'err'); }
-    S.busy[bid] = false; paintBlock(bid);
+    R.busy = false; paintRoll();
   }
-  async function write(bid) {
-    const c = cfg(), blk = c.bloecke.find(b => b.id === bid), P = S.plans[bid];
-    if (!blk || !P || !P.plan.changes.length) return;
+  function pick(k) {
+    if (!R.list || (R.write && R.write.running)) return;
+    if (R.picks.length >= slots().length) { ctx.msg(t('fl_roll_full', { n: slots().length }), 'warn'); return; }
+    for (const g of ['prio', 'rest']) {
+      const i = R.list[g].findIndex(x => x.k === k);
+      if (i >= 0) { R.picks.push(Object.assign({ g }, R.list[g][i])); R.list[g].splice(i, 1); break; }
+    }
+    if (R.write && !R.write.running) R.write = null;
+    paintRoll();
+  }
+  function unpick(k) {
+    if (R.write && R.write.running) return;
+    const i = R.picks.findIndex(x => x.k === k); if (i < 0) return;
+    const x = R.picks.splice(i, 1)[0];
+    if (R.list) { const g = R.list[x.g === 'rest' ? 'rest' : 'prio']; g.push(x); g.sort((a, b) => (a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist)); }
+    if (R.write && !R.write.running) R.write = null;
+    paintRoll();
+  }
+  async function write() {
+    const d = device(); if (!d || !R.picks.length) return;
     if (!L.linked) { ctx.msg(t('fl_need_link'), 'warn'); return; }
-    const list = F.writeList(P.plan);
-    if (!(await ctx.ask(t('fl_write_q', { n: list.length, b: blk.name }), t('fl_write_b'), t('fl_write_go'), t('cancel'), 'primary'))) return;
-    const W = S.write[bid] = { running: true, res: {}, done: 0, total: list.length, pause: null };
-    paintBlock(bid);
-    await L.program(list, {
-      onSlot: (nr, r) => { W.res[nr] = r; W.done++; if (here()) paintBlock(bid); },
-      onPause: w => { W.pause = w; if (here()) paintBlock(bid); }
+    const list = F.rollWriteList(R.picks, targets());
+    if (!list.length) return;
+    if (!(await ctx.ask(t('fl_roll_q', { n: list.length }), t('fl_roll_qb', { s: list.map(w => pad2(w.nr)).join(', ') }), t('fl_write_go'), t('cancel'), 'primary'))) return;
+    const W = R.write = { running: true, res: {}, done: 0, total: list.length, pause: null, list };
+    paintRoll();
+    await L.program(list.map(w => ({ nr: w.nr, ch: w.ch, name: w.name })), {
+      onSlot: (nr, r) => { W.res[nr] = r; W.done++; if (here()) paintRoll(); },
+      onPause: w => { W.pause = w; if (here()) paintRoll(); }
     });
     W.running = false;
-    const okN = list.filter(x => W.res[x.nr] && W.res[x.nr].kind === 'ACK').length;
-    const failed = list.filter(x => !W.res[x.nr] || W.res[x.nr].kind !== 'ACK').map(x => pad2(x.nr));
-    const rows = F.logRows(P.plan, blk, W.res, P.pos);
+    const okL = list.filter(w => W.res[w.nr] && W.res[w.nr].kind === 'ACK');
+    const failed = list.filter(w => !(W.res[w.nr] && W.res[w.nr].kind === 'ACK')).map(w => pad2(w.nr));
+    const rows = F.logRows(list, d, W.res, R.list ? R.list.pos : pos());
     const log = readJSON(LS_LOG, []).concat(rows).slice(-LOG_MAX);
     try { localStorage.setItem(LS_LOG, JSON.stringify(log)); } catch (e) { /* Speicher voll */ }
-    if (okN) {
+    if (okL.length) {
+      setAges(okL.map(w => w.nr));
+      const done = new Set(okL.map(w => w.pick.k));
+      R.picks = R.picks.filter(x => !done.has(x.k));       // Geschriebenes verschwindet aus der Auswahl, Fehlgeschlagenes bleibt
       const a = ctx.GR.aktuell();
-      const plaetze = F.applyPlan(a.plaetze, P.plan, blk, W.res);
       try {
-        const where = await ctx.GR.storeAktuell(Object.assign({}, a, { plaetze, herkunft: 'geschrieben', flug: new Date().toISOString() }));
+        const where = await ctx.GR.storeAktuell(Object.assign({}, a, { plaetze: F.rollApply(a.plaetze, list, W.res), herkunft: 'geschrieben', flug: new Date().toISOString() }));
         ctx.msg(t(where === 'server' ? 'gr_m_saved_srv' : where === 'offline' ? 'gr_m_saved_off' : 'gr_m_saved_loc', { d: ctx.GR.devLabel() }), 'ok');
       } catch (e) { ctx.msg(t('gr_m_store_err', { e: e.message }), 'err'); }
     }
-    // Plätze anderer Blöcke können sich verschoben haben (Block weg oder wieder da): deren Vorschläge neu holen
-    Object.keys(S.plans).forEach(k => { if (k !== bid && !(S.write[k] && S.write[k].running)) { S.plans[k] = null; S.write[k] = null; } });
-    if (failed.length) ctx.msg(t('fl_w_fail', { b: blk.name, n: failed.length, s: failed.join(', ') }), 'err');
-    else ctx.msg(t('fl_w_done', { b: blk.name, n: okN }), 'ok');
-    if (here()) { flightBlocks().forEach(x => paintBlock(x.id)); paintLog(); paintStatus(); }
+    if (failed.length) ctx.msg(t('fl_roll_fail', { n: failed.length, s: failed.join(', ') }), 'err');
+    else ctx.msg(t('fl_roll_done', { n: okL.length, s: okL.map(w => pad2(w.nr)).join(', ') }), 'ok');
+    if (here()) { paintRoll(); paintLog(); paintStatus(); }
   }
 
   // ---------- Ohne Netz ----------
@@ -152,12 +185,12 @@
 <section class="card stack"><span class="label">${t('fl_status')}</span><div class="stack" id="fl-status"></div>
 <div class="row fl-row"><label class="label" for="fl-dir">${t('fl_dir_in')}</label><input id="fl-dir" type="number" inputmode="numeric" min="0" max="359" step="1" data-fl-in="dir" value="${esc(S.manual)}" style="width:90px"></div>
 <p class="note">${t('fl_note')}</p></section>
-${flightBlocks().length ? flightBlocks().map(b => `<section class="card stack" id="fl-b-${esc(b.id)}"></section>`).join('') : `<section class="card stack"><span class="label">${t('fl_blocks')}</span><p class="note gr-warn">${t('fl_need_block')}</p></section>`}
+<section class="card stack" id="fl-roll"></section>
 <section class="card stack" id="fl-vhf"></section>
 <section class="card stack" id="fl-log"></section>
 <section class="card stack" id="fl-off"></section>
 ${ctx.footerNote()}`;
-    paintStatus(); flightBlocks().forEach(b => paintBlock(b.id)); paintLog(); paintOff();
+    paintStatus(); paintRoll(); paintLog(); paintOff();
     if (root.KRT2VHFUI) root.KRT2VHFUI.paint();
   }
   function radioBadge() {
@@ -182,50 +215,59 @@ ${p ? `<div class="row fl-row"><span class="label">${t('fl_pos')}</span><span cl
   }
   const pad3 = n => String(n).padStart(3, '0');
   const hhmm = iso => { const d = new Date(iso); return isNaN(d) ? '' : pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
-  function slotsTxt(nrs) {
-    if (!nrs || !nrs.length) return '–';
-    const out = []; let a = nrs[0], b = nrs[0];
-    for (const n of nrs.slice(1).concat([null])) { if (n === b + 1) { b = n; continue; } out.push(a === b ? pad2(a) : pad2(a) + '–' + pad2(b)); a = b = n; }
-    return out.join(', ');
-  }
-  function paintBlock(bid) {
-    const el = $('#fl-b-' + bid); if (!el) return;
-    const blk = cfg().bloecke.find(b => b.id === bid); if (!blk) return;
-    const P = S.plans[bid], W = S.write[bid], a = ctx.GR.aktuell();
-    const devNrs = a && a.plaetze ? F.slotsOf(a.plaetze, blk).map(p => p.nr) : [];
-    const nrs = P ? P.plan.nrs : devNrs;
+  function paintRoll() {
+    const el = $('#fl-roll'); if (!el) return;
+    const d = device(), nrs = slots(), st = fst(), W = R.write, Lst = R.list;
+    const tg = targets(), list = F.rollWriteList(R.picks, tg), running = !!(W && W.running);
+    const range = pad2(st.von) + '–' + pad2(st.bis);
+    const dist = x => (x.dist == null ? '' : x.dist + ' km');
     const res = nr => (W && W.res[nr]) || null;
-    const ch = P ? P.plan.changes : [];
-    let body = '';
-    if (P) {
-      body = `<p class="small muted" style="margin:0">${t('fl_plan_info', { z: P.at.toTimeString().slice(0, 5), n: P.n, k: P.plan.keep.length, c: ch.length })}</p>`;
-      if (P.plan.mode === 'drop') body += `<p class="note gr-warn">${t('fl_plan_drop', { b: esc(blk.name) })}</p>`;
-      if (P.plan.mode === 'insert') body += `<p class="note">${t('fl_plan_insert', { b: esc(blk.name), n: P.plan.nrs.length })}</p>`;
-      if (P.plan.mode === 'resize') body += `<p class="note">${t('fl_plan_resize', { b: esc(blk.name), n: P.plan.nrs.length, m: P.plan.before })}</p>`;
-      if (P.plan.dropped && P.plan.dropped.length) body += `<p class="note gr-warn">${t('fl_plan_lost', { s: esc(P.plan.dropped.map(x => x.name).join(', ')) })}</p>`;
-      if (!ch.length) body += `<p class="note">${t(P.plan.chosen ? 'fl_plan_none' : 'fl_plan_empty')}</p>`;
-      else body += `<div class="card flush"><table class="grid fl-plan"><thead><tr><th style="width:56px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th><th style="width:110px">${t('gr_col_state')}</th></tr></thead><tbody>
-${ch.map(c => { const r = res(c.nr), info = c.neu.moved ? t('fl_moved', { b: c.neu.block || '–' }) : [c.neu.klar, c.neu.dist == null ? '' : c.neu.dist + ' km'].filter(Boolean).join(' · ');
-  return `<tr><td class="nr">${pad2(c.nr)}</td><td class="mono small">${c.old ? esc(c.old.ch + ' ' + (c.old.name || '')) : '–'}</td><td><span class="mono">${esc(c.neu.ch + ' ' + c.name)}</span>${info ? ` <span class="small muted">${esc(info)}</span>` : ''}</td>
-<td>${r ? `<span class="badge ${r.kind === 'ACK' ? 'g' : 'r'}">${r.kind === 'ACK' ? t('gr_w_ok', { ms: r.ms }) : esc(r.kind)}</span>` : `<span class="badge y">${t('gr_st_changed')}</span>`}</td></tr>`; }).join('')}
-</tbody></table></div>`;
+    const head = `<div class="spread"><div class="stack" style="gap:2px"><span class="label">${t('fl_roll', { r: range })}</span><span class="small muted">${t('fl_roll_slots', { n: nrs.length })} · <a href="#einstellungen">${t('fl_ahead_set')}</a></span></div>
+  <button type="button" class="sec" data-fl="propose" ${R.busy || running ? 'disabled' : ''}>${R.busy ? t('fl_loading') : t(Lst ? 'fl_plan_again' : 'fl_plan')}</button></div>`;
+    if (!d) { el.innerHTML = head + `<p class="note gr-warn">${t('fl_need_state')}</p>`; return; }
+    // Auswahl mit Zielplatz; antippen nimmt sie wieder heraus
+    let sel = '';
+    if (list.length) {
+      sel = `<span class="small">${t('fl_roll_sel', { n: list.length })}</span>
+<div class="fl-picks">${list.map(w => { const old = d[w.nr], r = res(w.nr);
+  return `<button type="button" class="fl-pick on" data-fl="unpick" data-k="${esc(w.pick.k)}" ${running ? 'disabled' : ''}>
+<span class="mono fl-nr">${pad2(w.nr)}</span><span class="fl-txt"><span><b class="mono">${esc(w.ch + ' ' + w.name)}</b></span><span class="small muted">${esc([w.pick.klar, dist(w.pick)].filter(Boolean).join(' · '))}</span>
+${old ? `<span class="small muted">${esc(t('fl_roll_replaces', { f: old.ch + ' ' + String(old.name || '').trim() }))}</span>` : ''}</span>
+${r ? `<span class="badge ${r.kind === 'ACK' ? 'g' : 'r'}">${r.kind === 'ACK' ? t('gr_w_ok', { ms: r.ms }) : esc(r.kind)}</span>` : ''}</button>`; }).join('')}</div>`;
       if (W) {
         const pct = Math.round(100 * W.done / Math.max(1, W.total));
-        body += `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('fl_w_state', { d: W.done, n: W.total })}</span>${W.running && W.pause ? ` <span class="badge y">${t('gr_wait_link')}</span>` : W.running && L.st.tx ? ` <span class="badge y">${t('gr_wait_tx')}</span>` : ''}`;
+        sel += `<div class="gr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div><span class="small muted">${t('fl_w_state', { d: W.done, n: W.total })}</span>${running && W.pause ? ` <span class="badge y">${t('gr_wait_link')}</span>` : running && L.st.tx ? ` <span class="badge y">${t('gr_wait_tx')}</span>` : ''}`;
       }
+      sel += `<div class="row"><button type="button" class="fl-big" data-fl="write" ${running ? 'disabled' : ''}>${t('fl_roll_write', { n: list.length })}</button></div>`;
     }
-    const done = W && !W.running;
-    el.innerHTML = `<div class="spread"><div class="stack" style="gap:2px"><span class="label">${t('fl_block', { b: esc(blk.name) })}</span><span class="small muted">${t('fl_block_slots', { a: slotsTxt(nrs) })}</span></div>
-  <button type="button" class="sec" data-fl="plan" data-b="${esc(bid)}" ${S.busy[bid] || (W && W.running) ? 'disabled' : ''}>${S.busy[bid] ? t('fl_loading') : t(P ? 'fl_plan_again' : 'fl_plan')}</button></div>
-${body}
-${P && ch.length && !done ? `<div class="row"><button type="button" class="fl-big" data-fl="write" data-b="${esc(bid)}" ${W && W.running ? 'disabled' : ''}>${t('fl_write', { n: ch.length })}</button></div>` : ''}`;
+    // Vorschlagsliste: INFO/FIS, dann weitere; antippen wählt aus, die übrigen rücken auf
+    let prop = '';
+    if (Lst) {
+      const full = R.picks.length >= nrs.length;
+      const row = x => `<button type="button" class="fl-pick" data-fl="pick" data-k="${esc(x.k)}" ${running || full ? 'disabled' : ''}><span class="mono fl-nr">${esc(x.dienst)}</span><span class="fl-txt"><span><b class="mono">${esc(x.ch + ' ' + x.name)}</b></span><span class="small muted">${esc([x.klar, dist(x)].filter(Boolean).join(' · '))}</span></span></button>`;
+      const rest = R.more ? Lst.rest : Lst.rest.slice(0, REST_MAX);
+      prop = `<p class="small muted" style="margin:0">${t('fl_roll_info', { z: Lst.at.toTimeString().slice(0, 5), n: Lst.prio.length + Lst.rest.length, d: Lst.inDevice })}</p>
+${Lst.stale ? `<p class="note gr-warn">${t('fl_roll_stale')}</p>` : ''}
+${full ? `<p class="note gr-warn">${t('fl_roll_full', { n: nrs.length })}</p>` : ''}
+<span class="small">${t('fl_roll_prio')}</span>
+${Lst.prio.length ? `<div class="fl-picks">${Lst.prio.map(row).join('')}</div>` : `<p class="small muted" style="margin:0">${t('fl_roll_none')}</p>`}
+<span class="small">${t('fl_roll_rest')}</span>
+${Lst.rest.length ? `<div class="fl-picks">${rest.map(row).join('')}</div>${Lst.rest.length > REST_MAX ? `<div class="row"><label class="small"><input type="checkbox" data-fl-in="more" ${R.more ? 'checked' : ''}> ${t('fl_roll_all', { n: Lst.rest.length })}</label></div>` : ''}` : `<p class="small muted" style="margin:0">${t('fl_roll_none')}</p>`}`;
+    } else prop = `<p class="note">${t('fl_roll_note')}</p>`;
+    // Inhalt des Bereichs im Gerät
+    const next = new Map(list.map(w => [w.nr, w]));
+    const tbl = `<span class="small">${t('fl_roll_dev')}</span>
+<div class="card flush"><table class="grid fl-dev"><thead><tr><th style="width:56px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th></tr></thead><tbody>
+${nrs.map(n => { const p = d[n], w = next.get(n); return `<tr><td class="nr">${pad2(n)}</td><td class="mono small">${p ? esc(p.ch + ' ' + String(p.name || '').trim()) : '–'}</td><td>${w ? `<span class="mono">${esc(w.ch + ' ' + w.name)}</span>` : '<span class="muted">–</span>'}</td></tr>`; }).join('')}
+</tbody></table></div>`;
+    el.innerHTML = head + sel + prop + tbl;
   }
   function paintLog() {
     const el = $('#fl-log'); if (!el) return;
     const log = readJSON(LS_LOG, []);
     el.innerHTML = `<div class="spread"><span class="label">${t('fl_log')}</span><div class="row"><button type="button" class="sec" data-fl="logsave" ${log.length ? '' : 'disabled'}>${t('fl_log_save')}</button><button type="button" class="ghost" data-fl="logclear" ${log.length ? '' : 'disabled'}>${t('fl_log_clear')}</button></div></div>
 <p class="note">${t('fl_log_note')}</p>
-${log.length ? `<div class="stack" style="gap:2px">${log.slice(-8).reverse().map(r => `<span class="small"><span class="mono">${esc(hhmm(r.zeit))}</span> ${esc(r.block)} ${pad2(r.nr)}: <span class="mono">${esc(r.alt ? r.alt.ch + ' ' + r.alt.name : '–')} → ${esc(r.neu.ch + ' ' + r.neu.name)}</span> <span class="badge ${r.ok ? 'g' : 'r'}">${t(r.ok ? 'fl_log_ok' : 'fl_log_bad')}</span></span>`).join('')}</div>` : `<p class="small muted" style="margin:0">${t('fl_log_empty')}</p>`}`;
+${log.length ? `<div class="stack" style="gap:2px">${log.slice(-8).reverse().map(r => `<span class="small"><span class="mono">${esc(hhmm(r.zeit))}</span> ${esc(r.block === M.ROLL_BLOCK ? t('blk_roll') : r.block)} ${pad2(r.nr)}: <span class="mono">${esc(r.alt ? r.alt.ch + ' ' + r.alt.name : '–')} → ${esc(r.neu.ch + ' ' + r.neu.name)}</span> <span class="badge ${r.ok ? 'g' : 'r'}">${t(r.ok ? 'fl_log_ok' : 'fl_log_bad')}</span></span>`).join('')}</div>` : `<p class="small muted" style="margin:0">${t('fl_log_empty')}</p>`}`;
   }
   function paintOff() {
     const el = $('#fl-off'); if (!el) return;
@@ -239,33 +281,39 @@ ${log.length ? `<div class="stack" style="gap:2px">${log.slice(-8).reverse().map
   // ---------- Ereignisse ----------
   async function onClick(ev) {
     const b = ev.target.closest('[data-fl]'); if (!b) return;
-    const a = b.dataset.fl, bid = b.dataset.b;
+    const a = b.dataset.fl;
     if (a === 'connect' || a === 'sim') { try { await L.connect({ sim: a === 'sim' }); ctx.msg(t(a === 'sim' ? 'gr_m_sim' : 'gr_m_conn'), 'ok'); } catch (e) { if (!e || e.name !== 'NotFoundError') ctx.msg(t('gr_m_conn_err', { e: e.message }), 'err'); } paintStatus(); return; }
-    if (a === 'disconnect') { if (Object.values(S.write).some(w => w && w.running)) { ctx.msg(t('gr_busy'), 'warn'); return; } await L.disconnect(); ctx.msg(t('gr_m_disc'), 'info'); paintStatus(); return; }
+    if (a === 'disconnect') { if (R.write && R.write.running) { ctx.msg(t('gr_busy'), 'warn'); return; } await L.disconnect(); ctx.msg(t('gr_m_disc'), 'info'); paintStatus(); return; }
     if (a === 'gps') { if (S.gps.on) gpsStop(); else gpsStart(); return; }
-    if (a === 'plan') { plan(bid); return; }
-    if (a === 'write') { write(bid); return; }
+    if (a === 'propose') { propose(); return; }
+    if (a === 'pick') { pick(b.dataset.k); return; }
+    if (a === 'unpick') { unpick(b.dataset.k); return; }
+    if (a === 'write') { write(); return; }
     if (a === 'logsave') { ctx.download('krt2_fluglog_' + ctx.stamp() + '.csv', '﻿' + F.logCsv(readJSON(LS_LOG, [])), 'text/csv'); return; }
     if (a === 'logclear') { if (await ctx.ask(t('fl_log_clear_q'), t('fl_log_clear_b'), t('fl_log_clear'), t('cancel'))) { localStorage.removeItem(LS_LOG); paintLog(); } return; }
     if (a === 'prepare') { if (!S.prep) prepare(); return; }
   }
   function onChange(ev) {
     const el = ev.target;
+    if (el.dataset.flIn === 'more') { R.more = el.checked; paintRoll(); return; }
     if (el.dataset.flIn === 'dir') {
-      S.manual = el.value; paintStatus();
-      Object.keys(S.plans).forEach(k => { if (!(S.write[k] && S.write[k].running)) { S.plans[k] = null; S.write[k] = null; paintBlock(k); } });
+      if (String(el.value) === String(S.manual)) return;
+      S.manual = el.value;
+      if (R.list) R.list.stale = true;   // neue Richtung: Liste gilt für die alte – Hinweis beim nächsten Zeichnen, Auswahl bleibt
+      // erst nach dem Antippen neu zeichnen: «change» kommt beim Verlassen des Feldes, also mitten im Tipp auf einen Knopf
+      setTimeout(() => { if (here()) { paintStatus(); paintRoll(); } }, 300);
     }
   }
 
   root.KRT2FLUGUI = {
     init(c) {
       ctx = c;
-      L.on(type => { if (!here()) return; if (type === 'status' || type === 'wait') { paintStatus(); Object.keys(S.write).forEach(paintBlock); } });
+      L.on(type => { if (!here()) return; if (type === 'status' || type === 'wait') { paintStatus(); if (R.write) paintRoll(); } });
       setInterval(() => { if (here() && S.gps.on) paintStatus(); }, 5000);
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.gps.on) wakeOn(); });
     },
     async render() { render(); await ctx.GR.ensure(); if (here()) render(); },
     onClick, onChange,
-    _state: S   // für Tests
+    _state: S, _propose: () => propose()   // für Tests
   };
 })(typeof window !== 'undefined' ? window : globalThis);

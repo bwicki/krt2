@@ -393,6 +393,23 @@ nicht mit INFO klassifizieren, sondern mit AD».
   Tabelle (beide schreiben nicht). 16 Prüfungen bestanden.
 - Reporting-App: Tabellen über 1 MB, Kategorie VHF (Filter «ohne VHF», Archiv, KML, nicht änderbar) erledigt in v261116-01.
 
+**0.8.0 – Rollender Bereich im Flug, Zugang in den Einstellungen, Fusszeile (Rückmeldung 16.11.2026):**
+- Im Flug wird nur noch ein fester Bereich beschrieben: Einstellungen «Im Flug» → «Rollender Bereich» von–bis (Vorgabe
+  75–95, innerhalb 01–98, feste Plätze darin ausgenommen; `settings.flug.von/bis`). Keine Blöcke im Flug mehr: `planBlock`,
+  `applyPlan`, die Blockauswahl `settings.flug.bloecke` und ihre Migrationen sind entfernt (ersetzt 0.6.0–0.7.1).
+- `src/flug.js`: `rollSlots` (Plätze), `rollCands` (je Frequenz die nächste Station, ohne Frequenzen im Gerät; INFO und FIS
+  zuerst, dann die übrigen, je nach Distanz), `rollTargets` (Zielplätze: frei → Frequenz nicht mehr in der Vorausschau →
+  noch gültig; je Stufe der am längsten nicht beschriebene Platz zuerst, Zeitpunkte je Gerät in `krt2.roll.age`),
+  `rollWriteList`, `rollApply` (Blockname `ROLL`, Startseite «Rollend (im Flug)»), `logRows`.
+- `#flug`: Karte «Rollender Bereich» mit Vorschlagsliste als antippbare Zeilen; antippen = auswählen (verschwindet aus der
+  Liste, die übrigen rücken auf), nochmals antippen = herausnehmen; «Schreiben (n)» mit Bestätigung; Tabelle des Bereichs
+  im Gerät (heute / neu). Fehlgeschlagene Plätze bleiben ausgewählt. Richtung von Hand ändern zeichnet erst nach dem
+  Antippen neu (vorher ging ein Tipp auf «Vorschlag holen» direkt nach der Eingabe verloren) und markiert die Liste als alt.
+- Funkprotokoll: Zugang (Beitrittscode, Token) ab jetzt in den Einstellungen (Karte `#st-vhf`, gilt je Browser); ist er
+  eingerichtet, verschwinden die Eingaben. Auf `#flug` ohne Zugang nur der Hinweis mit Link. `cfg.via` = code|token.
+- Fusszeile ohne Warnung («Hilfsmittel ohne Gewähr …»), nur noch die Quellen (openAIP verlangt die Nennung, CC BY-NC 4.0).
+- Tests: `tests/flug.test.js` 32 Prüfungen (rollender Bereich statt Blockplan), `tests/model.test.js` angepasst.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
