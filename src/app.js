@@ -1,9 +1,9 @@
 /* krt2.wicki.aero – App-Oberfläche: Aktuell, Gebiet, Editor, Gerät (ab 0.4.0), Konfigurationen, Einstellungen, A6-Karte. */
 (function () {
   'use strict';
-  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI;
+  const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI, VH = window.KRT2VHFUI;
   const t = I.t;
-  const VERSION = '0.6.5';
+  const VERSION = '0.7.0';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -1041,6 +1041,8 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
 
   // Kontext für die Seite «Im Flug» (src/flugui.js)
   FL.init({ get cfg() { return cfg; }, t, esc, msg, ask, download, stamp, fmtDT, footerNote, route, GR });
+  // Funkprotokoll (0.7.0): läuft auf jeder Seite, sobald eingeschaltet; Anzeige auf «Im Flug»
+  VH.init({ t, esc, msg, ask, download, stamp, fmtDT, route, pos: () => { const h = FL._state.gps.hist, p = h[h.length - 1]; return p && Date.now() - p.t < 120000 ? { lat: p.lat, lon: p.lon, alt: p.alt } : null; } });
 
   // Offline: Service Worker hält App und Frequenzdaten bereit (0.6.0)
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(e => console.warn('Service Worker:', e.message));
@@ -1057,6 +1059,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (ev.target.closest('[data-act=printcard]')) { ev.preventDefault(); const go = () => setTimeout(() => window.print(), 350); if (route() === 'karte') go(); else { location.hash = '#karte'; go(); } return; }
     if (route() === 'gebiet' && ev.target.closest('[data-ge]')) { window.KRT2GEBIET.onClick(ev); return; }
     if (route() === 'geraet' && ev.target.closest('[data-gr]')) { GR.onClick(ev); return; }
+    if (route() === 'flug' && ev.target.closest('[data-vh]')) { VH.onClick(ev); return; }
     if (route() === 'flug' && ev.target.closest('[data-fl]')) { FL.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
@@ -1093,7 +1096,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     const r = route();
     if (r === 'gebiet') { window.KRT2GEBIET.onChange(ev); return; }
     if (r === 'geraet') { GR.onChange(ev); return; }
-    if (r === 'flug') { FL.onChange(ev); return; }
+    if (r === 'flug') { if (ev.target.closest('[data-vh-in]')) { VH.onChange(ev); return; } FL.onChange(ev); return; }
     if (r === 'editor') onEditorChange(ev);
     else if (r === 'einstellungen') onEinstChange(ev);
     else if (r === 'konfigurationen') onKonfigChange(ev);

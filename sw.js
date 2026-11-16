@@ -2,12 +2,12 @@
    App-Dateien: zuerst das Netz, nach 4 s oder ohne Netz die Kopie im Cache.
    Frequenzdaten (raw.githubusercontent.com/bwicki/krt2/data/): ebenso, jede geladene Datei wird aufbewahrt.
    Nicht angefasst: API (Konten, Gerätestand), Kartenkacheln, Schriften, Zählpixel. */
-const V = '0.6.5';
+const V = '0.7.0';
 const APP = 'krt2-app-' + V, DATA = 'krt2-data';
 const DATA_URL = 'https://raw.githubusercontent.com/bwicki/krt2/data/';
 const WAIT_MS = 4000;
 const SHELL = ['./', './index.html', './img/logo.png', './lib/leaflet/leaflet.css', './lib/leaflet/leaflet.js', './css/app.css?v=' + V]
-  .concat(['config', 'api', 'krt2codec', 'model', 'sample', 'area', 'gebiet', 'i18n', 'krt2decoder', 'link', 'readout', 'geraet', 'flug', 'flugui', 'app']
+  .concat(['config', 'api', 'krt2codec', 'model', 'sample', 'area', 'gebiet', 'i18n', 'krt2decoder', 'link', 'readout', 'geraet', 'flug', 'flugui', 'vhflog', 'vhfui', 'app']
     .map(n => './src/' + n + '.js?v=' + V));
 
 self.addEventListener('install', ev => {

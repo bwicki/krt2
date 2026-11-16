@@ -361,9 +361,30 @@ nicht mit INFO klassifizieren, sondern mit AD».
   Platz; ein Platz, dessen Station wegfällt, bekommt die nächste neue, sonst fällt er weg.
 - AD/TWR als ein Block bestätigt.
 
+**0.7.0 – Funkprotokoll (Konzept krt2_konzept_funkprotokoll v1/v2, Entscheide 16.11.2026):**
+- `src/vhflog.js` (ohne DOM): `VhfLogger` macht aus den Link-Ereignissen `vhf` (active aus U und C, txon aus K, txoff aus Y)
+  Einträge: Frequenz erst nach 3 s Ruhe («FRQ 127.800 ZURICH F active», gleiche Frequenz nicht doppelt, Weiterdrehen ohne
+  Zwischenzeilen), Aussendungen ab 0,3 s («Tx 6.2 sec», Zeit = Beginn), fehlendes Ende → «Tx ? sec (Ende nicht empfangen)».
+  Kein Empfang (Rx). `rowOf` → Zeile im Schema der Reporting-App: type VHF, note, atc_freq, atc_station, atc_dir TX,
+  flight_id/callsign aus `data/_setup.json`, ts_utc/ts_local, Position des Handys (GPS der Seite «Im Flug»), source krt2.
+- Übertragung `flush` jede Minute (Entscheid: 1 min): `<dir>/<Fahrt>.json` mit sha lesen (über 1 MB roh nachgeladen),
+  neue Zeilen anhängen, nach Zeit sortieren, zurückschreiben; Konflikt (409) → neu lesen, bis 3×; gelöschte Zeilen
+  (`<Fahrt>.deleted.json`) werden nie wieder geschrieben; eigene, früher geschriebene Zeilen, die in der Datei fehlen,
+  werden nachgetragen. Dateiname wie die Reporting-App (Zeichen ausser A–Z, 0–9, _ und - → -). Höchstens 60 Schreibzugriffe
+  pro Stunde (GitHub-Grenze 500/h, 80/min); gb_flight_data hat keinen Actions-Ablauf.
+- `src/vhfui.js`: Karte «Funkprotokoll» auf «Im Flug» (Schalter, Status, letzte Einträge, «Jetzt übertragen»); Zugang über
+  den Beitrittscode der Reporting-App (Cloudflare-Dienst basket-join, gleiche Verschlüsselung PBKDF2/AES-GCM; Lese-Codes
+  abgelehnt) oder Token von Hand (bleibt im Browser); «Protokoll erstellen»: Tabelle einer Fahrt lesen, VHF- und auf Wunsch
+  ATC-Zeilen als CSV und druckbare A4-Seite. Läuft auf allen Seiten, solange der Schalter an ist (localStorage krt2.vhf.*).
+- `src/link.js`: Ereignis `vhf`; SimRadio `tune(ch, name)` (U) und `swap()` (C).
+- Tests: `tests/vhflog.test.js` (24 Prüfungen, auch in CI): Entprellung, kurze/fehlende Aussendungen, Zeilenschema,
+  Konflikt, grosse Datei, gelöschte Zeilen, Nachtragen, Protokoll.
+- Offen: Reporting-App liest Tabellen über 1 MB heute nicht (Contents-API liefert dann keinen Inhalt) – Anpassung in
+  gb_notion_frontend vorgeschlagen; Beitrittscode gegen den echten Dienst nicht getestet (CORS für krt2.wicki.aero?).
+
 ## 5 Prüfen
 
-- `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/frequencies.test.mjs`
+- `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
 - `node tests/area.test.mjs [freq-ch.json]` (Formen, Höhenband, Rufnamen; mit Datendatei Vorschlag um Zürich)
 - `node tests/worker.test.mjs` gegen einen lokalen Worker mit leerer Datenbank (SETUP.md, Abschnitt 5)
 - `test.html?sim=1` (nachgebildetes Funkgerät); die App erhält denselben Simulationsmodus

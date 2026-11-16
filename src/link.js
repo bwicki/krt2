@@ -186,14 +186,15 @@
       if (e.kind === 'ack' || e.kind === 'nak') { this._log(e, '←'); if (this.pending) this.pending.done(e.kind === 'ack' ? 'ACK' : 'NAK'); return; }
       if (e.kind !== 'frame') { this._log(e, '←'); return; }
       this._log(e, '←');
-      if (e.ok && e.freq && e.name === 'U') { this.st.active = { freq: e.freq.display, name: e.station.trimEnd() }; this.lastU = e.t; }
+      const wall = Date.now();   // Uhrzeit des Ereignisses für das Funkprotokoll (0.7.0)
+      if (e.ok && e.freq && e.name === 'U') { this.st.active = { freq: e.freq.display, name: e.station.trimEnd() }; this.lastU = e.t; this._emit('vhf', { kind: 'active', t: e.t, wall, ch: this.st.active.freq, name: this.st.active.name }); }
       if (e.ok && e.freq && e.name === 'R') {
         this.st.standby = { freq: e.freq.display, name: e.station.trimEnd() };
         this._emit('R', { t: e.t, freq: e.freq.display, name: e.station, burst: e.t - this.lastU < BURST_MS });
       }
-      if (e.name === 'C') { const a = this.st.active; this.st.active = this.st.standby; this.st.standby = a; }
-      if (e.name === 'K') { this.st.tx = true; this.st.txSince = e.t; this._emit('status'); }
-      if (e.name === 'Y') { const was = this.st.tx; this.st.tx = false; this.st.txSince = null; this.st.txEnd = e.t; if (was) this._emit('status'); }
+      if (e.name === 'C') { const a = this.st.active; this.st.active = this.st.standby; this.st.standby = a; if (this.st.active) this._emit('vhf', { kind: 'active', t: e.t, wall, ch: this.st.active.freq, name: this.st.active.name }); }
+      if (e.name === 'K') { this.st.tx = true; this.st.txSince = e.t; this._emit('status'); this._emit('vhf', { kind: 'txon', t: e.t, wall }); }
+      if (e.name === 'Y') { const was = this.st.tx; this.st.tx = false; this.st.txSince = null; this.st.txEnd = e.t; if (was) this._emit('status'); this._emit('vhf', { kind: 'txoff', t: e.t, wall }); }
       if (e.ok && 'URZCA1234'.includes(e.name)) this._raw([K.ACK], 'ACK auf Meldung ' + e.name);
       this._emit('frame', { name: e.name });
     }
@@ -301,6 +302,9 @@
     _send(bytes, delay) { setTimeout(() => { if (!this.dead) this.link._bytes(Uint8Array.from(bytes)); }, delay); }
     /** Aussendung von ms Dauer (K … Y). */
     tx(ms) { this._send([K.STX, 0x4B], 0); this._send([K.STX, 0x59], ms || 5000); }
+    /** Aktive Frequenz am Gerät einstellen (U) bzw. aktiv/Standby tauschen (C) – für das Funkprotokoll (0.7.0). */
+    tune(ch, name) { this.act = [ch, name || '']; this._send(C.buildU(ch, name || ''), 0); }
+    swap() { const a = this.act || ['122.255', 'BALLOON']; this.act = this.sb; this.sb = a; this._send([K.STX, 0x43], 0); this.link._emit('sim'); }
     /** Verbindung für ms weg (wie der USB-Adapter beim Test 14.11.): keine Meldungen, Schreiben scheitert. */
     drop(ms) { this.dead = true; setTimeout(() => { this.dead = false; }, ms || 10000); }
     _R(v, d) { this._send(C.buildR(v[0], v[1]), d == null ? 25 : d); }
@@ -313,7 +317,7 @@
       if (this.dead) return Promise.reject(new DOMException('The device has been lost.', 'NetworkError'));
       for (const b of u8) {
         if (!this.buf.length) {
-          if (b === 0x78) { if (!this.linked) { this.linked = true; this._send(C.buildU('122.255', 'BALLOON'), 20); this._R(this.sb, 45); } continue; }
+          if (b === 0x78) { if (!this.linked) { this.linked = true; this.act = ['122.255', 'BALLOON']; this._send(C.buildU('122.255', 'BALLOON'), 20); this._R(this.sb, 45); } continue; }
           if (b !== K.STX) continue;
         }
         this.buf.push(b);

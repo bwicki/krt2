@@ -22,7 +22,8 @@
     S.gps.on = true; S.gps.err = '';
     S.gps.id = root.navigator.geolocation.watchPosition(p => {
       const c = p.coords, now = p.timestamp || Date.now(), h = S.gps.hist, last = h[h.length - 1];
-      if (!last || now - last.t >= 4000) h.push({ t: now, lat: c.latitude, lon: c.longitude }); else Object.assign(last, { t: now, lat: c.latitude, lon: c.longitude });
+      const alt = c.altitude == null ? null : c.altitude;
+      if (!last || now - last.t >= 4000) h.push({ t: now, lat: c.latitude, lon: c.longitude, alt }); else Object.assign(last, { t: now, lat: c.latitude, lon: c.longitude, alt });
       while (h.length && now - h[0].t > HIST_MS) h.shift();
       S.gps.acc = Math.round(c.accuracy); S.gps.at = Date.now(); S.gps.err = '';
       if (here()) paintStatus();
@@ -152,10 +153,12 @@
 <div class="row fl-row"><label class="label" for="fl-dir">${t('fl_dir_in')}</label><input id="fl-dir" type="number" inputmode="numeric" min="0" max="359" step="1" data-fl-in="dir" value="${esc(S.manual)}" style="width:90px"></div>
 <p class="note">${t('fl_note')}</p></section>
 ${flightBlocks().length ? flightBlocks().map(b => `<section class="card stack" id="fl-b-${esc(b.id)}"></section>`).join('') : `<section class="card stack"><span class="label">${t('fl_blocks')}</span><p class="note gr-warn">${t('fl_need_block')}</p></section>`}
+<section class="card stack" id="fl-vhf"></section>
 <section class="card stack" id="fl-log"></section>
 <section class="card stack" id="fl-off"></section>
 ${ctx.footerNote()}`;
     paintStatus(); flightBlocks().forEach(b => paintBlock(b.id)); paintLog(); paintOff();
+    if (root.KRT2VHFUI) root.KRT2VHFUI.paint();
   }
   function radioBadge() {
     if (L.state === 'recovering') return `<span class="badge y">${t('fl_st_recover')}</span>`;
