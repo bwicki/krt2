@@ -198,6 +198,7 @@ ${p ? `<div class="row fl-row"><span class="label">${t('fl_pos')}</span><span cl
       body = `<p class="small muted" style="margin:0">${t('fl_plan_info', { z: P.at.toTimeString().slice(0, 5), n: P.n, k: P.plan.keep.length, c: ch.length })}</p>`;
       if (P.plan.mode === 'drop') body += `<p class="note gr-warn">${t('fl_plan_drop', { b: esc(blk.name) })}</p>`;
       if (P.plan.mode === 'insert') body += `<p class="note">${t('fl_plan_insert', { b: esc(blk.name), n: P.plan.nrs.length })}</p>`;
+      if (P.plan.mode === 'resize') body += `<p class="note">${t('fl_plan_resize', { b: esc(blk.name), n: P.plan.nrs.length, m: P.plan.before })}</p>`;
       if (P.plan.dropped && P.plan.dropped.length) body += `<p class="note gr-warn">${t('fl_plan_lost', { s: esc(P.plan.dropped.map(x => x.name).join(', ')) })}</p>`;
       if (!ch.length) body += `<p class="note">${t(P.plan.chosen ? 'fl_plan_none' : 'fl_plan_empty')}</p>`;
       else body += `<div class="card flush"><table class="grid fl-plan"><thead><tr><th style="width:56px">${t('col_nr')}</th><th>${t('gr_col_old')}</th><th>${t('gr_col_new')}</th><th style="width:110px">${t('gr_col_state')}</th></tr></thead><tbody>

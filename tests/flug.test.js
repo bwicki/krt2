@@ -65,20 +65,29 @@ const FREE = nr => ({ nr, ch: '118.000', name: 'FREE' });
   const pOld = F.planBlock({ cfg, block: adA, entries, device: old });
   ok(pOld.nrs.join() === '1,2,3' && pOld.changes.length === 2 && F.applyPlan(old, pOld, adA, { 2: { kind: 'ACK' }, 3: { kind: 'ACK' } }).slice(1, 4).every(p => p.block === 'AD/TWR'), 'alte Blocknamen über den Alias, danach «AD/TWR»');
 }
-// 3b. 0.6.2: Plätze ohne Ersatz werden FREE; schon freie bleiben unberührt
+// 3b. 0.6.5: Block schrumpft auf die gefundenen Frequenzen (keine FREE dazwischen), die folgenden rücken nach; und wächst wieder
 {
-  const cfg = M.defaultConfig(), ad = cfg.bloecke.find(b => b.id === 'b-apptwr');
+  const cfg = M.defaultConfig(), ad = cfg.bloecke.find(b => b.id === 'b-apptwr'), radar = cfg.bloecke.find(b => b.id === 'b-radar');
   const dev = Array.from({ length: 100 }, (_, i) => FREE(i));
   dev[1] = { nr: 1, ch: '134.980', name: 'WNTRT AD', block: 'AD/TWR' };
   dev[2] = { nr: 2, ch: '122.155', name: 'GRNCH AD', block: 'AD/TWR' };
-  dev[3] = { nr: 3, ch: '118.000', name: 'FREE', block: 'AD/TWR', kind: 'free' };
+  dev[3] = { nr: 3, ch: '123.555', name: 'BRFLD AD', block: 'AD/TWR' };
+  dev[4] = { nr: 4, ch: '119.225', name: 'ALPS R', block: 'RADAR' };
   const plan = F.planBlock({ cfg, block: ad, entries: [E('134.980', 'AD', 8, 'WNTRT AD')], device: dev });
-  ok(plan.keep.join() === '1' && plan.changes.length === 1 && plan.changes[0].nr === 2 && plan.changes[0].neu.frei && plan.changes[0].name === 'FREE' && plan.changes[0].neu.ch === '118.000',
-    'Platz 02 ohne Ersatz → FREE, Platz 03 schon frei: ' + plan.changes.map(c => c.nr + '←' + c.name).join(', '));
-  const neu = F.applyPlan(dev, plan, ad, { 2: { kind: 'ACK' } });
-  ok(neu[2].name === 'FREE' && neu[2].block === 'AD/TWR' && neu[2].kind === 'free', 'FREE bleibt im Block');
-  const again = F.planBlock({ cfg, block: ad, entries: [E('134.980', 'AD', 8, 'WNTRT AD')], device: neu });
-  ok(again.nrs.join() === '1,2,3' && again.changes.length === 0, 'danach nichts mehr zu tun');
+  ok(plan.mode === 'resize' && plan.before === 3 && plan.nrs.join() === '1' && plan.keep.join() === '1', 'nur noch eine Frequenz → Block auf 1 Platz: ' + plan.nrs);
+  ok(plan.after[2].ch === '119.225' && plan.after[2].block === 'RADAR' && plan.after[3].name === 'FREE' && plan.after[4].name === 'FREE',
+    'RADAR rückt auf 02, kein FREE im Block: ' + [2, 3, 4].map(n => plan.after[n].name).join(', '));
+  ok(plan.changes.map(c => c.nr).join() === '2,3,4' && !plan.changes.some(c => c.neu.frei && c.block === 'AD/TWR'), 'geschrieben werden 02–04');
+  const neu = F.applyPlan(dev, plan, ad, Object.fromEntries(plan.changes.map(c => [c.nr, { kind: 'ACK' }])));
+  ok(F.slotsOf(neu, ad).map(p => p.nr).join() === '1' && F.slotsOf(neu, radar).map(p => p.nr).join() === '2', 'Gerätestand: AD/TWR 01, RADAR 02');
+  ok(F.planBlock({ cfg, block: ad, entries: [E('134.980', 'AD', 8, 'WNTRT AD')], device: neu }).changes.length === 0, 'danach nichts mehr zu tun');
+  // wieder mehr Frequenzen: der Block wächst (bis zur Grösse im Gerät bzw. im Entwurf), RADAR rückt nach hinten
+  const cfg2 = M.defaultConfig();
+  for (const [ch, k] of [['134.980', 'LSPH AD'], ['120.355', 'LSZK AD'], ['122.155', 'LSZG AD']]) M.addEntry(cfg2, { ch, kurz: k, klar: k, dienst: 'AD', aktiv: true, block: 'b-apptwr' });
+  const ad2 = cfg2.bloecke.find(b => b.id === 'b-apptwr');
+  const grow = F.planBlock({ cfg: cfg2, block: ad2, entries: [E('134.980', 'AD', 8, 'WNTRT AD'), E('121.055', 'AD', 20, 'SCHFH AD'), E('130.755', 'AD', 25, 'HASNA AD'), E('118.100', 'TWR', 30, 'ZURICH T')], device: neu });
+  ok(grow.mode === 'resize' && grow.nrs.join() === '1,2,3' && grow.after[1].ch === '134.980' && grow.after[4].ch === '119.225' && grow.after[4].block === 'RADAR',
+    'wächst auf 3 Plätze (Entwurf: 3), RADAR auf 04: ' + grow.nrs + ' / ' + grow.after[4].name);
 }
 // 3c. 0.6.4: Block ohne Frequenz fällt weg, der nächste Block beginnt dort; mit Frequenzen kommt er an seiner Stelle wieder
 {
@@ -116,7 +125,10 @@ const FREE = nr => ({ nr, ch: '118.000', name: 'FREE' });
   for (const [ch, k] of [['134.980', 'LSPH AD'], ['120.355', 'LSZK AD'], ['122.155', 'LSZG AD'], ['123.555', 'LSZF AD']]) M.addEntry(cfg2, { ch, kurz: k, klar: k, dienst: 'AD', aktiv: true, block: 'b-apptwr' });
   const ad2 = cfg2.bloecke.find(b => b.id === 'b-apptwr'), planned = M.layout(cfg2).ranges.find(r => r.block === 'b-apptwr').nrs.length;
   const back2 = F.planBlock({ cfg: cfg2, block: ad2, entries: [E('130.755', 'AD', 4, 'HASNA AD')], device: d2 });
-  ok(planned === 4 && back2.nrs.length === 4 && back2.after[back2.nrs[1]].name === 'FREE', 'Grösse aus dem Entwurf (' + planned + ' Plätze), Rest FREE');
+  ok(planned === 4 && back2.nrs.length === 1 && back2.after[back2.nrs[0] + 1].block === 'RADAR', 'kommt mit 1 Platz zurück, kein FREE, RADAR direkt danach');
+  const many = ['121.055', '130.755', '122.155', '120.355', '123.555', '119.305'].map((ch, i) => E(ch, 'AD', 4 + i, 'AD' + i));
+  const back3 = F.planBlock({ cfg: cfg2, block: ad2, entries: many, device: d2 });
+  ok(back3.nrs.length === 4, 'höchstens so viele Plätze wie im Entwurf (' + planned + '): ' + back3.nrs.length);
 }
 
 // 4. Echte Daten: Sektor ab Zürich nach Osten

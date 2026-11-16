@@ -2,7 +2,7 @@
    App-Dateien: zuerst das Netz, nach 4 s oder ohne Netz die Kopie im Cache.
    Frequenzdaten (raw.githubusercontent.com/bwicki/krt2/data/): ebenso, jede geladene Datei wird aufbewahrt.
    Nicht angefasst: API (Konten, Gerätestand), Kartenkacheln, Schriften, Zählpixel. */
-const V = '0.6.4';
+const V = '0.6.5';
 const APP = 'krt2-app-' + V, DATA = 'krt2-data';
 const DATA_URL = 'https://raw.githubusercontent.com/bwicki/krt2/data/';
 const WAIT_MS = 4000;

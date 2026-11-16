@@ -64,11 +64,11 @@
   /**
    * Plan für einen Block. device = Gerätestand (100 Plätze, mit .block beim Programmieren aus der App), entries = Vorschlag
    * aus A.propose (mit .dist ab der Position).
-   * - Der Block behält seine Grösse: was schon passt, bleibt auf seinem Platz; frei werdende Plätze bekommen die
-   *   nächstgelegenen neuen Stationen; Plätze ohne Ersatz werden FREE (0.6.2).
-   * - Findet sich keine Frequenz für den Block, fällt er weg und die folgenden Plätze rücken nach (0.6.4).
-   * - Steht der Block nicht (mehr) im Gerät und gibt es wieder Frequenzen, wird er an seiner Stelle wieder eingefügt –
-   *   mit der Grösse aus der Konfiguration – und die folgenden Plätze rücken nach hinten.
+   * - Was schon passt, bleibt auf seinem Platz; Plätze, deren Station wegfällt, bekommen die nächstgelegenen neuen.
+   * - Der Block hat genau so viele Plätze wie gefundene Frequenzen (0.6.5), höchstens so viele wie im Entwurf: er
+   *   schrumpft, wenn weniger da sind, und wächst wieder; die folgenden Plätze rücken entsprechend nach.
+   * - Findet sich keine Frequenz für den Block, fällt er weg (0.6.4); gibt es wieder Frequenzen, kommt er an seiner Stelle
+   *   zurück (vor dem nächsten Block der Konfiguration).
    * Feste Plätze und Frequenzen, die ausserhalb des Blocks schon im Gerät stehen, bleiben unberührt.
    * Ergebnis { nrs, keep, changes:[{ nr, old, neu, name }], after, seq, cand, chosen, mode, dropped }.
    */
@@ -91,7 +91,9 @@
     const svc = new Set(block.svc || []);
     const cand = entries.filter(e => svc.has(e.dienst)).sort((a, b) => (a.dist == null ? 1e9 : a.dist) - (b.dist == null ? 1e9 : b.dist));
     const planned = ((L.ranges || []).find(r => r.block === block.id) || { nrs: [] }).nrs.length;
-    const size = cur.length || planned || block.max || Math.min(10, cand.length);
+    // Höchstgrösse: Plätze des Blocks im Entwurf, sonst heutige Grösse im Gerät, sonst Grenze bzw. höchstens 10
+    let size = planned || cur.length || block.max || Math.min(10, cand.length);
+    if (block.max) size = Math.min(size, block.max);
     const chosen = [], seen = new Set();
     for (const e of cand) {
       const k = key(e.ch);
@@ -101,23 +103,27 @@
     }
     const slotOf = (e) => ({ ch: e.ch, name: nameOf(cfg, e), klar: e.klar || '', dienst: e.dienst, block: block.name, kind: 'entry', cc: e.ort && e.ort.cc ? e.ort.cc : '', _e: e });
     const freeSlot = (blk) => ({ ch: fr.ch, name: fr.kurz, klar: '', dienst: '', block: blk || null, kind: 'free', _free: true });
-    // neuer Inhalt des Blocks (Länge = Blockgrösse; leer, wenn nichts gefunden)
-    let content = [];
-    if (chosen.length) {
-      const want = new Map(chosen.map(e => [key(e.ch), e]));
-      const placed = new Set();
-      content = new Array(size).fill(null);
-      if (cur.length) cur.forEach((p, i) => { const k = key(p.ch); if (k && want.has(k) && !placed.has(k)) { content[i] = { keep: p }; placed.add(k); } });
-      const todo = chosen.filter(e => !placed.has(key(e.ch)));
-      for (let i = 0; i < size; i++) if (!content[i]) content[i] = todo.length ? slotOf(todo.shift()) : freeSlot(block.name);
+    // neuer Inhalt des Blocks (0.6.5): genau die gefundenen Frequenzen, ohne FREE dazwischen. Was passt, bleibt auf seinem
+    // Platz; ein Platz, dessen Station wegfällt, bekommt die nächste neue; gibt es keine mehr, fällt der Platz weg (der Block
+    // schrumpft); weitere neue kommen ans Ende (der Block wächst bis zur Höchstgrösse).
+    const want = new Set(chosen.map(e => key(e.ch)));
+    const placed = new Set();
+    cur.forEach(p => { const k = key(p.ch); if (k && want.has(k) && !placed.has(k)) placed.add(k); });
+    const todo = chosen.filter(e => !placed.has(key(e.ch)));
+    const content = [], kept = new Set();
+    for (const p of cur) {
+      const k = key(p.ch);
+      if (k && want.has(k) && !kept.has(k)) { content.push({ keep: p }); kept.add(k); }
+      else if (todo.length) content.push(slotOf(todo.shift()));
     }
+    while (todo.length) content.push(slotOf(todo.shift()));
     const after = dev.map(p => (p ? Object.assign({}, p) : p));
     let mode = 'block', dropped = [];
     if (cur.length && content.length === cur.length) {
       cur.forEach((p, i) => { const c = content[i]; after[p.nr] = c.keep ? Object.assign({}, p, { block: block.name }) : Object.assign({ nr: p.nr }, c); });
     } else if (cur.length || content.length) {
-      // Block fällt weg oder kommt wieder: ab seiner Stelle rücken die folgenden Plätze nach vorne bzw. nach hinten
-      mode = content.length ? 'insert' : 'drop';
+      // Block fällt weg, kommt wieder oder ändert seine Grösse: ab seiner Stelle rücken die folgenden Plätze nach
+      mode = !content.length ? 'drop' : !cur.length ? 'insert' : 'resize';
       let p0;
       if (cur.length) p0 = seq.indexOf(cur[0].nr);
       else {
@@ -145,7 +151,7 @@
     for (const n of seq) if (after[n]) { delete after[n]._e; delete after[n]._free; delete after[n]._from; }
     const nrs = seq.filter(n => after[n] && after[n].block === block.name);
     const keep = nrs.filter(n => !changes.some(c => c.nr === n) && !isFree(after[n]));   // Frequenzen, die auf ihrem Platz bleiben
-    return { nrs, keep, changes, after, seq, cand: cand.length, chosen: chosen.length, mode, dropped };
+    return { nrs, keep, changes, after, seq, cand: cand.length, chosen: chosen.length, mode, dropped, before: cur.length };
   }
 
   /** Schreibliste für Link.program. */

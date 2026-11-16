@@ -351,7 +351,15 @@ nicht mit INFO klassifizieren, sondern mit AD».
   (`mode: 'insert'`). Sonst behält der Block seine Grösse (FREE für Plätze ohne Ersatz, 0.6.2). Passt nach dem Einfügen
   nicht mehr alles ins Gerät, nennt der Plan die Plätze, die wegfallen (`dropped`). Nach dem Schreiben werden die
   Vorschläge der anderen Blöcke verworfen (ihre Plätze können sich verschoben haben). Fluglog nennt den Block jedes Platzes.
-- Testanleitung v2 (docs/test/krt2_testanleitung_flug_v2_20261115.docx).
+- Testanleitung v2 (docs/test/krt2_testanleitung_flug_v2_20261115.docx); v3 mit 0.6.5 (Block schrumpft und wächst).
+
+**0.6.5 – Antwort 16.11.2026: Block schrumpft statt FREE:**
+- Im Flug hat ein Block genau so viele Plätze wie gefundene Frequenzen (höchstens so viele wie im Entwurf, sonst wie heute
+  im Gerät bzw. Grenze): weniger Frequenzen → der Block schrumpft, die folgenden Plätze rücken nach; mehr → er wächst
+  wieder, die folgenden rücken nach hinten (Plan `mode: 'resize'`, `before` = bisherige Grösse). Keine FREE-Plätze mehr
+  innerhalb eines Blocks (ersetzt die Regel aus 0.6.2); FREE nur noch am Ende des Geräts. Was passt, bleibt auf seinem
+  Platz; ein Platz, dessen Station wegfällt, bekommt die nächste neue, sonst fällt er weg.
+- AD/TWR als ein Block bestätigt.
 
 ## 5 Prüfen
 
