@@ -3,10 +3,10 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI, VH = window.KRT2VHFUI;
   const t = I.t;
-  const VERSION = '0.8.3';
+  const VERSION = '0.8.4';
   const LS = 'krt2.draft';
 
-  const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
+  const ui = { filter: 'all', q: '', curQ: '', compact: (() => { try { return localStorage.getItem('krt2.compact') === '1'; } catch (e) { return false; } })(), storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
   try { ui.deviceSel = localStorage.getItem('krt2.device'); } catch (e) { /* egal */ }
   let cfg = loadDraft() || S.sampleConfig();
 
@@ -107,6 +107,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
     <nav class="main" aria-label="Navigation">${nav().map(([k, l, v]) => `<a href="#${k}"${k === r || (r === 'karte' && k === 'aktuell') ? ' aria-current="page"' : ''}${v ? ' class="later" title="' + esc(t('later_title', { v })) + '"' : (k === 'geraet' || k === 'flug') && LINK.connected ? ' class="live"' : ''}>${t(l)}</a>`).join('')}</nav>
   </div>
   <div class="top-right">
+    ${r === 'aktuell' ? `<button type="button" class="sec iconbtn" data-act="compact" aria-pressed="${ui.compact}" title="${esc(t('cur_compact'))}" aria-label="${esc(t('cur_compact'))}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h4M3 10h4M3 15h4M3 20h4M10 5h4M10 10h4M10 15h4M10 20h4M17 5h4M17 10h4M17 15h4"/></svg></button>` : ''}
     <a class="btn sec iconbtn" id="logbtn" href="#protokoll" title="${esc(t('log_title'))}"${r === 'protokoll' ? ' aria-current="page"' : ''}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span class="lbadge" id="logbadge" hidden></span></a>
     <a class="btn sec iconbtn" href="#karte" data-act="printcard" title="${esc(t('print_card'))}" aria-label="${esc(t('print_card'))}"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/></svg></a>
     <div class="seg" role="group" aria-label="Sprache / language"><button type="button" data-act="lang" data-v="de" aria-pressed="${I.lang === 'de'}">DE</button><button type="button" data-act="lang" data-v="en" aria-pressed="${I.lang === 'en'}">EN</button></div>
@@ -170,6 +171,7 @@ ${msgs.length ? msgs.map(m => `<tr data-mid="${m.id}"><td class="small mono">${e
   function pageAktuell() {
     const dev = ui.device && ui.device.id === ui.deviceSel ? ui.device : null;
     const prog = dev && dev.aktuell && dev.aktuell.plaetze ? dev.aktuell : null;
+    if (ui.compact) { pageCompact(dev, prog); if (API.enabled && ui.devices === null) loadDevices(); return; }
     const groups = prog ? groupsFromDevice(prog.plaetze) : groupsFromLayout(M.layout(cfg));
     const head = prog
       ? `<div class="stack"><span class="label">${t('cur_device')}</span><div class="row"><strong style="font-size:20px">${esc(dev.bezeichnung)}</strong><span class="badge g">${t(prog.herkunft === 'ausgelesen' ? 'cur_read_from' : 'cur_programmed')}</span></div>
@@ -190,6 +192,21 @@ ${footerNote()}`;
     fill();
     $('#q').addEventListener('input', e => { ui.curQ = e.target.value; fill(); });
     if (API.enabled && ui.devices === null) loadDevices();
+  }
+
+  /** Kompakte Liste (0.8.4): nur die Plätze 00–99 in ihrer Reihenfolge – zum schnellen Finden eines Speicherplatzes. */
+  function pageCompact(dev, prog) {
+    const fr = cfg.settings.free || { ch: '118.000', kurz: 'FREE' };
+    const src = prog ? prog.plaetze.map(p => p && { nr: p.nr, ch: p.ch, kurz: String(p.name || '').trim(), free: p.kind === 'free' || String(p.name || '').trim() === fr.kurz })
+      : M.layout(cfg).slots.map(x => x && { nr: x.nr, ch: x.ch, kurz: x.kurz, free: x.kind === 'free' || x.kind === 'roll' });
+    const rows = src.filter(Boolean).sort((a, b) => a.nr - b.nr);
+    $('#page').innerHTML = `<section class="card stack">
+  <div class="spread"><span class="label">${t('cur_compact_h')}</span><div class="row" style="gap:8px">${prog
+    ? `<span class="small">${esc(dev.bezeichnung)} · ${esc(fmtDT(new Date(prog.zeit)))}</span><span class="badge g">${t(prog.herkunft === 'ausgelesen' ? 'cur_read_from' : 'cur_programmed')}</span>`
+    : `<span class="small">«${esc(cfg.name || '–')}»</span><span class="badge y">${t('cur_draft')}</span>`}</div></div>
+  <ol class="compact">${rows.map(x => `<li${x.free ? ' class="free"' : ''}><span class="nr">${pad2(x.nr)}</span><span class="mono">${esc(x.ch)}</span><b class="mono">${esc(x.kurz)}</b></li>`).join('')}</ol>
+</section>
+${footerNote()}`;
   }
 
   function devChips() {
@@ -1073,6 +1090,7 @@ ${users.map(u => `<tr data-uid="${u.id}" class="${u.active ? '' : 'off'}"><td cl
     if (route() === 'flug' && ev.target.closest('[data-fl]')) { FL.onClick(ev); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'lang') { I.setLang(b.dataset.v); render(); return; }
+    if (b.dataset.act === 'compact') { ui.compact = !ui.compact; try { localStorage.setItem('krt2.compact', ui.compact ? '1' : '0'); } catch (e) { /* ohne Speicher */ } render(); return; }
     if (b.dataset.act === 'mclose') { const m = msgs.find(x => x.id === b.closest('[data-mid]').dataset.mid); if (m) { m.toast = false; m.seen = true; saveLog(); } renderMsgs(); return; }
     if (b.dataset.act === 'logclear') { msgs.length = 0; saveLog(); renderMsgs(); pageProtokoll(); return; }
     if (b.dataset.act === 'logcopy') { const txt = msgs.map(m => fmtDT(new Date(m.time)) + '\t' + m.kind + '\t' + m.text).join('\n'); if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {}); return; }

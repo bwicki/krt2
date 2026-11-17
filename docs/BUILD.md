@@ -431,6 +431,13 @@ Frequenz | Kurzname, darunter Klartext und Knopf über die zwei rechten Spalten;
 sichtbarer Beschriftung) statt einer seitlich scrollenden Tabelle mit untereinander stehenden Diensten. Am Laptop bleibt
 die Tabelle; die Spalte Dienste ist mindestens 300 px breit, damit die Dienste nebeneinander stehen.
 
+**0.8.4 – Kompakte Liste, APP/ARR/DEP aus (Rückmeldung 17.11.2026):**
+- «Aktuell»: Knopf links neben dem Protokoll-Knopf (nur auf dieser Seite) schaltet auf eine kompakte Liste nur der Plätze
+  00–99 in Platzreihenfolge (Gerätestand, sonst Entwurf), in Spalten; FREE grau. Wahl bleibt im Browser (`krt2.compact`).
+  Die Grundansicht mit Gruppen bleibt.
+- Gebiet: APP, ARR und DEP im Block AD/TWR standardmässig aus (`gebiet.svcOff` Vorgabe RDO, APP, ARR, DEP); einmalig auch in
+  bestehenden Konfigurationen (`ifrAus`), von Hand wieder einschaltbar. Mit «Nur VFR» bleiben sie ohnehin gesperrt.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

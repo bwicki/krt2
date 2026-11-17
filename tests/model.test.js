@@ -213,3 +213,14 @@ console.log(n + ' Prüfungen bestanden');
   const again = M.fromJSON(M.toJSON(n)); okk(again.bloecke.length === n.bloecke.length && again.adKlasse, 'nur einmal');
   console.log('0.6.1: Flugplätze als AD – ' + k + ' Prüfungen bestanden');
 }
+{
+  // 0.8.4: APP, ARR, DEP im Gebiet standardmässig aus – einmalig auch in bestehenden Konfigurationen
+  let k = 0; const okk = (c, m) => { if (!c) throw new Error('FEHLER: ' + m); k++; };
+  const old = JSON.parse(M.toJSON(M.defaultConfig())); delete old.ifrAus; old.gebiet = { svcOff: ['RDO'] };
+  const n = M.fromJSON(old);
+  okk(['RDO', 'APP', 'ARR', 'DEP'].every(x => n.gebiet.svcOff.includes(x)) && n.ifrAus, 'bestehende Konfiguration: APP, ARR, DEP aus');
+  const own = JSON.parse(M.toJSON(n)); own.gebiet.svcOff = own.gebiet.svcOff.filter(x => x !== 'APP');
+  okk(!M.fromJSON(own).gebiet.svcOff.includes('APP'), 'von Hand wieder eingeschaltet bleibt eingeschaltet');
+  okk(M.fromJSON(M.toJSON(n)).gebiet.svcOff.filter(x => x === 'ARR').length === 1, 'nur einmal');
+  console.log('0.8.4: APP/ARR/DEP aus – ' + k + ' Prüfungen bestanden');
+}

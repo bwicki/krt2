@@ -19,7 +19,7 @@
     c.hoehe = Object.assign({ von: a.von || 'GND', bis: a.bis || 'FL195', radarOhneGrenze: !!a.radar }, c.hoehe || {});
     if (c.hoehe.marginKm == null) c.hoehe.marginKm = a.marginKm != null ? a.marginKm : 10;
     if (!c.gebiet) c.gebiet = { typ: 'kreis', r: 25, defL: 15, defR: 15, pts: [], poly: [] };
-    if (!Array.isArray(c.gebiet.svcOff)) c.gebiet.svcOff = ['RDO'];   // Vorgabe: alle Dienste der Blöcke ausser RDO
+    if (!Array.isArray(c.gebiet.svcOff)) c.gebiet.svcOff = ['RDO', 'APP', 'ARR', 'DEP'];   // Vorgabe: alle Dienste der Blöcke ausser RDO; APP, ARR, DEP aus (0.8.4)
     if (!c.gebiet) c.gebiet = { typ: 'kreis', r: 25, defL: 15, defR: 15, pts: [], poly: [] };
     const g = c.gebiet;
     if (g.defL == null) g.defL = 15; if (g.defR == null) g.defR = 15; if (!g.pts) g.pts = []; if (!g.poly) g.poly = [];

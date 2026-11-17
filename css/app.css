@@ -77,7 +77,13 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .toasts{position:fixed;right:16px;bottom:76px;z-index:20;display:flex;flex-direction:column;gap:8px;max-width:min(480px,calc(100vw - 32px))}
 .toasts .msg{box-shadow:0 6px 18px rgba(20,32,46,.18)}
 .iconbtn{position:relative;padding:6px 9px}
-.iconbtn[aria-current=page]{background:var(--sel)}
+.iconbtn[aria-current=page],.iconbtn[aria-pressed=true]{background:var(--sel)}
+/* «Aktuell» kompakt (0.8.4): Plätze 00–99 in Spalten, von oben nach unten */
+ol.compact{list-style:none;margin:0;padding:0;columns:170px;column-gap:24px;font-size:13px}
+ol.compact li{display:flex;gap:8px;align-items:baseline;padding:2px 0;break-inside:avoid;border-bottom:1px solid var(--hair)}
+ol.compact .nr{flex:0 0 22px;color:var(--muted);font-family:var(--mono)}
+ol.compact li.free{color:var(--muted)}
+ol.compact li.free b{font-weight:400}
 .lbadge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--primary);color:#fff;font:600 11px/18px var(--mono);text-align:center}
 #msgs{display:flex;flex-direction:column;gap:8px}
 .msg{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-size:14px}

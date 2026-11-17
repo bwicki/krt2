@@ -54,7 +54,7 @@
         p99: { on: true, ch: '121.500', kurz: 'EMERGENC', klar: 'Emergency' },
         extra: []   // weitere feste Plätze: { id, nr (01–98), ch, kurz, klar } – ab 0.4.2
       },
-      prioListe: true, icaoDefault: true, adKlasse: true, radar10: true, adTwr: true,
+      prioListe: true, icaoDefault: true, adKlasse: true, radar10: true, adTwr: true, ifrAus: true,
       bloecke: defaultBlocks(),
       eintraege: []
     };
@@ -453,6 +453,10 @@
       migrateAdTwr(cfg);
     }
     cfg.adTwr = true;
+    if (!o.ifrAus && cfg.gebiet && Array.isArray(cfg.gebiet.svcOff)) {      // einmalig (0.8.4): APP, ARR, DEP im Gebiet aus
+      ['APP', 'ARR', 'DEP'].forEach(x => { if (!cfg.gebiet.svcOff.includes(x)) cfg.gebiet.svcOff.push(x); });
+    }
+    cfg.ifrAus = true;
     cfg.schema = SCHEMA;
     if (!o.prioListe) { deselectOverflow(cfg); cfg.prioListe = true; }   // einmalig: Überzählige erscheinen abgewählt (0.4.2)
     if (!o.icaoDefault) {                                                 // einmalig (0.4.3): ICAO-Code ist der Normalfall, wo es einen gibt
