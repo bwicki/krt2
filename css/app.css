@@ -111,6 +111,7 @@ table.grid tr.dragging{opacity:.4}
 td.nr,td.f,td.k{font-family:var(--mono)}
 td.nr{color:var(--muted);width:48px}
 td.mv{white-space:nowrap;width:1%}
+
 td.q .qrow{display:flex;align-items:center;gap:4px;white-space:nowrap}
 .nowrap{flex-wrap:nowrap !important;white-space:nowrap}
 td.k{font-weight:600;white-space:pre}
@@ -229,6 +230,26 @@ dialog .row{justify-content:flex-end;margin-top:16px}
   .fixedgrid>:nth-child(5n+4),.fixedgrid>:nth-child(5n+5){grid-column:2 / -1}
   .fixedgrid>:nth-child(5n+5){justify-self:start;margin-bottom:10px}
   .fixedgrid input{width:100%;min-width:0;box-sizing:border-box}
+}
+/* Blöcke in den Einstellungen (0.8.3): Dienste auf einer umbrechenden Zeile; am Handy jeder Block als eigene Karte */
+table.blocks td.b-svc{min-width:300px}
+table.blocks .b-lbl{display:none}
+@media (max-width:900px){
+  table.blocks thead{display:none}
+  table.blocks,table.blocks tbody{display:block}
+  table.blocks tr{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"mv on name del" "svc svc svc svc" "max max max max" "ord ord ord ord";
+    gap:8px 10px;align-items:center;padding:12px;margin-bottom:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+  table.blocks tr.off{background:var(--row-off)}
+  table.blocks td{display:block;padding:0;border:0;background:transparent!important;min-width:0}
+  table.blocks td.mv{grid-area:mv;width:auto}
+  table.blocks td.b-on{grid-area:on}
+  table.blocks td.b-name{grid-area:name}
+  table.blocks td.b-name input{width:100%!important}
+  table.blocks td.b-del{grid-area:del}
+  table.blocks td.b-svc{grid-area:svc;min-width:0;border-top:1px solid var(--hair);padding-top:8px}
+  table.blocks td.b-max{grid-area:max}
+  table.blocks td.b-ord{grid-area:ord}
+  table.blocks .b-lbl{display:inline}
 }
 @media print{
   @page{size:A4 portrait;margin:0}

@@ -3,7 +3,7 @@
   'use strict';
   const M = window.KRT2MODEL, C = window.KRT2CODEC, I = window.KRT2I18N, S = window.KRT2SAMPLE, API = window.KRT2API, LINK = window.KRT2LINK.link, GR = window.KRT2GERAET, FL = window.KRT2FLUGUI, VH = window.KRT2VHFUI;
   const t = I.t;
-  const VERSION = '0.8.2';
+  const VERSION = '0.8.3';
   const LS = 'krt2.draft';
 
   const ui = { filter: 'all', q: '', curQ: '', storageWarned: false, devices: null, device: null, deviceSel: null, colF: { k: '', dx: [], ccx: [] }, sort: { by: 'nr', dir: 1 } };
@@ -657,13 +657,13 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
       const rest = M.servicesOf(cfg).filter(s => !b.svc.includes(s));
       return `<tr data-bid="${b.id}" class="${b.on ? '' : 'off'}">
 <td class="mv"><button type="button" class="ghost" data-act="bup" aria-label="${esc(t('ed_up'))}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="ghost" data-act="bdown" aria-label="${esc(t('ed_down'))}" ${i === cfg.bloecke.length - 1 ? 'disabled' : ''}>▼</button></td>
-<td><input type="checkbox" data-b="on" ${b.on ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(b.name)}"></td>
-<td><input type="text" data-b="name" value="${esc(b.name)}" aria-label="${esc(t('st_block'))}" style="width:130px;font-weight:600"></td>
-<td><div class="row" style="gap:6px">${b.svc.map(s => `<span class="tag">${s}<button type="button" data-act="svcdel" data-svc="${s}" aria-label="${s} ×">×</button></span>`).join('')}
+<td class="b-on"><label class="row nowrap" style="gap:6px"><input type="checkbox" data-b="on" ${b.on ? 'checked' : ''} aria-label="${esc(t('col_on'))} ${esc(b.name)}"><span class="b-lbl small muted">${t('col_on')}</span></label></td>
+<td class="b-name"><input type="text" data-b="name" value="${esc(b.name)}" aria-label="${esc(t('st_block'))}" style="width:130px;font-weight:600"></td>
+<td class="b-svc"><div class="row" style="gap:6px">${b.svc.map(s => `<span class="tag">${s}<button type="button" data-act="svcdel" data-svc="${s}" aria-label="${s} ×">×</button></span>`).join('')}
   <select data-b="svcadd" aria-label="${esc(t('st_svc'))} +" style="min-height:28px;padding:2px 6px"><option value="">+</option>${rest.map(s => `<option>${s}</option>`).join('')}</select></div></td>
-<td><div class="row nowrap" style="gap:6px"><input type="number" min="1" max="98" data-b="max" value="${b.max == null ? '' : b.max}" placeholder="${esc(t('st_all'))}" aria-label="${esc(t('st_max'))}" style="width:70px"><span class="small muted">${t('st_places')}</span></div></td>
-<td><select data-b="order" aria-label="${esc(t('st_order'))}">${M.ORDERS.map(o => `<option value="${o}"${o === b.order ? ' selected' : ''}>${t('ord_' + o)}</option>`).join('')}</select></td>
-<td><button type="button" class="ghost" data-act="bdel" aria-label="${esc(t('st_del_block'))}" title="${esc(t('st_del_block'))}">×</button></td></tr>`;
+<td class="b-max"><label class="row nowrap" style="gap:6px"><span class="b-lbl small muted">${t('st_max')}</span><input type="number" min="1" max="98" data-b="max" value="${b.max == null ? '' : b.max}" placeholder="${esc(t('st_all'))}" aria-label="${esc(t('st_max'))}" style="width:70px"><span class="small muted">${t('st_places')}</span></label></td>
+<td class="b-ord"><label class="row nowrap" style="gap:6px"><span class="b-lbl small muted">${t('st_order')}</span><select data-b="order" aria-label="${esc(t('st_order'))}">${M.ORDERS.map(o => `<option value="${o}"${o === b.order ? ' selected' : ''}>${t('ord_' + o)}</option>`).join('')}</select></label></td>
+<td class="b-del"><button type="button" class="ghost" data-act="bdel" aria-label="${esc(t('st_del_block'))}" title="${esc(t('st_del_block'))}">×</button></td></tr>`;
     };
     const p0 = cfg.fixed.p00, p9 = cfg.fixed.p99;
     $('#page').innerHTML = `
@@ -689,7 +689,7 @@ ${cfg.beispiel ? `<p class="note">${t('sample_note')}</p>` : ''}
   <div class="row"><button type="button" class="sec" data-act="fxadd">${t('st_fx_add')}</button></div>
   <p class="note">${t('st_fx_note')}</p></section>
 <section class="card stack"><div class="spread"><span class="label">${t('st_blocks')}</span><button type="button" class="sec" data-act="badd">${t('st_add_block')}</button></div>
-  <div style="overflow-x:auto"><table class="grid"><thead><tr><th><span class="sr">${t('col_move')}</span></th><th>${t('col_on')}</th><th>${t('st_block')}</th><th>${t('st_svc')}</th><th>${t('st_max')}</th><th>${t('st_order')}</th><th></th></tr></thead>
+  <div style="overflow-x:auto"><table class="grid blocks"><thead><tr><th><span class="sr">${t('col_move')}</span></th><th>${t('col_on')}</th><th>${t('st_block')}</th><th>${t('st_svc')}</th><th>${t('st_max')}</th><th>${t('st_order')}</th><th></th></tr></thead>
   <tbody>${cfg.bloecke.map(blockRow).join('')}</tbody></table></div></section>
 <section class="card stack"><div class="spread"><span class="label">${t('sv_title')}</span>
   <div class="row"><button type="button" class="sec" data-act="svc-sort">${t('sv_sort')}</button><button type="button" class="sec" data-act="svc-reset">${t('sv_reset')}</button><button type="button" class="sec" data-act="svk-reset" ${Object.keys(cfg.settings.svcKurz || {}).length ? '' : 'disabled'}>${t('svk_reset')}</button>

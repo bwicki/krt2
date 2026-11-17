@@ -426,6 +426,11 @@ Frequenz | Kurzname, darunter Klartext und Knopf über die zwei rechten Spalten;
 - Vorschlagsliste zeigt nach INFO und FIS alle übrigen Frequenzen (Entscheid bestätigt).
 - Tests: `tests/flug.test.js` 41 Prüfungen.
 
+**0.8.3 – Blöcke in den Einstellungen am Handy (Rückmeldung 17.11.2026):** Unter 900 px ist jeder Block eine eigene Karte
+(Pfeile, An, Name, ×; darunter die Dienste auf einer umbrechenden Zeile; darunter «Höchstens» und «Reihenfolge» mit
+sichtbarer Beschriftung) statt einer seitlich scrollenden Tabelle mit untereinander stehenden Diensten. Am Laptop bleibt
+die Tabelle; die Spalte Dienste ist mindestens 300 px breit, damit die Dienste nebeneinander stehen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
