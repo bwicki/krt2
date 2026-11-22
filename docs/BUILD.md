@@ -455,6 +455,10 @@ Android-Berechtigung «Geräte in der Nähe» (Einstellungen → Apps → Chrome
 zulassen, Chrome neu starten). Festgestellt von Balthasar am 22.11.2026 mit Chrome 157 auf dem Samsung S24 Ultra.
 Neuer Text `gr_conn_note_perm` (de/en); am Laptop unverändert.
 
+**0.8.8 – Hinweis auch als Meldung (22.11.2026):** Schliesst man auf Android die Geräteauswahl ohne Gerät
+(`requestPort` → `NotFoundError`), zeigt die App denselben Hinweis zusätzlich als Meldung (Stufe «warn»: erscheint sofort als
+Einblendung und steht im Protokoll; «info» landete nur im Protokoll). Am Laptop bleibt das Schliessen der Auswahl still wie bisher.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

@@ -126,7 +126,11 @@
   // ---------- Verbindung ----------
   async function connect(sim) {
     try { await L.connect({ sim }); ctx.msg(t(sim ? 'gr_m_sim' : 'gr_m_conn'), 'ok'); }
-    catch (e) { if (e && e.name === 'NotFoundError') return; ctx.msg(t('gr_m_conn_err', { e: e.message }), 'err'); }
+    catch (e) {
+      // Auswahl ohne Gerät geschlossen: auf Android meist die fehlende Berechtigung «Geräte in der Nähe» (0.8.8)
+      if (e && e.name === 'NotFoundError') { if (ANDROID && !sim) ctx.msg(t('gr_conn_note_perm'), 'warn'); return; }
+      ctx.msg(t('gr_m_conn_err', { e: e.message }), 'err');
+    }
     if (here()) render();
   }
   function onLink(type, d) {
