@@ -1,6 +1,6 @@
 # TQ KRT2-S2 Memory Manager — krt2.wicki.aero
 
-**App 0.8.6 · README Dok. 261122-04**
+**App 0.8.6 · README Dok. 261122-05**
 
 Programmiert die 100 Speicherplätze des Flugfunkgeräts TQ KRT2 über die RS-232-Fernsteuerschnittstelle:
 Frequenzen für ein auf der Karte markiertes Gebiet (Kreis, Rechteck, Vieleck, Korridor) aus öffentlichen
@@ -123,7 +123,7 @@ siehe `SETUP.md`.
 ## Hardware
 
 `hardware/adaptergehaeuse` — parametrisches Gehäuse für das USB-RS232-Board EX-13101, je Hälfte als STL,
-mit Querrippe hinter dem USB-Stecker und Kabelkanal für Kabel Ø 4,7 mm; Lötbelegung und Montage im README dort.
+mit Querrippe hinter dem USB-Stecker, Griffrillen und Kabelkanal für Kabel Ø 4,9 mm, stehend druckbar; Lötbelegung und Montage im README dort.
 
 ## Lizenz
 

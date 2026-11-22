@@ -1,8 +1,9 @@
-# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v5, Querrippe, verklebt)
+# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v6, Griffrillen, stehend gedruckt, verklebt)
 
-Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stützen, verklebt – ohne Kabelbinder.
-Erzeugt mit `python3 gehaeuse.py [Lücke] [Kabel-Ø]` (Vorgabe 2.1 mm, Kabel 4.7 mm; braucht `manifold3d`, `numpy`).
-Verdrahtung, Druck und Montage: `ex13101_gehaeuse_anleitung_v5_20261122-02.docx`.
+Zwei Hälften, stehend gedruckt (Kabelende unten, PLA, 0.08 mm Schicht), ohne Stützen, verklebt – ohne Kabelbinder.
+Erzeugt mit `python3 gehaeuse.py [Lücke] [Kabel-Ø] [--liegend] [--probe]` (Vorgabe 2.1 mm, Kabel 4.9 mm; braucht
+`manifold3d`, `numpy`). Die STL liegen stehend; `--liegend` legt die Schnittfläche nach unten wie bei v5.
+Verdrahtung, Druck und Montage: `ex13101_gehaeuse_anleitung_v6_20261122.docx`.
 
 ## Verdrahtung (Sensorleitung vom Binder-Stecker der ART-36A, am Gerät erprobt 22.11.2026)
 
@@ -24,13 +25,18 @@ Funkgerät, lose: weiss gegen schwarz etwa −5.5 V, blau etwa 0 V.
   Platine 21.1 × 11.03 mm.
 - Halt: Querrippe in der oberen Hälfte in der Lücke zwischen Mantel-Hinterkante und Haltezähnen (1.8 mm dick,
   0.15 mm Spiel je Seite, berührt die Platine nicht). Hinter den Zähnen Kanal in Platinenbreite (11.43 mm).
-- Aussen 43.3 × 18.8 × 15.8 mm (vorne 16.4 × 9.0 mm), je Hälfte 3.1 cm³; Klebefläche 272 mm² je Hälfte.
-- Kammer 14 × 11 mm über den Lötpunkten (ab 5 mm vor der Platinen-Hinterkante).
+- Aussen 43.3 × 18.8 × 15.8 mm (vorne 16.4 × 9.0 mm), je Hälfte 3.0 cm³; Klebefläche 265 mm² je Hälfte.
+- Form: Längskanten gerundet (vorne R 1.5, Griffteil R 2.0), 45°-Übergang, 0.6-mm-Fasen an beiden Enden;
+  7 umlaufende V-Griffrillen (0.6 mm tief, 45°, Teilung 2.5 mm) auf dem Griffteil.
+- Kammer 14 × 11 mm über den Lötpunkten (ab 5 mm vor der Platinen-Hinterkante), vorne 45°-Trichter in den Kanal.
 - Ausrichtung: vorne der Blechmantel und die Rippe, hinten zwei Passstifte aus 1.75-mm-Filament (5.5 mm lang).
-- Zugentlastung: drei Klemmrippen Ø 4.0 mm im Kanal Ø 5.0 mm (Kabel Ø 4.7 mm).
-- `…_probe_…stl`: die vorderen 12 mm der oberen Hälfte, prüft den Sitz der Rippe vor dem ganzen Druck.
+- Zugentlastung: drei Klemmrippen Ø 4.2 mm im Kanal Ø 5.2 mm (Kabel Ø 4.9 mm).
+- Stehend gedruckt hängen alle Flächen höchstens 45° über, ausser Querrippe (1.5 mm), Klemmrippen (0.5 mm) und den
+  Passstiftbohrungen (Ø 2 mm).
+- PLA: kein Aceton (verschweisst nur ASA); PLA wird ab etwa 55–60 °C weich – wo es heiss wird, in ASA drucken.
 
-Sitz der Querrippe am Probestück bestätigt (22.11.2026): Die Lücke liegt längs zwischen Mantel und Zähnen.
+Sitz der Querrippe am v5-Probestück bestätigt (22.11.2026): Die Lücke liegt längs zwischen Mantel und Zähnen.
+`--probe` erzeugt das Probestück (vordere 12 mm der oberen Hälfte) bei Bedarf neu.
 Annahmen: Die Platine liegt ungefähr in der Mantelmitte; die Zähne ragen mindestens 1 mm über die Platine.
-Frühere Stände: v4 verklebt mit geschätzter Platinenlänge 21 mm und Anschlägen hinter der Platine; v3 mit
+Frühere Stände: v5 wie v6 ohne Rillen und Rundungen, Kabel 4.7 mm, liegend gedruckt; v4 verklebt mit geschätzter Platinenlänge 21 mm und Anschlägen hinter der Platine; v3 mit
 Kabelbindern (Git-Verlauf); v1/v2 waren fehlerhaft geschriebene STL.
