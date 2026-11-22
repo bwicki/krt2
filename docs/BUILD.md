@@ -445,6 +445,10 @@ Decoder liefert `vol`, `sq`, `vox`). Das Gerät meldet «A», sobald Lautstärke
 (am Gerät bestätigt 22.11.2026); vorher und bei Werten, die es nicht meldet, steht «–» (das Protokoll kennt keine Abfrage).
 - Tests: `tests/link.test.js` 21 Prüfungen.
 
+**0.8.6 – Simulation meldet die Lautstärke (22.11.2026):** Im simulierten Gerät verstellt «1 Raste» ohne MEM die
+Lautstärke (1–20) und meldet sie mit «A», wie das echte KRT2; nach dem Verbindungsaufbau kommt weiterhin kein «A»
+(Messung 13.11.2026). Hinweis `gr_sim_vol` entsprechend. Tests: `tests/link.test.js` 23 Prüfungen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

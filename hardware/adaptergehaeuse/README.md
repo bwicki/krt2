@@ -30,7 +30,7 @@ Funkgerät, lose: weiss gegen schwarz etwa −5.5 V, blau etwa 0 V.
 - Zugentlastung: drei Klemmrippen Ø 4.0 mm im Kanal Ø 5.0 mm (Kabel Ø 4.7 mm).
 - `…_probe_…stl`: die vorderen 12 mm der oberen Hälfte, prüft den Sitz der Rippe vor dem ganzen Druck.
 
-Annahme: Die Lücke liegt längs zwischen Mantel und Zähnen (Summe 40.34 mm zu Datenblatt 40.00 mm); die Platine liegt
-ungefähr in der Mantelmitte; die Zähne ragen mindestens 1 mm über die Platine.
+Sitz der Querrippe am Probestück bestätigt (22.11.2026): Die Lücke liegt längs zwischen Mantel und Zähnen.
+Annahmen: Die Platine liegt ungefähr in der Mantelmitte; die Zähne ragen mindestens 1 mm über die Platine.
 Frühere Stände: v4 verklebt mit geschätzter Platinenlänge 21 mm und Anschlägen hinter der Platine; v3 mit
 Kabelbindern (Git-Verlauf); v1/v2 waren fehlerhaft geschriebene STL.

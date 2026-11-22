@@ -473,7 +473,7 @@ ${!c.ref ? `<span class="badge">${t('gr_check_noref')}</span>` : c.hits.length ?
     if (a === 'sim') return connect(true);
     if (a === 'disconnect') { if (S.prog && S.prog.running) { ctx.msg(t('gr_busy'), 'warn'); return; } await L.disconnect(); ctx.msg(t('gr_m_disc'), 'info'); render(); return; }
     if (a === 'simmem') { L.simRadio.memKey(); return; }
-    if (a === 'simturn') { if (!L.simRadio.turn()) ctx.msg(t('gr_sim_vol'), 'info'); return; }
+    if (a === 'simturn') { if (!L.simRadio.turn()) ctx.msg(t('gr_sim_vol', { v: L.simRadio.vol }), 'info'); return; }
     if (a === 'simtx') { L.simRadio.tx(5000); return; }
     if (a === 'simdrop') { L.simRadio.drop(10000); ctx.msg(t('gr_sim_drop_m'), 'info'); return; }
     if (a === 'logsave') { ctx.download('krt2_verbindung_' + ctx.stamp() + '.txt', L.logText(), 'text/plain;charset=utf-8'); return; }

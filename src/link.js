@@ -291,13 +291,15 @@
 
   /* Nachgebildetes Funkgerät für die Simulation (wie am 13.11.2026 gemessen): fragt alle 3 s mit «S», meldet nach der
      ersten Antwort U und R, quittiert Z (28 ms) und R, «W» blättert ohne Meldung. MEM und Drehknopf: R bei jeder Raste,
-     MEM allein und das Verlassen nach 3.5 s ohne Bedienung melden nichts. failNext(n): die nächsten n Befehle ohne ACK. */
+     MEM allein und das Verlassen nach 3.5 s ohne Bedienung melden nichts. Ohne MEM verstellt der Knopf die Lautstärke
+     (1–20) und das Gerät meldet «A» (am Gerät bestätigt 22.11.2026; nach dem Verbindungsaufbau kommt kein «A»).
+     failNext(n): die nächsten n Befehle ohne ACK. */
   class SimRadio {
     constructor(link) {
       this.link = link; this.buf = []; this.linked = false; this.inMem = false; this.fail = 0; this.dead = false;
       const named = [['121.500', 'EMERGENC'], ['118.000', 'MIN'], ['118.005', 'MIN-8'], ['124.700', 'ZURI I'], ['118.100', 'ZURI T'], ['127.205', 'ZURI VOL'], ['126.350', 'GENF I'], ['128.050', 'SWISS R']];
       this.mem = Array.from({ length: 100 }, (_, i) => (i < named.length ? named[i].slice() : ['136.975', '']));
-      this.idx = 98; this.sel = 98; this.sb = ['136.975', ''];
+      this.idx = 98; this.sel = 98; this.sb = ['136.975', '']; this.vol = 10; this.sq = 5; this.vox = 3;
       this.timer = setInterval(() => this._send([0x53], 0), 3000);
     }
     _send(bytes, delay) { setTimeout(() => { if (!this.dead) this.link._bytes(Uint8Array.from(bytes)); }, delay); }
@@ -312,7 +314,8 @@
     _arm() { clearTimeout(this.memT); this.memT = setTimeout(() => { this.inMem = false; this.idx = this.sel; this.sb = this.mem[this.sel]; this.link._emit('sim'); }, 3500); }
     get display() { return this.inMem ? 'SEL[' + String(this.sel).padStart(2, '0') + '] ' + this.mem[this.sel][0] + ' ' + this.mem[this.sel][1] : 'Standby ' + this.sb[0] + ' ' + this.sb[1]; }
     memKey() { if (this.inMem) { this.inMem = false; clearTimeout(this.memT); this.idx = this.sel; this.sb = this.mem[this.sel]; } else { this.inMem = true; this.sel = this.idx; this._arm(); } this.link._emit('sim'); }
-    turn() { if (!this.inMem) return false; this.sel = (this.sel + 1) % 100; this._R(this.mem[this.sel]); this._arm(); this.link._emit('sim'); return true; }
+    /** Eine Raste: im Speichermodus nächster Platz (meldet R), sonst Lautstärke +1 (meldet A); false = kein Speicherschritt. */
+    turn() { if (!this.inMem) { this.vol = this.vol % 20 + 1; this._send([K.STX, 0x41, this.vol, this.sq, this.vox, (this.sq + this.vox) & 0xFF], 25); return false; } this.sel = (this.sel + 1) % 100; this._R(this.mem[this.sel]); this._arm(); this.link._emit('sim'); return true; }
     failNext(n) { this.fail = n; }
     write(u8) {
       if (this.dead) return Promise.reject(new DOMException('The device has been lost.', 'NetworkError'));

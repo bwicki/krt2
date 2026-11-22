@@ -25,6 +25,9 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   ok(L.st.vol === 12 && L.st.sq === 5, '«A» setzt Lautstärke 12 und Squelch 5');
   L._bytes(Uint8Array.from([0x02, 0x41, 15, 7, 3, 99]));
   ok(L.st.vol === 12 && L.st.sq === 5, '«A» mit falscher Prüfsumme ändert nichts');
+  ok(L.simRadio.turn() === false, 'Simulation: Raste ohne MEM ist kein Speicherschritt');
+  for (let i = 0; i < 20 && L.st.vol === 12; i++) await sleep(20);
+  ok(L.st.vol === 11 && L.st.sq === 5, 'Simulation: Raste ohne MEM meldet Lautstärke 11 mit «A»');
 
   // 1. Während einer Aussendung wird nicht geschrieben: der Befehl geht erst nach «Ende» (Y) hinaus
   L.simRadio.tx(1500); await sleep(100);
