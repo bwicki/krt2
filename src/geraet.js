@@ -313,6 +313,7 @@
   <div class="row" id="gr-connbtn"></div>
   ${L.supported || L.sim ? '' : `<p class="note gr-warn">${t('gr_unsupported')}</p>`}
   <p class="note">${t(ANDROID ? 'gr_conn_note_bt' : 'gr_conn_note')}</p>
+  ${ANDROID ? `<p class="note">${t('gr_conn_note_perm')}</p>` : ''}
   <div class="row" id="gr-sim"></div>
 </section>
 

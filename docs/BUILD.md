@@ -449,6 +449,12 @@ Decoder liefert `vol`, `sq`, `vox`). Das Gerät meldet «A», sobald Lautstärke
 Lautstärke (1–20) und meldet sie mit «A», wie das echte KRT2; nach dem Verbindungsaufbau kommt weiterhin kein «A»
 (Messung 13.11.2026). Hinweis `gr_sim_vol` entsprechend. Tests: `tests/link.test.js` 23 Prüfungen.
 
+**0.8.7 – Android-Hinweis «Geräte in der Nähe» (22.11.2026):** Unter «Adapter verbinden» steht auf Android ein zweiter
+Hinweis: Zeigt Chrome in der Geräteauswahl «Keine kompatiblen Geräte gefunden», fehlt Chrome meist die
+Android-Berechtigung «Geräte in der Nähe» (Einstellungen → Apps → Chrome → Berechtigungen → Geräte in der Nähe →
+zulassen, Chrome neu starten). Festgestellt von Balthasar am 22.11.2026 mit Chrome 157 auf dem Samsung S24 Ultra.
+Neuer Text `gr_conn_note_perm` (de/en); am Laptop unverändert.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
