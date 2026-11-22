@@ -1,15 +1,35 @@
-# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v4, verklebt)
+# Gehäuse für das USB-RS232-Board EXSYS EX-13101 (v5, Querrippe, verklebt)
 
-Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stützen, **verklebt – ohne Kabelbinder**.
-Erzeugt mit `python3 gehaeuse.py [Platinenlänge hinter dem Stecker] [Kabel-Ø]` (Vorgabe 21 mm, Kabel 4.7 mm; braucht
-`manifold3d`, `numpy`). Druck- und Montageanleitung: `ex13101_gehaeuse_anleitung_v4_20261121.docx`.
+Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stützen, verklebt – ohne Kabelbinder.
+Erzeugt mit `python3 gehaeuse.py [Lücke] [Kabel-Ø]` (Vorgabe 2.1 mm, Kabel 4.7 mm; braucht `manifold3d`, `numpy`).
+Verdrahtung, Druck und Montage: `ex13101_gehaeuse_anleitung_v5_20261122.docx`.
 
-- Aussen 45.0 × 18.8 × 15.8 mm (vorne über der Platine 16.4 × 9.0 mm), je Hälfte 3.1 cm³.
-- Klebefläche 264 mm² je Hälfte (v3: 160 mm²): Wände vorne 2.0 mm, um die Kammer 2.4 mm, Querwand 3 mm, Austrittswand 7 mm.
-- Ausrichtung: vorne der USB-Stecker selbst, hinten zwei Passstifte aus 1.75-mm-Filament (5.5 mm lang) in Bohrungen Ø 2.0 mm.
-- Zugentlastung: drei Klemmrippen Ø 4.0 mm im Kanal Ø 5.0 mm (Kabel Ø 4.7 mm); Zug geht über die Rippen aufs Gehäuse und
-  über zwei Anschläge hinter der Platinen-Hinterkante auf Platine und Stecker, nicht auf die Lötstellen.
-- Erst löten und prüfen, dann kleben (Sekundenkleber-Gel empfohlen). Verklebt ist endgültig.
+## Verdrahtung (Kabel vom Binder-Stecker der ART-36A)
 
-Annahme: Platine 21 mm hinter dem Blechmantel (aus dem Datenblattfoto geschätzt; nach Erhalt nachmessen).
-Frühere Stände: v3 mit zwei Kabelbindern aussen und einem als Zugentlastung (Git-Verlauf); v1/v2 waren fehlerhaft geschriebene STL.
+| Ader | Signal | Lötpunkt | Wo |
+|---|---|---|---|
+| gelb | TX-Remote, vom Funkgerät | 9 RXD | Oberseite «RX» |
+| grün | RX-Remote, zum Funkgerät | 7 TXD | Oberseite «T» |
+| schwarz | Masse | 1 GND | Unterseite, unter «C» |
+| 4. Ader | – | keiner | abschneiden, isolieren |
+
+Alle anderen Lötpunkte frei, besonders 2 VCC. Vorher messen (Board im USB): Lötpunkt «T» gegen GND muss
+**−5 bis −6 V** zeigen (RS-232-Pegelwandler vorhanden). Zeigt er +3.3 V oder +5 V, hat das Board Logikpegel und darf
+nicht ans KRT2.
+
+## Gehäuse
+
+- Board nach Messung vom 22.11.2026: Blechmantel 15.03 × 12.0 × 4.6 mm, Lücke 2.1 mm, Haltezähne 2.11 mm,
+  Platine 21.1 × 11.03 mm.
+- Halt: Querrippe in der oberen Hälfte in der Lücke zwischen Mantel-Hinterkante und Haltezähnen (1.8 mm dick,
+  0.15 mm Spiel je Seite, berührt die Platine nicht). Hinter den Zähnen Kanal in Platinenbreite (11.43 mm).
+- Aussen 43.3 × 18.8 × 15.8 mm (vorne 16.4 × 9.0 mm), je Hälfte 3.1 cm³; Klebefläche 272 mm² je Hälfte.
+- Kammer 14 × 11 mm über den Lötpunkten (ab 5 mm vor der Platinen-Hinterkante).
+- Ausrichtung: vorne der Blechmantel und die Rippe, hinten zwei Passstifte aus 1.75-mm-Filament (5.5 mm lang).
+- Zugentlastung: drei Klemmrippen Ø 4.0 mm im Kanal Ø 5.0 mm (Kabel Ø 4.7 mm).
+- `…_probe_…stl`: die vorderen 12 mm der oberen Hälfte, prüft den Sitz der Rippe vor dem ganzen Druck.
+
+Annahme: Die Lücke liegt längs zwischen Mantel und Zähnen (Summe 40.34 mm zu Datenblatt 40.00 mm); die Platine liegt
+ungefähr in der Mantelmitte; die Zähne ragen mindestens 1 mm über die Platine.
+Frühere Stände: v4 verklebt mit geschätzter Platinenlänge 21 mm und Anschlägen hinter der Platine; v3 mit
+Kabelbindern (Git-Verlauf); v1/v2 waren fehlerhaft geschriebene STL.

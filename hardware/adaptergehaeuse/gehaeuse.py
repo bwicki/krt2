@@ -1,44 +1,57 @@
 """Gehäuse für das USB-RS232-Board EXSYS EX-13101 (FT232RL) am Prüfkabel zur Binder-Buchse der ART-36A.
 
-v4 (21.11.2026): ohne Kabelbinder. Die zwei Hälften (Schnitt in der Platinenebene) werden verklebt:
-- breitere Wände (vorne 2.0 mm, Kammer 2.4 mm; v3 1.6 mm) und längere Quer- und Austrittswände geben 264 mm² Klebefläche
-  je Hälfte (v3: 160 mm²);
-- ausgerichtet werden die Hälften vorne vom USB-Stecker selbst (liegt in beiden Hälften) und hinten von zwei Passstiften
-  aus Filament (Ø 1.75 mm, 5.5 mm lang) in Bohrungen Ø 2.0 mm;
-- Zugentlastung: drei Klemmrippen im Kabelkanal drücken den Kabelmantel zusammen, sobald die Hälften verklebt sind.
-  Zug am Kabel geht über die Rippen auf das Gehäuse und über zwei Anschläge hinter der Platinen-Hinterkante auf die
-  Platine und den USB-Stecker – nicht auf die Lötstellen.
+v5 (22.11.2026): nach den Massen des gelieferten Boards (Balthasar, 22.11.2026):
+  Blechmantel 15.03 mm lang, 12.0 × 4.6 mm (Datenblatt); dahinter eine Lücke von 2.1 mm, dann die zwei angelöteten
+  Haltezähne des Mantels (2.11 mm lang, an beiden Platinenkanten), dann 21.1 mm grüne Platine, 11.03 mm breit.
+  Gesamt 40.34 mm (Datenblatt 40.00).
+- Halt: eine Querrippe in der oberen Hälfte greift in die Lücke zwischen Mantel-Hinterkante und Haltezähnen. Ihre
+  Vorderseite stützt den Mantel (Einstecken), ihre Rückseite die Zähne (Ausziehen). Sie berührt die Platine nicht.
+- Hinter den Zähnen ist der Kanal nur so breit wie die Platine (11.03 + 2 × 0.2): sie liegt seitlich geführt.
+- Die Kammer beginnt 5 mm vor der Platinen-Hinterkante: die Lötpunkte liegen in der hohen Kammer, nicht im Kanal.
+- Verklebt wie v4, ohne Kabelbinder: Passstifte hinten, Klemmrippen im Kabelkanal. Die Anschläge hinter der Platine
+  aus v4 entfallen (die Querrippe übernimmt den Zug).
 Beide Hälften werden mit der Schnittfläche nach unten gedruckt (flache Klebefläche auf der Druckplatte), ohne Stützen.
+Die Querrippe wird dabei als Brücke von Wand zu Wand gedruckt (12.4 mm).
 
-Masse in mm. x = Längsachse (0 = Vorderkante, zeigt zum USB-Stecker), y = Breite, z = Höhe (0 = Platinenebene).
-Aufruf: python3 gehaeuse.py [Platinenlänge hinter dem Stecker] [Kabel-Ø aussen]
+Masse in mm. x = Längsachse (0 = Vorderkante des Gehäuses, zum USB-Stecker hin), y = Breite, z = Höhe
+(0 = Mitte des Blechmantels = Schnittebene; die Platine liegt dort ungefähr in der Mitte).
+Aufruf: python3 gehaeuse.py [Lücke] [Kabel-Ø aussen]
 """
 import sys
 import numpy as np
-from manifold3d import Manifold
+from manifold3d import Manifold, CrossSection
 
-VERSION = 'v4'   # v4 = verklebt, ohne Kabelbinder (v3: zwei Kabelbinder aussen, einer als Zugentlastung)
+VERSION = 'v5'   # v5 = Querrippe in der Lücke hinter dem Mantel, echte Masse; v4 = verklebt mit geschätzter Platine
 P = dict(
-    pcb_hinten=21.0,   # Platinenlänge hinter dem Blechmantel des USB-Steckers (geschätzt aus Datenblattfoto – nachmessen!)
-    ueberlapp=3.0,     # Gehäuse überdeckt so viel vom Blechmantel
-    pcb_b=12.0,        # Platinenbreite = Steckerbreite (Datenblatt 12.00)
-    pcb_h=4.6,         # Bauhöhe Stecker/Platine (Datenblatt 4.60)
+    ueberlapp=3.0,     # Gehäuse überdeckt so viel vom Blechmantel (vorne bleiben 12 mm frei zum Einstecken)
+    mantel_b=12.0,     # Blechmantel breit (Datenblatt 12.00)
+    mantel_h=4.6,      # Blechmantel hoch (Datenblatt 4.60)
+    luecke=2.1,        # Lücke zwischen Mantel-Hinterkante und Haltezähnen (Balthasar)
+    zahn_l=2.11,       # Haltezähne lang (Balthasar)
+    gruen=21.1,        # Platine hinter den Zähnen (Balthasar)
+    pcb_b=11.03,       # Platine breit (Balthasar)
     spiel=0.2,         # Spiel je Seite
-    wand=2.0,          # Wand vorne über Platine und Stecker (v3: 1.6)
-    wand_k=2.4,        # Wand um die Kammer (v3: 1.6)
-    quer_l=3.0,        # Querwand an der Platinen-Hinterkante (mehr Klebefläche; v3: 1.6)
-    kammer_l=11.0,     # Kammer für Lötstellen und Drahtbogen (v3: 14 mit Platz für den Kabelbinder)
+    kanal_h=5.6,       # Kanalhöhe hinter den Zähnen (Mantel 4.6 + 1.0): Luft für Chip und Bauteile, falls die Platine
+                       # nicht genau in der Mantelmitte liegt
+    rippe_spiel=0.15,  # Spiel der Querrippe vorne und hinten in der Lücke → Rippe 1.8 mm dick
+    rippe_z=1.0,       # Unterkante der Querrippe über der Schnittebene (Platine oben bei etwa +0.5…+0.8)
+    rippe_fase=0.3,    # Fase unten hinten an der Rippe: Platz für den Lötzinn-Fuss der Zähne (klein halten:
+                       # die Rückseite muss die Zähne ab 1.3 mm über der Schnittebene fassen)
+    wand=2.0,          # Wand vorne über Mantel und Platine
+    wand_k=2.4,        # Wand um die Kammer
+    quer_l=3.0,        # Querwand vor der Kammer (Klebefläche)
+    pad_l=5.0,         # Kammer beginnt so weit vor der Platinen-Hinterkante (Lötpunkte darin)
+    nach_pcb=8.0,      # Kammer reicht so weit hinter die Platine (Drahtbogen zum Kabel)
     kammer_b=14.0, kammer_h=11.0,
-    austritt_l=7.0,    # Austrittswand mit Klemmrippen (v3: 3)
+    austritt_l=7.0,    # Austrittswand mit Klemmrippen
     kabel_d=4.7,       # Aussendurchmesser des Kabels (Balthasar, 14.11.2026)
-    kanal_plus=0.3,    # Kanal zwischen den Rippen = Kabel + 0.3
-    rippe_minus=0.7,   # Rippen = Kabel − 0.7 → je Seite 0.35 mm Pressung in den Mantel
-    rippe_l=1.0, rippen=3,
-    anschlag_b=2.0, anschlag_l=1.0, anschlag_h=1.2,  # Anschläge hinter der Platinen-Hinterkante (in Platinenebene)
+    kanal_plus=0.3,    # Kanal zwischen den Klemmrippen = Kabel + 0.3
+    rippe_minus=0.7,   # Klemmrippen = Kabel − 0.7 → je Seite 0.35 mm Pressung in den Mantel
+    klemm_l=1.0, klemmrippen=3,
     stift_d=2.0,       # Bohrung für Passstift aus 1.75-mm-Filament
     stift_t=3.0,       # Bohrtiefe je Hälfte → Stift 5.5 mm lang
 )
-if len(sys.argv) > 1: P['pcb_hinten'] = float(sys.argv[1])
+if len(sys.argv) > 1: P['luecke'] = float(sys.argv[1])
 if len(sys.argv) > 2: P['kabel_d'] = float(sys.argv[2])
 
 
@@ -51,47 +64,66 @@ def zyl_x(x0, laenge, d):
     return Manifold.cylinder(laenge, d / 2, d / 2, 64).rotate([0, 90, 0]).translate([x0, 0, 0])
 
 
+def prisma_y(pts_xz, y0, y1):
+    """Polygon in der x-z-Ebene, entlang y von y0 bis y1 ausgezogen."""
+    cs = CrossSection([[(x, z) for x, z in pts_xz]])
+    # extrude entlang lokal z; Drehung um x um +90°: (u, v, w) → (u, −w, v)
+    return cs.extrude(y1 - y0).rotate([90, 0, 0]).translate([0, y1, 0])
+
+
 def masse():
     s, w, wk = P['spiel'], P['wand'], P['wand_k']
-    F = P['ueberlapp'] + P['pcb_hinten']          # Platinen-Hinterkante
-    K0 = F + P['quer_l']                           # Kammer beginnt hinter der Querwand
-    K1 = K0 + P['kammer_l']
+    U = P['ueberlapp']                     # Mantel-Hinterkante
+    Z0 = U + P['luecke']                   # Vorderkante der Haltezähne
+    Z1 = Z0 + P['zahn_l']                  # Hinterkante der Haltezähne
+    F = Z1 + P['gruen']                    # Platinen-Hinterkante
+    K0 = F - P['pad_l']                    # Kammer beginnt
+    Q0 = K0 - P['quer_l']                  # Querwand beginnt (grosser Aussenquerschnitt)
+    K1 = F + P['nach_pcb']
     L = K1 + P['austritt_l']
-    cb, ch = P['pcb_b'] + 2 * s, P['pcb_h'] + 2 * s
-    kb, kh = P['kammer_b'], P['kammer_h']
-    return dict(F=F, K0=K0, K1=K1, L=L, cb=cb, ch=ch, kb=kb, kh=kh, w=w, wk=wk)
+    cb, ch = P['mantel_b'] + 2 * s, P['mantel_h'] + 2 * s     # vorne: Mantel und Zähne
+    pb, ph = P['pcb_b'] + 2 * s, P['kanal_h']                 # hinter den Zähnen: nur die Platine
+    return dict(U=U, Z0=Z0, Z1=Z1, F=F, K0=K0, Q0=Q0, K1=K1, L=L, cb=cb, ch=ch, pb=pb, ph=ph,
+                kb=P['kammer_b'], kh=P['kammer_h'], w=w, wk=wk)
 
 
 def stifte():
     m = masse()
-    # nur hinten in der Austrittswand: vorne richtet der USB-Stecker die Hälften aus, und neben dem Durchlass der
-    # Querwand bliebe um eine Bohrung nur 0.5 mm Wand
     ya = P['kabel_d'] / 2 + 3.6
     return [(m['K1'] + P['austritt_l'] / 2, sgn * ya) for sgn in (-1, 1)]
 
 
+def rippe():
+    """Querrippe der oberen Hälfte in der Lücke hinter dem Mantel, von Wand zu Wand."""
+    m = masse()
+    x0, x1 = m['U'] + P['rippe_spiel'], m['Z0'] - P['rippe_spiel']
+    z0, z1, f = P['rippe_z'], m['ch'] / 2 + 0.01, P['rippe_fase']
+    pts = [(x0, z0), (x1 - f, z0), (x1, z0 + f), (x1, z1), (x0, z1)]
+    return prisma_y(pts, -(m['cb'] / 2 + 0.01), m['cb'] / 2 + 0.01)
+
+
 def gehaeuse():
     m = masse()
-    F, K0, K1, L, cb, ch, kb, kh, w, wk = (m[k] for k in ('F', 'K0', 'K1', 'L', 'cb', 'ch', 'kb', 'kh', 'w', 'wk'))
-    aussen = box(0, F, -(cb / 2 + w), cb / 2 + w, -(ch / 2 + w), ch / 2 + w) + \
-        box(F, L, -(kb / 2 + wk), kb / 2 + wk, -(kh / 2 + wk), kh / 2 + wk)
-    innen = box(-1, K0 + 0.01, -cb / 2, cb / 2, -ch / 2, ch / 2) + box(K0, K1, -kb / 2, kb / 2, -kh / 2, kh / 2)
-    # Kabelkanal durch die Austrittswand, mit Klemmrippen: Kanal Kabel + 0.3, Rippen Kabel − 0.7
+    U, Z0, Z1, F, K0, Q0, K1, L = (m[k] for k in ("U", "Z0", "Z1", "F", "K0", "Q0", "K1", "L"))
+    cb, ch, pb, ph, kb, kh, w, wk = (m[k] for k in ('cb', 'ch', 'pb', 'ph', 'kb', 'kh', 'w', 'wk'))
+    hz = ch / 2 + w                                    # halbe Aussenhöhe vorne
+    aussen = box(0, Q0, -(cb / 2 + w), cb / 2 + w, -hz, hz) + \
+        box(Q0, L, -(kb / 2 + wk), kb / 2 + wk, -(kh / 2 + wk), kh / 2 + wk)
+    xz = Z1 + 0.3                                      # Ende der Zahnzone (0.3 Luft hinter den Zähnen)
+    # Mantel und Lücke 12.4 × 5.0 (die Querrippe hängt an dieser Decke); Zahnzone 12.4 breit und 5.6 hoch wie der Kanal dahinter
+    # (falls die Zähne etwas über den Mantel ragen); hinter den Zähnen nur Platinenbreite
+    innen = box(-1, Z0 + 0.01, -cb / 2, cb / 2, -ch / 2, ch / 2) + \
+        box(Z0, xz, -cb / 2, cb / 2, -ph / 2, ph / 2) + \
+        box(xz - 0.01, K0 + 0.01, -pb / 2, pb / 2, -ph / 2, ph / 2) + \
+        box(K0, K1, -kb / 2, kb / 2, -kh / 2, kh / 2)
     kanal = zyl_x(K1 - 1, P['austritt_l'] + 2, P['kabel_d'] + P['kanal_plus'])
     teil = aussen - innen - kanal
-    n, rl = P['rippen'], P['rippe_l']
+    n, rl = P['klemmrippen'], P['klemm_l']
     teilung = P['austritt_l'] / (n + 1)
     for i in range(n):
         x0 = K1 + teilung * (i + 1) - rl / 2
         ring = zyl_x(x0, rl, P['kabel_d'] + P['kanal_plus'] + 0.02) - zyl_x(x0 - 0.1, rl + 0.2, P['kabel_d'] - P['rippe_minus'])
         teil += ring
-    # Anschläge hinter der Platinen-Hinterkante (im Durchlass der Querwand), nur in Platinenebene:
-    # sie überdecken die Platinenecken um 1 mm, die Drähte laufen darüber und darunter durch
-    ax0 = F + 0.2
-    for sgn in (-1, 1):
-        y_in, y_w = sgn * (P['pcb_b'] / 2 - 1.0), sgn * (cb / 2 + 0.01)
-        teil += box(ax0, ax0 + P['anschlag_l'], min(y_in, y_w), max(y_in, y_w), -P['anschlag_h'] / 2, P['anschlag_h'] / 2)
-    # Bohrungen für die Passstifte, je Hälfte stift_t tief
     for (x, y) in stifte():
         teil -= Manifold.cylinder(2 * P['stift_t'], P['stift_d'] / 2, P['stift_d'] / 2, 48).translate([x, y, -P['stift_t']])
     return teil, L
@@ -100,9 +132,9 @@ def gehaeuse():
 def haelften():
     teil, L = gehaeuse()
     big = 200
-    oben = teil ^ box(-big, big, -big, big, 0, big)
+    oben = (teil ^ box(-big, big, -big, big, 0, big)) + rippe()
     unten = teil ^ box(-big, big, -big, big, -big, 0)
-    # beide mit der Schnittfläche (z = 0) nach unten auf die Druckplatte: Innenraum nur als kurze Brücken, keine Stützen
+    # beide mit der Schnittfläche (z = 0) nach unten auf die Druckplatte: Innenraum und Querrippe nur als Brücken
     return oben, unten.rotate([180, 0, 0]), L
 
 
@@ -125,12 +157,20 @@ if __name__ == '__main__':
     teil, L = gehaeuse()
     print('Klebefläche je Hälfte %.0f mm2' % teil.slice(0.0).area())
     oben, unten, L = haelften()
-    tag = f"{VERSION}_pcb{P['pcb_hinten']:g}_kabel{P['kabel_d']:g}"
+    tag = f"{VERSION}_luecke{P['luecke']:g}_kabel{P['kabel_d']:g}"
     for name, m in (('oben', oben), ('unten', unten)):
         bb = m.bounding_box()
         print(name, 'Volumen %.2f cm3' % (m.volume() / 1000), 'Masse x %.1f y %.1f z %.1f' % (bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]),
               'z von %.2f bis %.2f' % (bb[2], bb[5]), 'Gattung', m.genus())
         write_stl(m.translate([0, 0, -bb[2]]), f'ex13101_gehaeuse_{name}_{tag}.stl')
+    # Probestück: die vorderen 12 mm der oberen Hälfte (Mantel, Lücke mit Querrippe, Zähne) – in wenigen Minuten
+    # gedruckt, prüft den Sitz der Querrippe, bevor die ganze Hälfte gedruckt wird
+    probe = oben ^ box(-1, 12.0, -50, 50, -1, 50)
+    write_stl(probe, f'ex13101_gehaeuse_probe_{tag}.stl')
+    print('probe Volumen %.2f cm3' % (probe.volume() / 1000))
     mm = masse()
-    print('Länge %.1f; vorne %.1f x %.1f; Kammer aussen %.1f x %.1f' % (L, mm['cb'] + 2 * mm['w'], mm['ch'] + 2 * mm['w'], mm['kb'] + 2 * mm['wk'], mm['kh'] + 2 * mm['wk']))
+    print('Länge %.2f; vorne %.1f x %.1f; Kammer aussen %.1f x %.1f' % (L, mm['cb'] + 2 * mm['w'], mm['ch'] + 2 * mm['w'], mm['kb'] + 2 * mm['wk'], mm['kh'] + 2 * mm['wk']))
+    print('x: Mantel-Hinterkante %.2f, Zähne %.2f–%.2f, Platinenende %.2f, Querwand %.2f–%.2f, Kammer %.2f–%.2f' % (
+        mm['U'], mm['Z0'], mm['Z1'], mm['F'], mm['Q0'], mm['K0'], mm['K0'], mm['K1']))
+    print('Querrippe x %.2f–%.2f, z %.2f–%.2f' % (mm['U'] + P['rippe_spiel'], mm['Z0'] - P['rippe_spiel'], P['rippe_z'], mm['ch'] / 2))
     print('Stifte', [(round(x, 1), round(y, 1)) for x, y in stifte()])
