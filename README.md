@@ -1,6 +1,6 @@
 # TQ KRT2-S2 Memory Manager — krt2.wicki.aero
 
-**App 0.8.5 · README Dok. 261122-02**
+**App 0.8.5 · README Dok. 261122-03**
 
 Programmiert die 100 Speicherplätze des Flugfunkgeräts TQ KRT2 über die RS-232-Fernsteuerschnittstelle:
 Frequenzen für ein auf der Karte markiertes Gebiet (Kreis, Rechteck, Vieleck, Korridor) aus öffentlichen

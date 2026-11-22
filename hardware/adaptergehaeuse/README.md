@@ -2,20 +2,21 @@
 
 Zwei Hälften, je mit der flachen Schnittfläche nach unten gedruckt, ohne Stützen, verklebt – ohne Kabelbinder.
 Erzeugt mit `python3 gehaeuse.py [Lücke] [Kabel-Ø]` (Vorgabe 2.1 mm, Kabel 4.7 mm; braucht `manifold3d`, `numpy`).
-Verdrahtung, Druck und Montage: `ex13101_gehaeuse_anleitung_v5_20261122.docx`.
+Verdrahtung, Druck und Montage: `ex13101_gehaeuse_anleitung_v5_20261122-02.docx`.
 
-## Verdrahtung (Kabel vom Binder-Stecker der ART-36A)
+## Verdrahtung (Sensorleitung vom Binder-Stecker der ART-36A, am Gerät erprobt 22.11.2026)
 
 | Ader | Signal | Lötpunkt | Wo |
 |---|---|---|---|
-| gelb | TX-Remote, vom Funkgerät | 9 RXD | Oberseite «RX» |
-| grün | RX-Remote, zum Funkgerät | 7 TXD | Oberseite «T» |
+| weiss | TX-Remote, vom Funkgerät | 9 RXD | Oberseite «RX» |
+| blau | RX-Remote, zum Funkgerät | 7 TXD | Oberseite «T» |
 | schwarz | Masse | 1 GND | Unterseite, unter «C» |
 | 4. Ader | – | keiner | abschneiden, isolieren |
 
-Alle anderen Lötpunkte frei, besonders 2 VCC. Vorher messen (Board im USB): Lötpunkt «T» gegen GND muss
-**−5 bis −6 V** zeigen (RS-232-Pegelwandler vorhanden). Zeigt er +3.3 V oder +5 V, hat das Board Logikpegel und darf
-nicht ans KRT2.
+Alle anderen Lötpunkte frei, besonders 2 VCC. Prüfkabel aus Projekt 024: gelb statt weiss, grün statt blau.
+Vorher messen: Board im USB, Lötpunkt «T» gegen GND **deutlich negativ, −5 bis −7 V** (RS-232-Pegelwandler vorhanden;
+gemessen −6.89 V). Zeigt er +3.3 V oder +5 V, hat das Board Logikpegel und darf nicht ans KRT2. Kabel am eingeschalteten
+Funkgerät, lose: weiss gegen schwarz etwa −5.5 V, blau etwa 0 V.
 
 ## Gehäuse
 

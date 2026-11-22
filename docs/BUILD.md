@@ -441,7 +441,8 @@ die Tabelle; die Spalte Dienste ist mindestens 300 px breit, damit die Dienste n
 **0.8.5 – Gerätezustand auf «Gerät» (Rückmeldung 22.11.2026):** Die Statuszeile zeigt nach «Verbindung «r»» die aktive
 Frequenz, die Standby-Frequenz, Lautstärke und Squelch. Aktiv und Standby kommen aus «U», «R» und «C» (das Gerät meldet
 beide nach der ersten Antwort, gemessen 13.11.2026), Lautstärke und Squelch aus «A» (`link.st.vol`, `link.st.sq`; der
-Decoder liefert `vol`, `sq`, `vox`). Das Protokoll kennt keine Abfrage: was das Gerät nicht meldet, bleibt «–».
+Decoder liefert `vol`, `sq`, `vox`). Das Gerät meldet «A», sobald Lautstärke oder Squelch am Gerät verstellt werden
+(am Gerät bestätigt 22.11.2026); vorher und bei Werten, die es nicht meldet, steht «–» (das Protokoll kennt keine Abfrage).
 - Tests: `tests/link.test.js` 21 Prüfungen.
 
 ## 5 Prüfen
