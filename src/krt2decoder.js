@@ -82,7 +82,7 @@
       if (!out.cksOk) { out.ok = false; out.text += ' – PRÜFSUMME FALSCH (ist ' + hex([cks]) + ', soll ' + hex([expect]) + ')'; }
     } else if (f.name === 'A') {
       const vol = bytes[2], sq = bytes[3], vox = bytes[4], cks = bytes[5], expect = (sq + vox) & 0xFF;
-      out.cksOk = (cks === expect);
+      out.cksOk = (cks === expect); out.vol = vol; out.sq = sq; out.vox = vox;
       out.text += ': Lautstärke ' + vol + ', Squelch ' + sq + ', VOX ' + vox;
       if (!out.cksOk) { out.ok = false; out.text += ' – PRÜFSUMME FALSCH (ist ' + hex([cks]) + ', soll ' + hex([expect]) + ')'; }
     } else if (f.len === 3) {

@@ -438,6 +438,12 @@ die Tabelle; die Spalte Dienste ist mindestens 300 px breit, damit die Dienste n
 - Gebiet: APP, ARR und DEP im Block AD/TWR standardmässig aus (`gebiet.svcOff` Vorgabe RDO, APP, ARR, DEP); einmalig auch in
   bestehenden Konfigurationen (`ifrAus`), von Hand wieder einschaltbar. Mit «Nur VFR» bleiben sie ohnehin gesperrt.
 
+**0.8.5 – Gerätezustand auf «Gerät» (Rückmeldung 22.11.2026):** Die Statuszeile zeigt nach «Verbindung «r»» die aktive
+Frequenz, die Standby-Frequenz, Lautstärke und Squelch. Aktiv und Standby kommen aus «U», «R» und «C» (das Gerät meldet
+beide nach der ersten Antwort, gemessen 13.11.2026), Lautstärke und Squelch aus «A» (`link.st.vol`, `link.st.sq`; der
+Decoder liefert `vol`, `sq`, `vox`). Das Protokoll kennt keine Abfrage: was das Gerät nicht meldet, bleibt «–».
+- Tests: `tests/link.test.js` 21 Prüfungen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

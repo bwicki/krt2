@@ -15,6 +15,17 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   ok(L.connected && L.state === 'connected', 'Simulation verbunden');
   ok(await L.waitLinked(8000), 'nach der ersten Abfrage aktiv');
 
+  // 0. Zustand fürs Gerät: aktive und Standby-Frequenz aus der Meldung nach dem Verbindungsaufbau, Lautstärke und
+  //    Squelch aus «A», sobald das Gerät sie meldet; «A» mit falscher Prüfsumme ändert nichts (0.8.5)
+  for (let i = 0; i < 20 && !L.st.standby; i++) await sleep(20);
+  ok(L.st.active && L.st.active.freq === '122.255' && L.st.active.name === 'BALLOON', 'aktive Frequenz bekannt');
+  ok(L.st.standby && L.st.standby.freq === '136.975', 'Standby bekannt');
+  ok(L.st.vol === null && L.st.sq === null, 'Lautstärke und Squelch unbekannt, bis «A» kommt');
+  L._bytes(Uint8Array.from([0x02, 0x41, 12, 5, 3, 8]));
+  ok(L.st.vol === 12 && L.st.sq === 5, '«A» setzt Lautstärke 12 und Squelch 5');
+  L._bytes(Uint8Array.from([0x02, 0x41, 15, 7, 3, 99]));
+  ok(L.st.vol === 12 && L.st.sq === 5, '«A» mit falscher Prüfsumme ändert nichts');
+
   // 1. Während einer Aussendung wird nicht geschrieben: der Befehl geht erst nach «Ende» (Y) hinaus
   L.simRadio.tx(1500); await sleep(100);
   ok(L.st.tx, 'Gerät meldet Senden');

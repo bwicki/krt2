@@ -180,7 +180,7 @@ ge_map: 'Karte für das Gebiet', ge_lg_ad: 'Flugplatz mit Frequenz', ge_lg_out: 
     st_fx_full: 'Alle Plätze 01–98 sind schon fest vergeben.', st_fx_added: 'Fester Platz {n} hinzugefügt – Frequenz und Kurznamen eintragen.', st_fx_deleted: 'Fester Platz {n} entfernt.',
     st_fx_nr_bad: 'Platz «{n}» geht nicht: 01–98 und noch nicht fest vergeben.',
     // Gerät (0.4.0)
-    gr_conn: 'Verbindung', gr_adapter: 'Adapter', gr_link: 'Verbindung «r»', gr_standby: 'Standby', gr_connect: 'Adapter verbinden', gr_disconnect: 'Trennen', gr_sim: 'Simulation',
+    gr_conn: 'Verbindung', gr_adapter: 'Adapter', gr_link: 'Verbindung «r»', gr_active: 'Aktiv', gr_standby: 'Standby', gr_vol: 'Lautstärke', gr_sq: 'Squelch', gr_connect: 'Adapter verbinden', gr_disconnect: 'Trennen', gr_sim: 'Simulation',
     gr_st_conn: 'verbunden', gr_st_sim: 'Simulation', gr_st_off: 'nicht verbunden', gr_st_linked: 'aktiv', gr_st_wait: 'wartet auf Abfrage', gr_st_dash: '–',
     gr_conn_note: 'Chrome oder Edge am Laptop mit USB-Adapter, oder Chrome auf dem Android-Handy mit gekoppeltem Bluetooth-Modul – je am Kabel der ART-36A. Die App antwortet dem Funkgerät selbst (Anzeige «r» rechts oben im Display, nach höchstens 10 s). Sie sendet nur Speicherplätze – nie die aktive Frequenz, Lautstärke oder Sendetasten – und nie, während das Gerät sendet. Bricht die Verbindung ab, nimmt die App sie während 2 Minuten selbst wieder auf und schreibt beim selben Platz weiter.',
     gr_conn_note_bt: 'Am Handy: das Bluetooth-Modul zuerst einmal in den Android-Einstellungen koppeln (PIN meist 1234 oder 0000), dann «Adapter verbinden» und das Modul wählen. Der Bildschirm bleibt an, solange verbunden; im Hintergrund antwortet die App dem Funkgerät nicht. Sie schreibt nie, während das Gerät sendet, und nimmt eine abgebrochene Verbindung selbst wieder auf.',
@@ -407,7 +407,7 @@ ge_map: 'Map for the area', ge_lg_ad: 'Aerodrome with frequency', ge_lg_out: 'Ae
     st_fx_full: 'All slots 01–98 are already fixed.', st_fx_added: 'Fixed slot {n} added – enter frequency and short name.', st_fx_deleted: 'Fixed slot {n} removed.',
     st_fx_nr_bad: 'Slot «{n}» is not possible: 01–98 and not yet fixed.',
     // Device (0.4.0)
-    gr_conn: 'Connection', gr_adapter: 'Adapter', gr_link: 'Link «r»', gr_standby: 'Standby', gr_connect: 'Connect adapter', gr_disconnect: 'Disconnect', gr_sim: 'Simulation',
+    gr_conn: 'Connection', gr_adapter: 'Adapter', gr_link: 'Link «r»', gr_active: 'Active', gr_standby: 'Standby', gr_vol: 'Volume', gr_sq: 'Squelch', gr_connect: 'Connect adapter', gr_disconnect: 'Disconnect', gr_sim: 'Simulation',
     gr_st_conn: 'connected', gr_st_sim: 'simulation', gr_st_off: 'not connected', gr_st_linked: 'active', gr_st_wait: 'waiting for poll', gr_st_dash: '–',
     gr_conn_note: 'Chrome or Edge on a laptop with a USB adapter, or Chrome on an Android phone with a paired Bluetooth module – each on the cable of the ART-36A. The app answers the radio itself («r» top right in the display, within 10 s). It only sends memory slots – never the active frequency, volume or PTT – and never while the radio transmits. If the connection drops, the app re-establishes it for 2 minutes and continues at the same slot.',
     gr_conn_note_bt: 'On the phone: pair the Bluetooth module once in the Android settings (PIN usually 1234 or 0000), then «Connect adapter» and pick the module. The screen stays on while connected; in the background the app does not answer the radio. It never writes while the radio transmits and re-establishes a dropped connection itself.',

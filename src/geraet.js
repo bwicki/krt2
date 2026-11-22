@@ -356,12 +356,15 @@ ${ctx.footerNote()}`;
   function paintStatus() {
     paintConnBtn();
     const el = $('#gr-status'); if (!el) return;
-    const sb = L.st.standby;
+    const sb = L.st.standby, ac = L.st.active, fq = f => f ? esc(f.freq + (f.name ? ' «' + f.name + '»' : '')) : '–', num = v => v == null ? '–' : esc(String(v));
     const kind = L.connected && !L.sim && L.lastInfo ? (L.lastInfo.bluetoothServiceClassId ? ' · Bluetooth' : L.lastInfo.usbVendorId ? ' · USB' : '') : '';
     el.innerHTML = `<span>${t('gr_adapter')}: <span class="badge ${L.connected ? 'g' : L.state === 'recovering' ? 'y' : ''}">${L.state === 'recovering' ? t('gr_st_recover') : t(L.sim ? 'gr_st_sim' : L.connected ? 'gr_st_conn' : 'gr_st_off') + kind}</span></span>
 ${L.st.tx && L.connected ? `<span class="badge r">${t('gr_st_tx')}</span>` : ''}${L.st.silent && L.connected ? `<span class="badge y">${t('gr_st_silent')}</span>` : ''}
 <span>${t('gr_link')}: <span class="badge ${L.linked ? 'g' : L.connected ? 'y' : ''}">${t(L.linked ? 'gr_st_linked' : L.connected ? 'gr_st_wait' : 'gr_st_dash')}</span></span>
-<span>${t('gr_standby')}: <span class="mono">${sb ? esc(sb.freq + ' «' + sb.name + '»') : '–'}</span></span>`;
+<span>${t('gr_active')}: <span class="mono">${fq(ac)}</span></span>
+<span>${t('gr_standby')}: <span class="mono">${fq(sb)}</span></span>
+<span>${t('gr_vol')}: <span class="mono">${num(L.st.vol)}</span></span>
+<span>${t('gr_sq')}: <span class="mono">${num(L.st.sq)}</span></span>`;
   }
   function paintSim() {
     const el = $('#gr-sim'); if (!el) return;

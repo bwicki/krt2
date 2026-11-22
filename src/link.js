@@ -32,7 +32,7 @@
       this.port = null; this.reader = null; this.writer = null; this.reading = false; this.readP = null;
       this.dec = new K.KRT2Decoder(); this.subs = new Set(); this.log = [];
       this.pending = null; this.queue = Promise.resolve(); this.lastU = -1e9;
-      this.st = { pings: 0, answered: 0, lastAnswer: null, lastPing: null, active: null, standby: null, tx: false, txSince: null, silent: false };
+      this.st = { pings: 0, answered: 0, lastAnswer: null, lastPing: null, active: null, standby: null, vol: null, sq: null, tx: false, txSince: null, silent: false };
       this.recovering = false; this.lastPort = null; this.lastInfo = null; this.wake = null;
       this.tick = setInterval(() => { for (const e of this.dec.tick(now())) this._log(e, '←', 'unvollständig'); this._watch(); }, 100);
       if (root.navigator && root.navigator.serial) root.navigator.serial.addEventListener('disconnect', ev => { if (this.port && !this.port.sim && ev.target === this.port) this._lost('Adapter vom Gerät getrennt'); });
@@ -192,6 +192,7 @@
         this.st.standby = { freq: e.freq.display, name: e.station.trimEnd() };
         this._emit('R', { t: e.t, freq: e.freq.display, name: e.station, burst: e.t - this.lastU < BURST_MS });
       }
+      if (e.ok && e.name === 'A') { this.st.vol = e.vol; this.st.sq = e.sq; }   // Lautstärke und Squelch, wie das Gerät sie meldet (0.8.5)
       if (e.name === 'C') { const a = this.st.active; this.st.active = this.st.standby; this.st.standby = a; if (this.st.active) this._emit('vhf', { kind: 'active', t: e.t, wall, ch: this.st.active.freq, name: this.st.active.name }); }
       if (e.name === 'K') { this.st.tx = true; this.st.txSince = e.t; this._emit('status'); this._emit('vhf', { kind: 'txon', t: e.t, wall }); }
       if (e.name === 'Y') { const was = this.st.tx; this.st.tx = false; this.st.txSince = null; this.st.txEnd = e.t; if (was) this._emit('status'); this._emit('vhf', { kind: 'txoff', t: e.t, wall }); }
