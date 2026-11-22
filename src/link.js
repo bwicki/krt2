@@ -25,7 +25,9 @@
   const RECOVER_STEP = 3000;
   const TX_WAIT_MS = 60000;  // längstens so lange auf das Ende einer Aussendung warten
   const AFTER_TX_MS = 300;   // nach «Ende» (Y) kurz warten, bevor geschrieben wird
-  const lostErr = e => !!e && (e.name === 'NetworkError' || /lost/i.test(e.message || ''));
+  // Leitungsfehler, nach denen der Anschluss laut Web Serial offen bleibt: weiterlesen statt schliessen (0.8.9)
+  const SOFT_ERR = ['BreakError', 'FramingError', 'ParityError', 'BufferOverrunError'];
+  const REOPEN_OK_MS = 15000; // ein wieder geöffneter Anschluss, der so lange hält, gilt als wieder aufgenommen
 
   class Link {
     constructor() {
@@ -34,6 +36,8 @@
       this.pending = null; this.queue = Promise.resolve(); this.lastU = -1e9;
       this.st = { pings: 0, answered: 0, lastAnswer: null, lastPing: null, active: null, standby: null, vol: null, sq: null, tx: false, txSince: null, silent: false };
       this.recovering = false; this.lastPort = null; this.lastInfo = null; this.wake = null;
+      this.recoverUntil = null;   // Frist der laufenden Wiederaufnahme; erst eine Abfrage «S» beendet sie (0.8.9)
+      this.gen = 0; this.closing = false; this.reopenedAt = null;   // Verbindungs-Generation: alte Fehler lösen nichts mehr aus
       this.tick = setInterval(() => { for (const e of this.dec.tick(now())) this._log(e, '←', 'unvollständig'); this._watch(); }, 100);
       if (root.navigator && root.navigator.serial) root.navigator.serial.addEventListener('disconnect', ev => { if (this.port && !this.port.sim && ev.target === this.port) this._lost('Adapter vom Gerät getrennt'); });
       if (root.document) root.document.addEventListener('visibilitychange', () => { if (root.document.visibilityState === 'visible' && this.port) this._wakeOn(); });
@@ -48,19 +52,24 @@
     on(fn) { this.subs.add(fn); return () => this.subs.delete(fn); }
     _emit(type, data) { for (const f of this.subs) { try { f(type, data || {}); } catch (e) { /* Anzeige darf die Verbindung nicht stören */ } } }
     _log(e, dir, note) {
-      this.log.push({ t: e.t !== undefined ? e.t : now(), dir, hex: e.bytes ? K.hex(e.bytes) : '', text: (e.text || '') + (note ? ' – ' + note : '') });
+      const t = e.t !== undefined ? e.t : now(), text = (e.text || '') + (note ? ' – ' + note : '');
+      // 0.8.9: dieselbe Meldung gleich hintereinander nur zählen – Wiederholungen verdrängen keine älteren Zeilen
+      const last = this.log[this.log.length - 1];
+      if (dir === '·' && last && last.dir === '·' && last.text === text) { last.n = (last.n || 1) + 1; last.tEnd = t; return; }
+      this.log.push({ t, dir, hex: e.bytes ? K.hex(e.bytes) : '', text });
       if (this.log.length > LOG_MAX) this.log.splice(0, this.log.length - LOG_MAX);
     }
     _note(text) { this._log({ text }, '·'); }
     clock(t) { const d = new Date(wall0 + t); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
     logText() {
-      return ['Zeit\tRichtung\tBytes\tBedeutung'].concat(this.log.map(l => [this.clock(l.t), l.dir, l.hex, l.text].join('\t'))).join('\r\n');
+      return ['Zeit\tRichtung\tBytes\tBedeutung'].concat(this.log.map(l => [this.clock(l.t), l.dir, l.hex,
+        l.text + (l.n > 1 ? ' (' + l.n + '×, zuletzt ' + this.clock(l.tEnd) + ')' : '')].join('\t'))).join('\r\n');
     }
 
     // ---------- Anschluss ----------
     async connect(opts) {
       if (this.port) return;
-      this.recovering = false;
+      this.recovering = false; this.recoverUntil = null;
       if (opts && opts.sim) {
         this.writer = new SimRadio(this); this.port = { sim: true, radio: this.writer }; this.lastPort = this.port;
         this._note('Simulation verbunden'); this._fresh(); this._wakeOn(); this._emit('status'); return;
@@ -77,50 +86,65 @@
     }
     async _open(port) {
       await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' });
+      this.gen++;
       this.port = port; this.lastPort = port; this.writer = port.writable.getWriter();
       try { this.lastInfo = port.getInfo(); } catch (e) { this.lastInfo = null; }
-      this._fresh(); this.readP = this._readLoop(); this._wakeOn();
+      this._fresh(); this.readP = this._readLoop(this.gen); this._wakeOn();
     }
     _fresh() { this.st.lastPing = now(); this.st.silent = false; this.st.tx = false; this.st.txSince = null; }
     async _close() {
       const p = this.port; if (!p) return;
-      if (p.sim) { if (!this.recovering) this.writer.close(); }
-      else {
-        this.reading = false;
-        try { if (this.reader) await this.reader.cancel(); } catch (e) { /* schon zu */ }
-        try { if (this.readP) await this.readP; } catch (e) { /* egal */ }
-        try { if (this.writer) this.writer.releaseLock(); } catch (e) { /* egal */ }
-        try { await p.close(); } catch (e) { /* egal */ }
-      }
-      this.port = null; this.writer = null; this.readP = null; this.st.lastAnswer = null; this.st.tx = false;
+      // 0.8.9: neue Generation und Schreiber sofort weg – ein Fehler aus der alten Verbindung (auch ein Schreibversuch
+      // in der Lücke bis p.close()) löst kein _lost mehr aus und kann ein «Trennen» nicht rückgängig machen
+      this.closing = true; this.gen++;
+      const w = this.writer; this.writer = null;
+      try {
+        if (p.sim) { if (!this.recovering && w) w.close(); }
+        else {
+          this.reading = false;
+          try { if (this.reader) await this.reader.cancel(); } catch (e) { /* schon zu */ }
+          try { if (this.readP) await this.readP; } catch (e) { /* egal */ }
+          try { if (w) w.releaseLock(); } catch (e) { /* egal */ }
+          try { await p.close(); } catch (e) { /* egal */ }
+        }
+      } finally { this.closing = false; }
+      this.port = null; this.readP = null; this.st.lastAnswer = null; this.st.tx = false;
       if (this.pending) this.pending.done('getrennt');
     }
     /** Von Hand trennen: keine Wiederaufnahme. */
     async disconnect(why) {
-      this.recovering = false;
+      this.recovering = false; this.recoverUntil = null;
       if (!this.port) { this._emit('status'); return; }
       await this._close(); this._wakeOff();
       this._note(why || 'Anschluss geschlossen'); this._emit('status');
     }
     /** Verbindung verloren (Test 14.11.: USB-Adapter fiel bei einer Aussendung aus): schliessen und selbst wieder aufnehmen. */
-    async _lost(why) {
-      if (!this.port || this.recovering) return;
+    async _lost(why, g) {
+      if (!this.port || this.recovering || this.closing) return;
+      if (g !== undefined && g !== this.gen) return;      // Fehler einer schon geschlossenen Verbindung (0.8.9)
       const wasTx = this.st.txSince !== null && now() - this.st.txSince < 3000;
       this.recovering = true;
+      // Öffnet der Anschluss wieder, bricht aber vor der ersten Abfrage erneut ab, läuft die alte Frist weiter (0.8.9);
+      // eine abgelaufene Frist oder ein Anschluss, der seit dem Wiederöffnen länger hielt, beginnt eine neue
+      if (this.recoverUntil && (now() > this.recoverUntil || this.reopenedAt === null || now() - this.reopenedAt > REOPEN_OK_MS)) this.recoverUntil = null;
       await this._close();
-      this._note('Verbindung verloren: ' + String(why).replace(/\.+$/, '') + (wasTx ? ' – kurz nach «Sender ein»' : '') + '. Die App versucht während ' + Math.round(RECOVER_MS / 1000) + ' s, sie selbst wieder aufzunehmen.');
+      if (!this.recovering) return;                        // während des Schliessens von Hand getrennt
+      const rest = this.recoverUntil ? Math.max(0, this.recoverUntil - now()) : RECOVER_MS;
+      this._note('Verbindung verloren: ' + String(why).replace(/\.+$/, '') + (wasTx ? ' – kurz nach «Sender ein»' : '') + '. Die App versucht während ' + Math.round(rest / 1000) + ' s, sie selbst wieder aufzunehmen.');
       this._emit('status');
       this._recover();
     }
     async _recover() {
-      const until = now() + RECOVER_MS;
+      if (!this.recovering) return;
+      if (!this.recoverUntil) this.recoverUntil = now() + RECOVER_MS;
+      const until = this.recoverUntil;
       while (this.recovering && now() < until) {
         await sleep(RECOVER_STEP);
         if (!this.recovering) return;
         try {
           if (this.lastPort && this.lastPort.sim) {
             const sim = this.lastPort.radio;
-            if (sim && !sim.dead) { this.writer = sim; this.port = this.lastPort; this._fresh(); }
+            if (sim && !sim.dead) { this.gen++; this.writer = sim; this.port = this.lastPort; this._fresh(); }
           } else if (this.supported) {
             const ports = await root.navigator.serial.getPorts();
             const same = (a, b) => !!a && !!b && ((a.usbVendorId && a.usbVendorId === b.usbVendorId && a.usbProductId === b.usbProductId) || (a.bluetoothServiceClassId && a.bluetoothServiceClassId === b.bluetoothServiceClassId));
@@ -128,13 +152,15 @@
             for (const p of cand) { try { await this._open(p); break; } catch (e) { /* noch nicht da */ } }
           }
         } catch (e) { /* nächster Versuch */ }
+        // 0.8.9: während des Öffnens von Hand gestoppt («Wiederaufnahme abbrechen», «Trennen») – wieder schliessen
+        if (this.port && !this.recovering) { await this._close(); this._wakeOff(); this._emit('status'); return; }
         if (this.port) {
-          this.recovering = false;
+          this.recovering = false; this.reopenedAt = now();
           this._note('Verbindung wieder aufgenommen – warte auf die Abfrage des Funkgeräts');
           this._emit('status'); return;
         }
       }
-      if (this.recovering) { this.recovering = false; this._wakeOff(); this._note('Verbindung nicht wieder aufgenommen – bitte neu verbinden'); this._emit('status'); }
+      if (this.recovering) { this.recovering = false; this.recoverUntil = null; this._wakeOff(); this._note('Verbindung nicht wieder aufgenommen – bitte neu verbinden'); this._emit('status'); }
     }
     /** Wartet, bis die Verbindung steht und das Funkgerät abgefragt hat («r»). */
     waitLinked(ms) {
@@ -166,19 +192,34 @@
     }
     _wakeOff() { if (this.wake) { try { this.wake.release(); } catch (e) { /* egal */ } this.wake = null; } }
 
-    async _readLoop() {
+    /** Liest, bis «Trennen» kommt, der Datenstrom endet oder ein Lesefehler auftritt. 0.8.9 (Bluetooth-Abbruch 22.11.2026:
+        «An unknown system error has occurred.» kam pausenlos, 3963 Zeilen in 5 s): nach dem ersten Lesefehler oder dem Ende
+        des Datenstroms den Anschluss sofort schliessen und selbst wieder aufnehmen (getPorts); der Fehler steht einmal im
+        Protokoll, in der Zeile «Verbindung verloren». Ausnahme: Leitungsfehler (SOFT_ERR) lassen den Anschluss offen. */
+    async _readLoop(g) {
       this.reading = true;
-      while (this.port && this.port.readable && this.reading) {
-        this.reader = this.port.readable.getReader();
+      const port = this.port;
+      let why = 'Datenstrom beendet', soft = [];
+      while (port && port.readable && this.reading && this.port === port) {
+        this.reader = port.readable.getReader();
+        let err = null;
         try { for (;;) { const { value, done } = await this.reader.read(); if (done) break; if (value && value.length) this._bytes(value); } }
-        catch (e) { this._log({ text: 'Lesefehler: ' + e.message }, '·'); if (lostErr(e)) { this.reading = false; setTimeout(() => this._lost(e.message), 0); } }
+        catch (e) { err = e || new Error('Lesefehler'); }
         finally { try { this.reader.releaseLock(); } catch (e) { /* egal */ } this.reader = null; }
+        if (!err) break;                                   // Ende des Datenstroms oder «Trennen»
+        why = 'Lesefehler: ' + (err.message || String(err));
+        // Leitungsfehler (Break, Rahmen, Parität, Pufferüberlauf): Anschluss bleibt offen – weiterlesen, höchstens 3-mal in 2 s
+        const t = now(); soft = soft.filter(x => t - x < 2000);
+        if (SOFT_ERR.includes(err.name) && soft.length < 3 && this.reading) { soft.push(t); this._note(why + ' – Leitungsfehler, lese weiter'); continue; }
+        break;                                             // jeder andere Fehler: sofort schliessen
       }
+      if (this.reading && this.port === port && this.gen === g) { this.reading = false; setTimeout(() => this._lost(why, g), 0); }
+      this.reading = false;
     }
     _bytes(u8) { const t = now(); for (const e of this.dec.feed(u8, t)) this._event(e); }
     _event(e) {
       if (e.kind === 'ping') {
-        this.st.pings++; this._log(e, '←'); this.st.lastPing = e.t; this.st.silenceTried = false;
+        this.st.pings++; this._log(e, '←'); this.st.lastPing = e.t; this.st.silenceTried = false; this.recoverUntil = null;
         if (this.st.silent) { this.st.silent = false; this._note('Funkgerät fragt wieder ab'); this._emit('status'); }
         this._raw([0x78], 'Antwort «x» auf die Abfrage').then(ok => { if (ok) { this.st.answered++; const was = this.linked; this.st.lastAnswer = now(); if (!was) this._emit('status'); } });
         return;
@@ -200,12 +241,15 @@
       this._emit('frame', { name: e.name });
     }
     async _raw(bytes, why) {
-      if (!this.writer) return false;
+      const w = this.writer, g = this.gen;
+      if (!w) return false;
       const ev = { t: now(), bytes: Array.from(bytes), text: why };
-      try { await this.writer.write(new Uint8Array(bytes)); this._log(ev, '→'); return true; }
+      try { await w.write(new Uint8Array(bytes)); this._log(ev, '→'); return true; }
       catch (e) {
-        this._log(Object.assign(ev, { text: 'Fehler beim Senden: ' + e.message + ' (' + why + ')' }), '→');
-        if (lostErr(e)) setTimeout(() => this._lost(e.message), 0);
+        const m = (e && e.message) || String(e);
+        this._log(Object.assign(ev, { text: 'Fehler beim Senden: ' + m + ' (' + why + ')' }), '→');
+        // 0.8.9: ein Schreibfehler macht den Anschluss unbrauchbar – sofort schliessen und wieder aufnehmen (nur diese Verbindung)
+        setTimeout(() => this._lost('Fehler beim Senden: ' + m, g), 0);
         return false;
       }
     }

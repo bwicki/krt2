@@ -459,6 +459,32 @@ Neuer Text `gr_conn_note_perm` (de/en); am Laptop unverändert.
 (`requestPort` → `NotFoundError`), zeigt die App denselben Hinweis zusätzlich als Meldung (Stufe «warn»: erscheint sofort als
 Einblendung und steht im Protokoll; «info» landete nur im Protokoll). Am Laptop bleibt das Schliessen der Auswahl still wie bisher.
 
+**0.8.9 – Lesefehler beim Bluetooth-Abbruch (Projekt VHF-Abstimmgerät, 22.11.2026):** Brach die Bluetooth-Verbindung ab,
+meldete Chrome bei jedem Lesen «An unknown system error has occurred.»; die Leseschleife holte sich sofort einen neuen
+Leser und schrieb den Fehler pausenlos ins Protokoll (3963 Zeilen in 5 s, 21:34:35) – das Protokoll (höchstens 4000 Zeilen)
+verlor dabei alle älteren Zeilen. Als Verbindungsverlust galten nur «NetworkError» und Meldungen mit «lost».
+- Jetzt schliesst der erste Lesefehler oder das Ende des Datenstroms den Anschluss sofort und startet die Wiederaufnahme;
+  der Fehler steht einmal im Protokoll, in der Zeile «Verbindung verloren: Lesefehler: …». Ebenso jeder Schreibfehler.
+  Ausnahme: die vier Leitungsfehler, nach denen der Anschluss laut Web Serial offen bleibt (Break, Rahmen, Parität,
+  Pufferüberlauf) – dort wird weitergelesen, höchstens 3-mal in 2 s.
+- Dieselbe Meldung gleich hintereinander wird nur gezählt («(3×, zuletzt hh:mm:ss.mmm)» im gespeicherten Protokoll).
+- Wiederaufnahme ohne neue Auswahl gab es schon seit 0.5.0: alle 3 s während 2 Minuten `navigator.serial.getPorts()`,
+  zuerst derselbe Anschluss, sonst einer mit gleicher Bluetooth-Dienstklasse bzw. USB-Kennung. Am 22.11. griff sie erst
+  nach 25 s Funkstille, weil der Lesefehler nicht als Verlust erkannt wurde.
+- Öffnet der Anschluss wieder, bricht aber vor der ersten Abfrage «S» erneut ab, läuft die alte Frist von 2 Minuten
+  weiter (`recoverUntil`); erst eine Abfrage beendet sie. So endet auch ein «flatternder» Anschluss nach 2 Minuten mit
+  «bitte neu verbinden», statt sich endlos neu zu öffnen.
+  Eine abgelaufene Frist oder ein Anschluss, der nach dem Wiederöffnen länger als 15 s hielt, beginnt eine neue.
+- Prüfung durch einen zweiten Agenten: «Trennen» konnte durch einen Schreibfehler in der Lücke bis zum Schliessen
+  rückgängig gemacht werden (die App verband sich 3 s später selbst wieder), ebenso «Wiederaufnahme abbrechen» während
+  eines laufenden Öffnens. Behoben mit einer Verbindungs-Generation (`gen`): Fehler einer schon geschlossenen Verbindung
+  lösen nichts mehr aus; der Schreiber ist ab Beginn des Schliessens weg; wird während des Öffnens gestoppt, schliesst die
+  App den Anschluss wieder.
+- Machbarkeitstest (`test.html`, test 0.3.4): dieselbe Leseschleife, gleich behoben; gleiche Meldungen werden gezählt.
+- Tests: `tests/link.test.js` 38 Prüfungen (neu: Lesefehler einmal protokolliert, Anschluss geschlossen, über getPorts
+  ohne Geräteauswahl wieder geöffnet, Frist läuft bei erneutem Abbruch weiter, abgelaufene Frist beginnt neu,
+  Wiederholungen gezählt, Leitungsfehler liest weiter, «Trennen» bleibt getrennt, Schreibfehler, Stopp während des Öffnens).
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`

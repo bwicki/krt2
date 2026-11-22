@@ -1,12 +1,13 @@
 // krt2.wicki.aero – geführter Machbarkeitstest (Schritte 0–8). Schritt 3: Speicher von Hand auslesen.
 // 5b: Kleinbuchstaben im Namen, 5c: Schreiben während Empfang und Senden (test 0.3.2).
 // test 0.3.3: Verbindungsverlust erkennen, Funkstille-Wächter, «Senden beobachten» ohne Schreiben (Test 14.11.: Adapter beim Senden verloren).
+// test 0.3.4 (22.11.2026): erster Lese- oder Schreibfehler schliesst den Anschluss, einmal protokolliert; gleiche Meldungen hintereinander gezählt.
 // Baut auf der Seite «KRT2 mitlesen» aus Projekt 024 auf. Befehle (W, Z, R) gehen nur hinaus, wenn
 // «Senden freigeben» und «Befehle freigeben» gesetzt sind. Nie gesendet: U (aktive Frequenz),
 // Lautstärke, Squelch, Kanalraster, Sendetasten.
 (function () {
   'use strict';
-  const VERSION = 'test 0.3.3';
+  const VERSION = 'test 0.3.4';
   const $ = id => document.getElementById(id);
   const K = window.KRT2, C = window.KRT2CODEC;
   const SIM = new URLSearchParams(location.search).has('sim');
@@ -45,10 +46,20 @@
       const td = document.createElement('td'); td.textContent = c; if (i === 3) td.className = 'hex'; tr.appendChild(td);
     });
     tb.appendChild(tr);
+    ev.row = tr;
     while (tb.rows.length > 5000) tb.deleteRow(0);
     $('logbox').scrollTop = $('logbox').scrollHeight;
   }
-  function record(ev, cls) { events.push(Object.assign({ cls }, ev)); addRow(ev, cls); }
+  function record(ev, cls) {
+    // test 0.3.4: dieselbe Meldung gleich hintereinander nur zählen – Wiederholungen verdrängen keine älteren Zeilen
+    const last = events[events.length - 1];
+    if (ev.dir === '·' && last && last.dir === '·' && last.text === ev.text) {
+      last.n = (last.n || 1) + 1; last.tEnd = ev.t;
+      if (last.row && last.row.cells[4]) last.row.cells[4].textContent = last.text + ' (' + last.n + '×, zuletzt ' + clock(ev.t) + ')';
+      return;
+    }
+    const e = Object.assign({ cls }, ev); events.push(e); addRow(e, cls);
+  }
   const note = (text, cls = 'note') => record({ t: now(), dir: '·', bytes: [], text }, cls);
   function setStatus(el, txt, cls) { const s = $(el); s.textContent = txt; s.className = 'status ' + (cls || ''); }
   function setAuto(el, txt, cls) { const s = $(el); s.textContent = txt; s.className = 'auto ' + (cls || ''); }
@@ -139,7 +150,7 @@
     try { await writer.write(new Uint8Array(bytes)); record(ev, 'out'); return true; }
     catch (e) {
       ev.text = 'Fehler beim Senden: ' + e.message; record(ev, 'bad');
-      if (e.name === 'NetworkError' || /lost/i.test(e.message)) setTimeout(() => portLost(e.message), 0);
+      setTimeout(() => portLost('Fehler beim Senden: ' + e.message), 0);   // test 0.3.4: jeder Schreibfehler
       return false;
     }
   }
@@ -242,14 +253,20 @@
   }
   function handleBytes(u8) { const t = now(); for (const e of dec.feed(u8, t)) handleEvent(e); }
 
+  /** test 0.3.4 (Bluetooth-Abbruch 22.11.2026: «An unknown system error has occurred.» pausenlos): nach dem ersten
+      Lesefehler oder dem Ende des Datenstroms den Anschluss schliessen; der Fehler steht einmal in «Verbindung verloren». */
   async function readLoop() {
     reading = true;
-    while (port && port.readable && reading) {
-      reader = port.readable.getReader();
+    const p = port;
+    let why = 'Datenstrom beendet';
+    if (p && p.readable) {
+      reader = p.readable.getReader();
       try { for (;;) { const { value, done } = await reader.read(); if (done) break; if (value && value.length) handleBytes(value); } }
-      catch (e) { note('Lesefehler: ' + e.message, 'bad'); if (e.name === 'NetworkError' || /lost/i.test(e.message)) { reading = false; setTimeout(() => portLost(e.message), 0); } }
-      finally { reader.releaseLock(); reader = null; }
+      catch (e) { why = 'Lesefehler: ' + ((e && e.message) || String(e)); }
+      finally { try { reader.releaseLock(); } catch (e) { /* egal */ } reader = null; }
     }
+    if (reading && port === p) { reading = false; setTimeout(() => portLost(why), 0); }
+    reading = false;
   }
 
   // ---------- Simulation (?sim=1, ?sim=verlassen) ----------
@@ -778,7 +795,7 @@
     hm.forEach((e, i) => { if (e) lines.push([two(i), e.freq, e.name, e.dt === null ? '' : Math.round(e.dt), e.state, (e.seen > 1 ? e.seen + 'x gleich ' : '') + (e.prev ? 'vorher ' + e.prev : '')].join(';')); });
     lines.push('', '== Protokoll ==', 'Zeit\tDelta\tRichtung\tBytes\tBedeutung');
     let lt = null;
-    for (const e of events) { lines.push([clock(e.t), lt === null ? '' : '+' + Math.round(e.t - lt), e.dir || '←', e.bytes ? K.hex(e.bytes) : '', e.text].join('\t')); lt = e.t; }
+    for (const e of events) { lines.push([clock(e.t), lt === null ? '' : '+' + Math.round(e.t - lt), e.dir || '←', e.bytes ? K.hex(e.bytes) : '', e.text + (e.n > 1 ? ' (' + e.n + '×, zuletzt ' + clock(e.tEnd) + ')' : '')].join('\t')); lt = e.t; }
     return lines.join('\r\n');
   }
   $('btnSave').onclick = () => download('krt2_test_' + stamp() + '.txt', exportText(), 'text/plain');
