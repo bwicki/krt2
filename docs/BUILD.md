@@ -493,6 +493,16 @@ Damit der Wiederholungsversuch zeigt, wo es hängt, schreibt die Wiederaufnahme 
 «kein freigegebener Anschluss gefunden (getPorts: n Anschlüsse)», «Öffnen fehlgeschlagen – <Fehler>», «getPorts
 fehlgeschlagen – <Fehler>». Gleiche Meldungen werden gezählt (alle 3 s während 2 Minuten ergibt eine Zeile «(40×, …)»).
 - Tests: `tests/link.test.js` 39 Prüfungen.
+- **Feldtest 23.11.2026 mit 0.8.10 (Balthasar, RN4678 Click, «RN4678 Vortest» spielt das Funkgerät):** zweimal wieder
+  aufgenommen (18:39 und 18:54), Modul je höchstens rund 20 s stromlos. Abbruch nach rund 5 s erkannt, eine
+  Protokollzeile, keine Fehlerschleife. Erstes Öffnen 9.5 s nach der Verlustmeldung fehlgeschlagen (Modul vermutlich noch
+  nicht bereit), zweites gelungen; Verbindung 15–16 s nach der Verlustmeldung wieder da, ohne Eingriff am Handy. Im
+  zweiten Versuch auf beiden Seiten belegt. Offen: im ersten Versuch 2 min 20 s später erneut verloren (zwei Abfragen
+  nicht angekommen, «Funkstille», Öffnen fehlgeschlagen 18:43:15). Im Vortest-Protokoll v0.1 endet der Empfang nach
+  «Lesefehler: Framing error» beim Wiedereinschalten (18:40:40) – danach keine Modulmeldung und kein «x» mehr, obwohl die
+  App antwortete; v0.2 liest nach Leitungsfehlern weiter. Ob der taube Vortest das Modul aufgestaut hat, ist offen.
+  Antwortzeit S→x über Bluetooth 30–515 ms, sägezahnförmig (+60 ms je Abfrage, dann zurück) – typisch für den
+  Stromsparbetrieb der Bluetooth-Verbindung; über USB rund 30 ms.
 
 ## 5 Prüfen
 
