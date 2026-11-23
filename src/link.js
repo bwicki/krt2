@@ -149,9 +149,11 @@
             const ports = await root.navigator.serial.getPorts();
             const same = (a, b) => !!a && !!b && ((a.usbVendorId && a.usbVendorId === b.usbVendorId && a.usbProductId === b.usbProductId) || (a.bluetoothServiceClassId && a.bluetoothServiceClassId === b.bluetoothServiceClassId));
             const cand = ports.filter(p => p === this.lastPort).concat(ports.filter(p => { try { return p !== this.lastPort && same(p.getInfo(), this.lastInfo); } catch (e) { return false; } }));
-            for (const p of cand) { try { await this._open(p); break; } catch (e) { /* noch nicht da */ } }
+            // 0.8.10: jeder Fehlversuch steht im Protokoll; gleiche Meldungen werden gezählt («(40×, zuletzt …)») – für den Feldtest
+            if (!cand.length) this._note('Wiederaufnahme: kein freigegebener Anschluss gefunden (getPorts: ' + ports.length + ' Anschlüsse)');
+            for (const p of cand) { try { await this._open(p); break; } catch (e) { this._note('Wiederaufnahme: Öffnen fehlgeschlagen – ' + ((e && e.message) || String(e)) + (p === this.lastPort ? '' : ' (anderer Anschluss)')); } }
           }
-        } catch (e) { /* nächster Versuch */ }
+        } catch (e) { this._note('Wiederaufnahme: getPorts fehlgeschlagen – ' + ((e && e.message) || String(e))); }
         // 0.8.9: während des Öffnens von Hand gestoppt («Wiederaufnahme abbrechen», «Trennen») – wieder schliessen
         if (this.port && !this.recovering) { await this._close(); this._wakeOff(); this._emit('status'); return; }
         if (this.port) {

@@ -1,5 +1,5 @@
 // Prüft src/link.js mit dem simulierten Funkgerät: Pause während «Senden», Verbindungsverlust mit Wiederaufnahme
-// und Fortsetzen beim selben Platz (Gerätetests 14.11.2026); Lesefehler, Wiederöffnen über getPorts und Trennen während Fehlern (0.8.9). Laufzeit rund 30 s.
+// und Fortsetzen beim selben Platz (Gerätetests 14.11.2026); Lesefehler, Wiederöffnen über getPorts und Trennen während Fehlern (0.8.9), Fehlversuche im Protokoll (0.8.10). Laufzeit rund 35 s.
 'use strict';
 const assert = require('assert');
 globalThis.KRT2 = require('../src/krt2decoder.js');
@@ -160,6 +160,17 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   const c0 = p3.closed;
   await sleep(900);
   ok(L3.state === 'off' && !L3.recovering && p3.closed === c0 + 1 && !L3.log.some(l => /wieder aufgenommen/.test(l.text)), 'Stopp während des Öffnens: wieder geschlossen, bleibt getrennt');
+  // e) Fehlversuche beim Wiederöffnen stehen im Protokoll, gleiche gezählt (0.8.10)
+  p3.slowOpen = 0;
+  await L3.connect();
+  const open0 = p3.open; let fails = 2;
+  p3.open = async function () { if (fails > 0) { fails--; throw new DOMException('Failed to open serial port.', 'NetworkError'); } return open0.call(this); };
+  await L3._lost('Lesefehler: Test e');
+  for (let i = 0; i < 120 && L3.state !== 'connected'; i++) await sleep(100);
+  const fz = L3.log.filter(l => /Wiederaufnahme: Öffnen fehlgeschlagen – Failed to open serial port/.test(l.text));
+  ok(L3.state === 'connected' && fz.length === 1 && fz[0].n === 2, 'zwei Fehlversuche als eine Zeile «2×» im Protokoll, dann wieder offen');
+  p3.open = open0;
+  await L3.disconnect();
   clearInterval(L3.tick);
   console.log('link: ' + n + ' Prüfungen bestanden');
   process.exit(0);

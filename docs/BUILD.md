@@ -485,6 +485,15 @@ verlor dabei alle älteren Zeilen. Als Verbindungsverlust galten nur «NetworkEr
   ohne Geräteauswahl wieder geöffnet, Frist läuft bei erneutem Abbruch weiter, abgelaufene Frist beginnt neu,
   Wiederholungen gezählt, Leitungsfehler liest weiter, «Trennen» bleibt getrennt, Schreibfehler, Stopp während des Öffnens).
 
+**0.8.10 – Fehlversuche der Wiederaufnahme im Protokoll (23.11.2026):** Feldtest 22.11.2026, 22:15 (RN4678 Click 41 s
+stromlos, 70 s beobachtet): nicht wieder aufgenommen, das Modul sah keinen Verbindungsversuch. Das Protokoll endete um
+22:05:53 und zeigte um 22:04 noch die alte Lesefehler-Schleife, es lief vermutlich noch 0.8.8 oder älter. Die alte Schleife
+hörte nie auf und kam vermutlich auch dem Funkstille-Wächter zuvor, der sonst die Wiederaufnahme gestartet hätte.
+Damit der Wiederholungsversuch zeigt, wo es hängt, schreibt die Wiederaufnahme jetzt jeden Fehlversuch ins Protokoll:
+«kein freigegebener Anschluss gefunden (getPorts: n Anschlüsse)», «Öffnen fehlgeschlagen – <Fehler>», «getPorts
+fehlgeschlagen – <Fehler>». Gleiche Meldungen werden gezählt (alle 3 s während 2 Minuten ergibt eine Zeile «(40×, …)»).
+- Tests: `tests/link.test.js` 39 Prüfungen.
+
 ## 5 Prüfen
 
 - `node tests/codec.test.js`, `node tests/model.test.js`, `node tests/link.test.js`, `node tests/flug.test.js`, `node tests/vhflog.test.js`, `node tests/frequencies.test.mjs`
